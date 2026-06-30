@@ -1,0 +1,406 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+@import url('https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "Fira Code", monospace;
+}
+
+/* Custom Scrollbars */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.45);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(249, 115, 22, 0.35);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(249, 115, 22, 0.65);
+}
+
+/* HIGH FIDELITY UNEMI DOCUMENT CONTENT STYLING CSS RESET - APA 7TH EDITION DEFAULT */
+.unemi-document-content {
+  font-family: "Times New Roman", Times, Georgia, serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
+  color: #000000;
+  line-height: 1.8;
+}
+
+.unemi-document-content h1 {
+  font-family: "Times New Roman", Times, Georgia, serif;
+  font-size: 12px;
+  font-weight: bold;
+  color: #000000;
+  text-transform: none;
+  text-align: center; /* APA 7 Level 1 */
+  letter-spacing: -0.01em;
+  margin-top: 24px;
+  margin-bottom: 12px;
+  padding-bottom: 0;
+  border-bottom: none;
+  position: relative;
+}
+
+/* Disabled orange accent marker for H1 in APA 7 */
+.unemi-document-content h1::after {
+  display: none !important;
+  content: none !important;
+}
+
+.unemi-document-content h1:first-of-type {
+  margin-top: 0;
+}
+
+.unemi-document-content h2 {
+  font-family: "Times New Roman", Times, Georgia, serif;
+  font-size: 12px;
+  font-weight: bold;
+  color: #000000;
+  text-align: left; /* APA 7 Level 2 */
+  margin-top: 18px;
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+
+.unemi-document-content h3 {
+  font-family: "Times New Roman", Times, Georgia, serif;
+  font-size: 12px;
+  font-weight: bold;
+  font-style: italic; /* APA 7 Level 3 */
+  color: #000000;
+  text-align: left;
+  margin-top: 12px;
+  margin-bottom: 6px;
+}
+
+.unemi-document-content h4 {
+  font-family: "Times New Roman", Times, Georgia, serif;
+  font-size: 12px;
+  font-weight: bold;
+  color: #000000;
+  text-align: left;
+  text-indent: 0.5in; /* APA 7 Level 4 (Indented, bold, run-in) */
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+.unemi-document-content h5 {
+  font-family: "Times New Roman", Times, Georgia, serif;
+  font-size: 12px;
+  font-weight: bold;
+  font-style: italic; /* APA 7 Level 5 (Indented, bold italic, run-in) */
+  color: #000000;
+  text-align: left;
+  text-indent: 0.5in;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+.unemi-document-content p {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #000000;
+  margin-top: 0;
+  margin-bottom: 12px;
+  text-align: left; /* APA 7 standard prefers left alignment (ragged right) */
+}
+
+/* Lists styling - APA 7 clean margins & standard bullets */
+.unemi-document-content ul {
+  list-style-type: disc;
+  padding-left: 0.5in;
+  margin-bottom: 12px;
+}
+
+.unemi-document-content ul li {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #000000;
+  margin-bottom: 6px;
+  position: relative;
+}
+
+.unemi-document-content ul li::before {
+  content: none !important; /* Remove orange bullet squares */
+}
+
+.unemi-document-content ol {
+  list-style-type: decimal;
+  padding-left: 0.5in;
+  margin-bottom: 12px;
+}
+
+.unemi-document-content ol li {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #000000;
+  margin-bottom: 6px;
+}
+
+/* Custom list-style color for ordered lists - neutral for APA */
+.unemi-document-content ol::marker {
+  color: #000000;
+  font-weight: normal;
+}
+
+/* Academic Blockquotes - APA 7 style (Indented 0.5in, double spaced, no background/border colors) */
+.unemi-document-content blockquote {
+  border-left: none;
+  background-color: transparent;
+  padding: 0;
+  margin: 12px 0 12px 0.5in;
+  font-style: normal; /* APA 7 blockquotes are not italic by default */
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: #000000;
+  border-radius: 0;
+}
+
+.unemi-document-content blockquote cite {
+  display: block;
+  font-style: normal;
+  font-weight: normal;
+  font-size: 11px;
+  color: #000000;
+  margin-top: 6px;
+  text-align: right;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* Highlight Note Box - APA 7 minimal style (No heavy blue borders/backgrounds) */
+.unemi-document-content .note {
+  border-left: 3px solid #000000;
+  background-color: #f8fafc;
+  padding: 12px 14px;
+  margin: 16px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #000000;
+  border-radius: 0 4px 4px 0;
+}
+
+.unemi-document-content .note strong {
+  color: #000000;
+  font-weight: 700;
+}
+
+/* Figure and academic Thumbnail/Image formatting */
+.unemi-document-content figure {
+  display: block;
+  margin: 16px auto;
+  border: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+  padding: 8px;
+  border-radius: 4px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.unemi-document-content figure.mw-default-size,
+.unemi-document-content figure[class*="thumb"] {
+  float: right;
+  margin-left: 18px;
+  margin-top: 4px;
+  margin-bottom: 12px;
+  width: 220px;
+}
+
+.unemi-document-content figcaption {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  color: #64748b;
+  margin-top: 8px;
+  line-height: 1.4;
+  text-align: center;
+  font-style: italic;
+}
+
+.unemi-document-content img,
+.unemi-document-content .mw-file-element {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  border-radius: 2px;
+}
+
+/* Table of Contents Academic Style */
+.toc-container {
+  margin: 18px 0;
+  padding: 16px 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background-color: #f8fafc;
+}
+
+.toc-container h3 {
+  font-family: var(--font-sans);
+  color: #004080 !important;
+  border-bottom: 2px solid #FF6600 !important;
+  padding-bottom: 5px;
+  margin-top: 0 !important;
+  margin-bottom: 14px !important;
+  font-size: 15px !important;
+  text-transform: uppercase;
+  font-weight: 750 !important;
+  letter-spacing: 0.025em;
+}
+
+.toc-list {
+  list-style-type: none !important;
+  padding-left: 0 !important;
+  margin: 0 !important;
+}
+
+.toc-list li {
+  display: flex !important;
+  align-items: flex-end !important;
+  margin-bottom: 9px !important;
+  font-size: 12.5px !important;
+  color: #334155 !important;
+  line-height: 1.2 !important;
+}
+
+.toc-list li::before {
+  content: none !important;
+}
+
+.toc-title {
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+}
+
+.toc-dots {
+  flex-grow: 1 !important;
+  border-bottom: 2px dotted #cbd5e1 !important;
+  margin: 0 8px !important;
+  position: relative !important;
+  top: -4px !important;
+}
+
+.toc-page {
+  font-weight: 700 !important;
+  color: #004080 !important;
+  font-family: var(--font-mono) !important;
+}
+
+/* Manual Page Break element */
+.page-break {
+  page-break-after: always !important;
+  break-after: page !important;
+  height: 0px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  display: block;
+}
+
+/* Functional Block Styles */
+.unemi-functional-block {
+  width: 100% !important;
+  height: 500px !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Clear floats after sections to avoid layouts drifting into headers/footers */
+.unemi-document-body::after,
+.unemi-document-content::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+/* PRINT MEDIA OVERLAY FORMAT AND HIGH RESOLUTION COLOR STYLING */
+@media print {
+  /* Hide all UI containers */
+  body, html {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: visible !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Expand print nodes */
+  #root {
+    display: block !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background-color: white !important;
+  }
+
+  /* Outer page wrappers do not show background box-shadows or border outlines */
+  div[name^="document-page-"] {
+    position: relative !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 96px !important; /* Forces physical 1-inch printable margins */
+    width: 100% !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+    background-color: white !important;
+    
+    /* Strict CSS Page Breakers */
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    
+    /* Ensure high fidelity rendering */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #unemi-cover-page {
+    position: relative !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important; /* Cover page is full bleed */
+    width: 100% !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+    background-color: white !important;
+    
+    /* Strict CSS Page Breakers */
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    
+    /* Ensure high fidelity rendering */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Specific Paper dimension overrides in browser driver */
+  @page {
+    margin: 0 !important;
+    size: auto; /* Uses Letter or A4 based on print dialog */
+  }
+}

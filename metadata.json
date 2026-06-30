@@ -1,0 +1,6 @@
+{
+  "name": "Plantilla Documentos UNEMI",
+  "description": "Plantilla académica oficial UNEMI con portada, encabezados, pies de página, márgenes de 1 pulgada, paginación dinámica y soporte para edición de content.html en tiempo real.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
