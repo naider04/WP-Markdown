@@ -15,6 +15,7 @@ interface PageTemplateProps {
   showGuides: boolean;
   coverConfig: CoverConfig;
   children: React.ReactNode;
+  uploadedFiles?: any[];
 }
 
 export default function PageTemplate({
@@ -25,6 +26,7 @@ export default function PageTemplate({
   showGuides,
   coverConfig,
   children,
+  uploadedFiles,
 }: PageTemplateProps) {
   const isLetter = pageSize === 'letter';
   const isA4 = pageSize === 'a4';
@@ -46,6 +48,27 @@ export default function PageTemplate({
   const bottomMargin = settings.marginBottom !== undefined ? settings.marginBottom : 96;
   const leftMargin = settings.marginLeft !== undefined ? settings.marginLeft : 96;
   const rightMargin = settings.marginRight !== undefined ? settings.marginRight : 96;
+
+  // Substitute tags like {page} and {total} and resolve uploaded image base64s on the fly
+  const renderTemplateHTML = (htmlStr: string | undefined, defaultContent: React.ReactNode) => {
+    if (htmlStr === undefined) return defaultContent;
+    if (htmlStr.trim() === '') return null; // If empty, render nothing
+    
+    let processed = htmlStr
+      .replace(/{page}/g, String(pageNumber))
+      .replace(/{total}/g, String(totalPages));
+    
+    // Resolve uploaded files images in header/footer
+    if (uploadedFiles && uploadedFiles.length > 0) {
+      uploadedFiles.forEach((file) => {
+        const escapedName = file.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const regex = new RegExp(`src=["'](?:[^"']*/)?${escapedName}["']`, 'gi');
+        processed = processed.replace(regex, `src="${file.dataUrl}"`);
+      });
+    }
+    
+    return <div dangerouslySetInnerHTML={{ __html: processed }} className="w-full h-full flex flex-col justify-end" />;
+  };
 
   return (
     <div
@@ -105,24 +128,29 @@ export default function PageTemplate({
             right: `${rightMargin}px`
           }}
         >
-          <div className="flex justify-between items-end text-[10px] uppercase font-bold tracking-wider pb-1 px-0.5">
-            <div className="flex flex-col text-left max-w-[320px]">
-              <span style={{ color: '#004080' }}>
-                {coverConfig.institution === 'Universidad Estatal de Milagro' ? 'UNEMI' : coverConfig.institution}
-              </span>
-              <span className="text-[8px] text-gray-400 normal-case font-medium truncate">
-                {coverConfig.facultad || ''}
-              </span>
-            </div>
-            <div className="text-right text-gray-500 max-w-[240px] truncate animate-fade-in normal-case font-semibold">
-              {settings.headerText || "Reporte Académico"}
-            </div>
-          </div>
-          {/* UNEMI Split Header Line */}
-          <div className="h-[2px] w-full flex">
-            <div className="h-full w-[25%] header-bar-orange" style={{ backgroundColor: '#FF6600' }} />
-            <div className="h-full w-[75%] header-bar-blue" style={{ backgroundColor: '#004080' }} />
-          </div>
+          {renderTemplateHTML(
+            settings.headerHtml,
+            <>
+              <div className="flex justify-between items-end text-[10px] uppercase font-bold tracking-wider pb-1 px-0.5">
+                <div className="flex flex-col text-left max-w-[320px]">
+                  <span style={{ color: '#004080' }}>
+                    {coverConfig.institution === 'Universidad Estatal de Milagro' ? 'UNEMI' : coverConfig.institution}
+                  </span>
+                  <span className="text-[8px] text-gray-400 normal-case font-medium truncate">
+                    {coverConfig.facultad || ''}
+                  </span>
+                </div>
+                <div className="text-right text-gray-500 max-w-[240px] truncate animate-fade-in normal-case font-semibold">
+                  {settings.headerText || "Reporte Académico"}
+                </div>
+              </div>
+              {/* UNEMI Split Header Line */}
+              <div className="h-[2px] w-full flex">
+                <div className="h-full w-[25%] header-bar-orange" style={{ backgroundColor: '#FF6600' }} />
+                <div className="h-full w-[75%] header-bar-blue" style={{ backgroundColor: '#004080' }} />
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -144,19 +172,24 @@ export default function PageTemplate({
             right: `${rightMargin}px`
           }}
         >
-          {/* Subtle top rule for footer */}
-          <div className="h-[1px] w-full bg-gray-100 mb-2 footer-line" />
-          <div className="flex justify-between items-center text-[10px] text-gray-400 px-0.5">
-            <div className="flex items-center gap-1.5 font-medium truncate max-w-[350px]">
-              <span className="w-1.5 h-1.5 rounded-full footer-dot" style={{ backgroundColor: '#FF6600' }} />
-              <span>{settings.footerText || "Universidad Estatal de Milagro"}</span>
-            </div>
-            <div className="text-[10px] tabular-nums shrink-0 unemi-page-num-indicator" style={{ color: '#004080' }}>
-              {(settings.pageNumTemplate || 'Página {page} de {total}')
-                .replace('{page}', String(pageNumber))
-                .replace('{total}', String(totalPages))}
-            </div>
-          </div>
+          {renderTemplateHTML(
+            settings.footerHtml,
+            <>
+              {/* Subtle top rule for footer */}
+              <div className="h-[1px] w-full bg-gray-100 mb-2 footer-line" />
+              <div className="flex justify-between items-center text-[10px] text-gray-400 px-0.5">
+                <div className="flex items-center gap-1.5 font-medium truncate max-w-[350px]">
+                  <span className="w-1.5 h-1.5 rounded-full footer-dot" style={{ backgroundColor: '#FF6600' }} />
+                  <span>{settings.footerText || "Universidad Estatal de Milagro"}</span>
+                </div>
+                <div className="text-[10px] tabular-nums shrink-0 unemi-page-num-indicator" style={{ color: '#004080' }}>
+                  {(settings.pageNumTemplate || 'Página {page} de {total}')
+                    .replace('{page}', String(pageNumber))
+                    .replace('{total}', String(totalPages))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

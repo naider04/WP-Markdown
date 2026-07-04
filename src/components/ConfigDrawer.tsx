@@ -130,6 +130,7 @@ export function ConfigDrawer({
   const [isTableStyleOpen, setIsTableStyleOpen] = useState<boolean>(false);
   const [isCustomCssStyleOpen, setIsCustomCssStyleOpen] = useState<boolean>(false);
   const [isHeaderFooterStyleOpen, setIsHeaderFooterStyleOpen] = useState<boolean>(false);
+  const [isTOCStyleOpen, setIsTOCStyleOpen] = useState<boolean>(false);
 
   // File renaming states
   const [editingFileId, setEditingFileId] = useState<string | null>(null);
@@ -773,7 +774,7 @@ Márgenes de Página (Bordes):
                 )}
               </div>
 
-              {/* Academic headers, footers and page numbering */}
+              {/* Academic headers and footers */}
               <div className="border border-slate-800 rounded bg-slate-950/25 overflow-hidden">
                 <button
                   type="button"
@@ -781,48 +782,63 @@ Márgenes de Página (Bordes):
                   className="w-full p-2.5 bg-slate-950 hover:bg-slate-900/80 flex justify-between items-center text-left transition-all"
                 >
                   <span className="font-extrabold uppercase text-[10px] tracking-wider text-slate-350">
-                    📝 Encabezados, Pie de Página & TOC
+                    📝 Encabezados & Pie de Página
                   </span>
                   <span>{isHeaderFooterStyleOpen ? '▲' : '▼'}</span>
                 </button>
                 {isHeaderFooterStyleOpen && (
                   <div className="p-3 border-t border-slate-850 bg-slate-900/10 flex flex-col gap-3.5">
                     
-                    {/* Header Text */}
+                    {/* Header HTML Editor */}
                     <div className="flex flex-col gap-1">
-                      <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Texto de Encabezado Superior (Header)</label>
-                      <input
-                        type="text"
-                        value={settings.headerText || ''}
-                        onChange={(e) => handleSettingsChange('headerText', e.target.value)}
-                        className="p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200 text-xs"
-                        placeholder="Ej: FACULTAD DE CIENCIAS E INGENIERÍA"
+                      <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center justify-between">
+                        <span>Contenido HTML de Encabezado (Header)</span>
+                        <span className="text-[7.5px] text-slate-500 font-mono normal-case">Soporta HTML, &#123;page&#125;</span>
+                      </label>
+                      <textarea
+                        value={settings.headerHtml !== undefined ? settings.headerHtml : ''}
+                        onChange={(e) => handleSettingsChange('headerHtml', e.target.value)}
+                        rows={10}
+                        className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-[10px] leading-relaxed focus:border-[#FF6600]/80 focus:outline-none"
+                        placeholder="Ej: <div class='flex justify-between'>...</div>"
                       />
                     </div>
 
-                    {/* Footer Text */}
+                    {/* Footer HTML Editor */}
                     <div className="flex flex-col gap-1">
-                      <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Texto de Pie de Página (Footer)</label>
-                      <input
-                        type="text"
-                        value={settings.footerText || ''}
-                        onChange={(e) => handleSettingsChange('footerText', e.target.value)}
-                        className="p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200 text-xs"
-                        placeholder="Ej: Carrera de Tecnologías de la Información"
+                      <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center justify-between">
+                        <span>Contenido HTML de Pie de Página (Footer)</span>
+                        <span className="text-[7.5px] text-slate-500 font-mono normal-case">Soporta HTML, &#123;page&#125;, &#123;total&#125;</span>
+                      </label>
+                      <textarea
+                        value={settings.footerHtml !== undefined ? settings.footerHtml : ''}
+                        onChange={(e) => handleSettingsChange('footerHtml', e.target.value)}
+                        rows={10}
+                        className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-[10px] leading-relaxed focus:border-[#FF6600]/80 focus:outline-none"
+                        placeholder="Ej: <div class='footer'>...</div>"
                       />
+                      <p className="text-[8px] text-slate-500 leading-normal">
+                        * Si borras todo el contenido de este editor, el pie de página de las hojas quedará completamente vacío.
+                      </p>
                     </div>
+                  </div>
+                )}
+              </div>
 
-                    {/* Pagenum template */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Plantilla Numeración de Pág.</label>
-                      <input
-                        type="text"
-                        value={settings.pageNumTemplate || 'Página {page} de {total}'}
-                        onChange={(e) => handleSettingsChange('pageNumTemplate', e.target.value)}
-                        className="p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-xs"
-                      />
-                    </div>
-
+              {/* Table of Contents (TOC) style */}
+              <div className="border border-slate-800 rounded bg-slate-950/25 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setIsTOCStyleOpen(!isTOCStyleOpen)}
+                  className="w-full p-2.5 bg-slate-950 hover:bg-slate-900/80 flex justify-between items-center text-left transition-all"
+                >
+                  <span className="font-extrabold uppercase text-[10px] tracking-wider text-slate-350">
+                    📋 Tabla de Contenidos (TOC)
+                  </span>
+                  <span>{isTOCStyleOpen ? '▲' : '▼'}</span>
+                </button>
+                {isTOCStyleOpen && (
+                  <div className="p-3 border-t border-slate-850 bg-slate-900/10 flex flex-col gap-3.5">
                     {/* Table of contents indices toggle */}
                     <div className="flex flex-col gap-1 p-2 bg-slate-950 rounded border border-slate-800">
                       <div className="flex items-center justify-between">
@@ -835,7 +851,7 @@ Márgenes de Página (Bordes):
                               : 'bg-slate-900 border-slate-800 text-slate-500'
                           }`}
                         >
-                          {settings.showTOC ? 'MOSTRARÍNDICE' : 'OCULTARÍNDICE'}
+                          {settings.showTOC ? 'MOSTRAR ÍNDICE' : 'OCULTAR ÍNDICE'}
                         </button>
                       </div>
                       {settings.showTOC && (
@@ -845,10 +861,25 @@ Márgenes de Página (Bordes):
                             type="text"
                             value={settings.tocTitle || 'Tabla de Contenidos'}
                             onChange={(e) => handleSettingsChange('tocTitle', e.target.value)}
-                            className="p-1 bg-slate-900 border border-slate-850 rounded text-slate-200 text-xs"
+                            className="p-1 bg-slate-900 border border-slate-850 rounded text-slate-200 text-xs focus:ring-1 focus:ring-orange-500 focus:outline-none"
                           />
                         </div>
                       )}
+                    </div>
+
+                    {/* CSS Editor for blockStyleTOC */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider flex items-center justify-between">
+                        <span>Editor CSS del Índice (TOC)</span>
+                        <span className="text-[7.5px] text-slate-500 font-mono normal-case">Estilos APA 7 activos</span>
+                      </label>
+                      <textarea
+                        value={settings.blockStyleTOC || ''}
+                        onChange={(e) => handleSettingsChange('blockStyleTOC', e.target.value)}
+                        rows={10}
+                        className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-[10px] leading-relaxed focus:border-[#FF6600]/80 focus:outline-none"
+                        placeholder="/* Estilos CSS para el TOC de la hoja */"
+                      />
                     </div>
                   </div>
                 )}

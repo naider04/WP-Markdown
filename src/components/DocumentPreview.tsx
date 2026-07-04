@@ -9,6 +9,7 @@ import katex from 'katex';
 import { CoverConfig, PageSettings, UploadedFile, HTMLBlock, BibliographyItem } from '../types';
 import CoverPage from './CoverPage';
 import PageTemplate from './PageTemplate';
+import { getAPALastNames, formatAPABibliographyItem, extractAPAYear } from '../utils/apaFormatter';
 import { FileText, Layers, RefreshCw, ZoomIn, ZoomOut, FolderArchive, Maximize2, Minimize2, Copy, Check, ExternalLink } from 'lucide-react';
 
 interface DocumentPreviewProps {
@@ -245,6 +246,36 @@ export default function DocumentPreview({
   bibliography = [],
 }: DocumentPreviewProps) {
   const hiddenMeasureRef = useRef<HTMLDivElement>(null);
+  const savedScrollTopRef = useRef<number>(0);
+
+  const handleIframeLoad = (e: React.SyntheticEvent<HTMLIFrameElement>) => {
+    const iframe = e.currentTarget;
+    if (!iframe || !iframe.contentWindow) return;
+
+    // 1. Restore scroll position if we have a saved one
+    if (savedScrollTopRef.current > 0) {
+      const targetScroll = savedScrollTopRef.current;
+      iframe.contentWindow.scrollTo(0, targetScroll);
+      
+      // Retry in a few timeouts to allow dynamic elements to finish layout/painting
+      setTimeout(() => {
+        if (iframe.contentWindow) iframe.contentWindow.scrollTo(0, targetScroll);
+      }, 50);
+      setTimeout(() => {
+        if (iframe.contentWindow) iframe.contentWindow.scrollTo(0, targetScroll);
+      }, 150);
+    }
+
+    // 2. Attach scroll listener to keep track of any scrolling the user does
+    const handleScroll = () => {
+      if (iframe.contentWindow) {
+        savedScrollTopRef.current = iframe.contentWindow.scrollY || iframe.contentWindow.document.documentElement.scrollTop;
+      }
+    };
+
+    iframe.contentWindow.addEventListener('scroll', handleScroll);
+  };
+
   const [paginatedPages, setPaginatedPages] = useState<string[][]>([]);
   const [zoom, setZoom] = useState<number>(100);
   const [recalculating, setRecalculating] = useState<boolean>(false);
@@ -354,7 +385,7 @@ export default function DocumentPreview({
         }
 
         if (settings.pSize || settings.pFont || settings.pAlign || settings.pLineHeight || settings.pIndent !== undefined || settings.pBold !== undefined || settings.pItalic !== undefined || settings.pColor) {
-          css += `\n.unemi-document-content, .unemi-document-content p, .unemi-document-content div:not(.unemi-academic-header):not(.unemi-academic-footer):not(.toc-container):not(.note):not(.math-expr) {`;
+          css += `\n.unemi-document-content, .unemi-document-content p, .unemi-document-content div:not(.unemi-academic-header):not(.unemi-academic-footer):not(.toc-container):not(.note):not(.math-expr):not(.unemi-bibliography-item):not(.unemi-bibliography-title) {`;
           if (settings.pSize) css += ` font-size: ${settings.pSize} !important;`;
           if (settings.pFont) css += ` font-family: "${settings.pFont}", sans-serif !important;`;
           if (settings.pAlign) css += ` text-align: ${settings.pAlign} !important;`;
@@ -399,6 +430,29 @@ export default function DocumentPreview({
             css += ` }`;
           }
         }
+
+        // Bibliography styling
+        css += `
+        .unemi-bibliography-item {
+          padding-left: 0.5in !important;
+          text-indent: -0.5in !important;
+          margin-bottom: 12px !important;
+          line-height: 2.0 !important;
+          font-size: 16px !important;
+          font-family: 'Times New Roman', Times, serif !important;
+          text-align: left !important;
+          display: block !important;
+        }
+        .unemi-bibliography-title {
+          font-family: 'Times New Roman', Times, serif !important;
+          font-size: 16px !important;
+          font-weight: bold !important;
+          text-align: center !important;
+          margin-top: 24px !important;
+          margin-bottom: 24px !important;
+          display: block !important;
+        }
+        `;
 
         return css;
       };
@@ -1253,84 +1307,6 @@ export default function DocumentPreview({
       });
     }
 
-    // Helper to get APA in-text authors' last names
-    function getAPALastNames(authorsStr: string): string {
-      const clean = authorsStr.trim();
-      if (!clean) return 'Anon.';
-      
-      // If it's institutional (no commas, and more than 3 words)
-      if (!clean.includes(',') && clean.split(' ').length > 3) {
-        return clean;
-      }
-      
-      const individualAuthors = clean.split(/\s+&\s+|\s+y\s+|;\s*/);
-      const lastNames: string[] = [];
-      
-      for (const author of individualAuthors) {
-        const commaIdx = author.indexOf(',');
-        if (commaIdx !== -1) {
-          lastNames.push(author.substring(0, commaIdx).trim());
-        } else {
-          const words = author.trim().split(/\s+/);
-          if (words.length > 0) {
-            lastNames.push(words[words.length - 1]); // fallback to last word
-          }
-        }
-      }
-      
-      if (lastNames.length === 0) return clean;
-      if (lastNames.length === 1) return lastNames[0];
-      if (lastNames.length === 2) return `${lastNames[0]} & ${lastNames[1]}`;
-      return `${lastNames[0]} et al.`;
-    }
-
-    // Helper to format APA bibliography entries in full
-    function formatAPABibliographyItem(item: BibliographyItem): string {
-      const authors = item.authors.trim();
-      const year = item.year.trim() || 's.f.';
-      const title = item.title.trim();
-      
-      let formatted = `<strong>${authors}</strong> (${year}). `;
-      
-      if (item.type === 'book') {
-        formatted += `<em>${title}</em>.`;
-        if (item.publisher) {
-          formatted += ` ${item.publisher}.`;
-        }
-      } else if (item.type === 'article') {
-        formatted += `${title}. `;
-        if (item.journal) {
-          formatted += `<em>${item.journal}</em>`;
-          if (item.volume) {
-            formatted += `, <em>${item.volume}</em>`;
-          }
-          if (item.issue) {
-            formatted += `(${item.issue})`;
-          }
-          if (item.pages) {
-            formatted += `, ${item.pages}`;
-          }
-          formatted += `.`;
-        } else {
-          formatted += `<em>${title}</em>.`;
-        }
-      } else { // web
-        formatted += `<em>${title}</em>. `;
-        if (item.retrievedDate) {
-          formatted += `Recuperado el ${item.retrievedDate}`;
-          if (item.url) {
-            formatted += ` de <a href="${item.url}" target="_blank" class="text-[#004080] underline break-all">${item.url}</a>`;
-          }
-          formatted += `.`;
-        } else if (item.url) {
-          formatted += `Recuperado de <a href="${item.url}" target="_blank" class="text-[#004080] underline break-all">${item.url}</a>.`;
-        } else {
-          formatted += `Recuperado de internet.`;
-        }
-      }
-      return formatted;
-    }
-
     // 3. Replace in-text citations like [@key] or [@key1; @key2]
     const citationRegex = /\[@([a-zA-Z0-9_;\s@]+)\]/g;
     selectHtml = selectHtml.replace(citationRegex, (match, keysGroup) => {
@@ -1338,7 +1314,7 @@ export default function DocumentPreview({
       const citations = keys.map((key: string) => {
         const item = bibliography.find(b => b.key.toLowerCase() === key.toLowerCase());
         if (item) {
-          return `${getAPALastNames(item.authors)}, ${item.year}`;
+          return `${getAPALastNames(item.authors)}, ${extractAPAYear(item.year)}`;
         }
         return key; // fallback
       });
@@ -1350,23 +1326,23 @@ export default function DocumentPreview({
       const sortedBib = [...bibliography].sort((a, b) => a.authors.localeCompare(b.authors));
       const bibTitle = settings.bibliographyTitle || 'Referencias Bibliográficas';
       
-      const formattedItems = sortedBib.map(item => {
-        return `<div style="padding-left: 2em; text-indent: -2em; margin-bottom: 1em; line-height: 1.6; font-size: 11px; font-family: 'Inter', sans-serif; text-align: justify;" class="unemi-bibliography-item">
-          ${formatAPABibliographyItem(item)}
-        </div>`;
-      }).join('\n');
-
-      selectHtml += `
+      // We append elements as flat sibling nodes so the paginator can cleanly slice them across pages!
+      let bibHtml = `
         <div class="page-break"></div>
-        <section class="unemi-bibliography-section" style="page-break-before: always; break-before: page;">
-          <h1 style="font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; color: #004080; text-transform: uppercase; margin-top: 24px; margin-bottom: 20px; border-bottom: 2px solid rgba(0, 64, 128, 0.15); padding-bottom: 6px;">
-            ${bibTitle}
-          </h1>
-          <div style="margin-top: 16px;">
-            ${formattedItems}
-          </div>
-        </section>
+        <h1 class="unemi-bibliography-title" style="font-family: 'Times New Roman', Times, serif; font-size: 16px; font-weight: bold; text-align: center; margin-top: 24px; margin-bottom: 24px;">
+          ${bibTitle}
+        </h1>
       `;
+
+      sortedBib.forEach(item => {
+        bibHtml += `
+          <div style="padding-left: 0.5in !important; text-indent: -0.5in !important; margin-bottom: 12px !important; line-height: 2.0 !important; font-size: 16px !important; font-family: 'Times New Roman', Times, serif !important; text-align: left !important; display: block !important;" class="unemi-bibliography-item">
+            ${formatAPABibliographyItem(item)}
+          </div>
+        `;
+      });
+      
+      selectHtml += bibHtml;
     }
 
     return renderMathInHtml(selectHtml);
@@ -1485,7 +1461,7 @@ export default function DocumentPreview({
           }
 
           if (settings.pSize || settings.pFont || settings.pAlign || settings.pLineHeight || settings.pIndent !== undefined || settings.pBold !== undefined || settings.pItalic !== undefined || settings.pColor) {
-            css += `\n.unemi-document-content, .unemi-document-content p, .unemi-document-content div:not(.unemi-academic-header):not(.unemi-academic-footer):not(.toc-container):not(.note):not(.math-expr) {`;
+            css += `\n.unemi-document-content, .unemi-document-content p, .unemi-document-content div:not(.unemi-academic-header):not(.unemi-academic-footer):not(.toc-container):not(.note):not(.math-expr):not(.unemi-bibliography-item):not(.unemi-bibliography-title) {`;
             if (settings.pSize) css += ` font-size: ${settings.pSize} !important;`;
             if (settings.pFont) css += ` font-family: "${settings.pFont}", sans-serif !important;`;
             if (settings.pAlign) css += ` text-align: ${settings.pAlign} !important;`;
@@ -2634,7 +2610,7 @@ export default function DocumentPreview({
 
     // P (Cuerpo de texto)
     if (settings.pSize || settings.pFont || settings.pAlign || settings.pLineHeight || settings.pIndent !== undefined || settings.pBold !== undefined || settings.pItalic !== undefined || settings.pColor) {
-      css += `\n.unemi-document-content, .unemi-document-content p, .unemi-document-content div:not(.unemi-academic-header):not(.unemi-academic-footer):not(.toc-container):not(.note):not(.math-expr) {`;
+      css += `\n.unemi-document-content, .unemi-document-content p, .unemi-document-content div:not(.unemi-academic-header):not(.unemi-academic-footer):not(.toc-container):not(.note):not(.math-expr):not(.unemi-bibliography-item):not(.unemi-bibliography-title) {`;
       if (settings.pSize) css += ` font-size: ${settings.pSize} !important;`;
       if (settings.pFont) css += ` font-family: "${settings.pFont}", sans-serif !important;`;
       if (settings.pAlign) css += ` text-align: ${settings.pAlign} !important;`;
@@ -2686,6 +2662,29 @@ export default function DocumentPreview({
       // We append it cleanly
       css += `\n/* User Custom Additional CSS */\n${settings.customAddedCss}`;
     }
+
+    // Bibliography styling
+    css += `
+    .unemi-bibliography-item {
+      padding-left: 0.5in !important;
+      text-indent: -0.5in !important;
+      margin-bottom: 12px !important;
+      line-height: 2.0 !important;
+      font-size: 16px !important;
+      font-family: 'Times New Roman', Times, serif !important;
+      text-align: left !important;
+      display: block !important;
+    }
+    .unemi-bibliography-title {
+      font-family: 'Times New Roman', Times, serif !important;
+      font-size: 16px !important;
+      font-weight: bold !important;
+      text-align: center !important;
+      margin-top: 24px !important;
+      margin-bottom: 24px !important;
+      display: block !important;
+    }
+    `;
 
     return css;
   };
@@ -3033,6 +3032,7 @@ export default function DocumentPreview({
                 src={`/preview/${serverPreviewId}`}
                 className="w-full h-full border-0 bg-slate-50"
                 title="Servidor Interactivo de Previsualización"
+                onLoad={handleIframeLoad}
               />
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-gray-500 gap-4 bg-slate-50">
@@ -3065,6 +3065,7 @@ export default function DocumentPreview({
               settings={settings}
               showGuides={settings.showGuides}
               coverConfig={resolvedCover}
+              uploadedFiles={uploadedFiles}
             >
               <div className="toc-container select-text">
                 <h3>{settings.tocTitle || "Tabla de Contenidos"}</h3>
@@ -3104,6 +3105,7 @@ export default function DocumentPreview({
                   settings={settings}
                   showGuides={settings.showGuides}
                   coverConfig={resolvedCover}
+                  uploadedFiles={uploadedFiles}
                 >
                   <div
                     className="unemi-document-body"
@@ -3121,6 +3123,7 @@ export default function DocumentPreview({
               settings={settings}
               showGuides={settings.showGuides}
               coverConfig={resolvedCover}
+              uploadedFiles={uploadedFiles}
             >
               <div className="flex flex-col items-center justify-center text-center h-full text-gray-300 gap-2 select-none border-2 border-dashed border-gray-100 rounded-lg p-6">
                 <FileText className="w-12 h-12 text-gray-200" />

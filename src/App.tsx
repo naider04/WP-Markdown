@@ -3,14 +3,38 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import JSZip from 'jszip';
 import { CoverConfig, PageSettings, UploadedFile, HTMLBlock, BibliographyItem } from './types';
 import SidebarEditor from './components/SidebarEditor';
 import DocumentPreview from './components/DocumentPreview';
 import { ConfigDrawer } from './components/ConfigDrawer';
 import { BibliographyDrawer } from './components/BibliographyDrawer';
+import { parseBibtex, generateBibtexFromItems } from './utils/bibParser';
 import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen } from 'lucide-react';
+
+const DEFAULT_HEADER_HTML = `<div class="flex justify-between items-end text-[10px] uppercase font-bold tracking-wider pb-1 px-0.5 w-full">
+  <div class="flex items-center gap-1.5 max-w-[320px]">
+    <img src="icon.png" style="height: 18px; width: auto; display: inline-block; vertical-align: middle;" alt="UNEMI" />
+    <span class="text-[8px] text-gray-400 normal-case font-medium truncate">Universidad Estatal de Milagro</span>
+  </div>
+  <div class="text-right text-gray-500 font-semibold">{page}</div>
+</div>
+<div class="h-[2px] w-full flex">
+  <div class="h-full w-[25%]" style="background-color: #FF6600;"></div>
+  <div class="h-full w-[75%]" style="background-color: #004080;"></div>
+</div>`;
+
+const DEFAULT_FOOTER_HTML = `<div class="h-[1px] w-full bg-gray-100 mb-2 footer-line"></div>
+<div class="flex justify-between items-center text-[10px] text-gray-400 px-0.5 w-full">
+  <div class="flex items-center gap-1.5 font-medium truncate max-w-[350px]">
+    <span class="w-1.5 h-1.5 rounded-full footer-dot" style="background-color: #FF6600;"></span>
+    <span>Universidad Estatal de Milagro</span>
+  </div>
+  <div class="text-[10px] tabular-nums shrink-0 unemi-page-num-indicator" style="color: #004080;">
+    Página {page} de {total}
+  </div>
+</div>`;
 
 const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) */
 .unemi-document-content h1 {
@@ -116,11 +140,11 @@ const DEFAULT_BLOCK_PAGENUM = `/* Estilo de la Numeración de Página APA 7 */
 
 const DEFAULT_BLOCK_TOC = `/* Estilo de la Tabla de Contenidos (TOC) APA 7 */
 .toc-container {
-  margin: 18px 0;
-  padding: 16px 20px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  background-color: #f8fafc;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
 }
 .toc-container h3 {
   font-family: "Times New Roman", Times, Georgia, serif !important;
@@ -129,17 +153,41 @@ const DEFAULT_BLOCK_TOC = `/* Estilo de la Tabla de Contenidos (TOC) APA 7 */
   border-bottom: none !important;
   font-weight: bold !important;
   text-transform: none !important;
-  text-align: center !important; /* APA style: Centered */
+  text-align: center !important;
+  margin-top: 0 !important;
+  margin-bottom: 24px !important;
+}
+.toc-list {
+  list-style-type: none !important;
+  padding-left: 0 !important;
+  margin: 0 !important;
 }
 .toc-list li {
+  display: flex !important;
+  align-items: flex-end !important;
+  margin-bottom: 12px !important;
   font-family: "Times New Roman", Times, Georgia, serif !important;
   font-size: 16px !important;
   color: #000000 !important;
+  line-height: 2.0 !important;
+}
+.toc-title {
+  font-family: "Times New Roman", Times, Georgia, serif !important;
+  font-size: 16px !important;
+  font-weight: normal !important;
+  color: #000000 !important;
+  white-space: nowrap !important;
 }
 .toc-dots {
-  border-bottom: 1px dotted #666666 !important;
+  flex-grow: 1 !important;
+  border-bottom: 1px dotted #000000 !important;
+  margin: 0 8px !important;
+  position: relative !important;
+  top: -4px !important;
 }
 .toc-page {
+  font-family: "Times New Roman", Times, Georgia, serif !important;
+  font-size: 16px !important;
   font-weight: bold !important;
   color: #000000 !important;
 }`;
@@ -245,6 +293,9 @@ export default function App() {
         if (parsed.blockStylePageNum && parsed.blockStylePageNum.includes('#004080')) {
           parsed.blockStylePageNum = DEFAULT_BLOCK_PAGENUM;
         }
+        if (parsed.blockStyleTOC && (parsed.blockStyleTOC.includes('#f8fafc') || parsed.blockStyleTOC.includes('border-radius') || parsed.blockStyleTOC.includes('18px 0') || parsed.blockStyleTOC.includes('#666666') || parsed.blockStyleTOC.includes('border-bottom: 1px dotted'))) {
+          parsed.blockStyleTOC = DEFAULT_BLOCK_TOC;
+        }
         
         // Fill defaults if block styles are missing from cache
         return {
@@ -271,6 +322,8 @@ export default function App() {
           customAddedJs: '',
           showBibliography: false,
           bibliographyTitle: 'Referencias Bibliográficas',
+          headerHtml: DEFAULT_HEADER_HTML,
+          footerHtml: DEFAULT_FOOTER_HTML,
           ...parsed
         };
       } catch (e) {
@@ -301,42 +354,62 @@ export default function App() {
       customAddedJs: '',
       showBibliography: false,
       bibliographyTitle: 'Referencias Bibliográficas',
+      headerHtml: DEFAULT_HEADER_HTML,
+      footerHtml: DEFAULT_FOOTER_HTML,
     };
   });
 
-  // 2b. Bibliography citations with localStorage fallback
-  const [bibliography, setBibliography] = useState<BibliographyItem[]>(() => {
-    const saved = localStorage.getItem('unemi_bibliography');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'bib_1',
-        key: 'unemi2025',
-        type: 'book',
-        authors: 'Universidad Estatal de Milagro',
-        year: '2025',
-        title: 'Guía Metodológica para la Redacción de Trabajos Científicos',
-        publisher: 'Editorial UNEMI',
-        url: 'https://www.unemi.edu.ec'
-      },
-      {
-        id: 'bib_2',
-        key: 'patino2024',
-        type: 'article',
-        authors: 'Patiño, W.',
-        year: '2024',
-        title: 'Arquitecturas de Software Orientadas a Servicios en la Educación Superior',
-        journal: 'Revista de Tecnología UNEMI',
-        volume: '15',
-        issue: '2',
-        pages: '45-58',
-        url: 'https://ojs.unemi.edu.ec'
+  // 2b. BibTeX references string state
+  const [bibtex, setBibtex] = useState<string>(() => {
+    const savedBib = localStorage.getItem('unemi_bibtex');
+    if (savedBib) return savedBib;
+    
+    // Fallback migration: if there is an existing 'unemi_bibliography' array in localStorage, convert it to BibTeX
+    const savedItems = localStorage.getItem('unemi_bibliography');
+    if (savedItems) {
+      try {
+        const parsed = JSON.parse(savedItems);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return generateBibtexFromItems(parsed);
+        }
+      } catch (e) {
+        console.error('Error migrating old bibliography to BibTeX:', e);
       }
-    ];
+    }
+    
+    return `@book{unemi2025,
+  author    = {Universidad Estatal de Milagro},
+  year      = {2025},
+  title     = {Guía Metodológica para la Redacción de Trabajos Científicos},
+  publisher = {Editorial UNEMI},
+  url       = {https://www.unemi.edu.ec}
+}
+
+@article{patino2024,
+  author    = {Patiño, W.},
+  year      = {2024},
+  title     = {Arquitecturas de Software Orientadas a Servicios en la Educación Superior},
+  journal   = {Revista de Tecnología UNEMI},
+  volume    = {15},
+  number    = {2},
+  pages     = {45-58},
+  url       = {https://ojs.unemi.edu.ec}
+}`;
   });
 
   useEffect(() => {
-    localStorage.setItem('unemi_bibliography', JSON.stringify(bibliography));
-  }, [bibliography]);
+    localStorage.setItem('unemi_bibtex', bibtex);
+  }, [bibtex]);
+
+  // Derived bibliography array
+  const bibliography = useMemo(() => {
+    return parseBibtex(bibtex);
+  }, [bibtex]);
+
+  const setBibliography = (itemsOrFn: any) => {
+    const items = typeof itemsOrFn === 'function' ? itemsOrFn(bibliography) : itemsOrFn;
+    setBibtex(generateBibtexFromItems(items));
+  };
 
   // 3. Document HTML Content with localStorage fallback
   const [htmlContent, setHtmlContent] = useState<string>(() => {
@@ -2224,10 +2297,10 @@ read -p "Presione [Enter] para salir..."`;
                     ? 'bg-[#004080] text-white border border-[#FF6600]'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
-                title="Gestionar Referencias Bibliográficas APA"
+                title="Gestionar Referencias Bibliográficas BibTeX (.bib)"
               >
                 <BookOpen className="w-3.5 h-3.5" />
-                <span>Bibliografía APA</span>
+                <span>Bibliografía</span>
               </button>
             </div>
 
@@ -2269,8 +2342,8 @@ read -p "Presione [Enter] para salir..."`;
                 />
               ) : activeDrawerType === 'bibliography' ? (
                 <BibliographyDrawer
-                  bibliography={bibliography}
-                  setBibliography={setBibliography}
+                  bibtex={bibtex}
+                  setBibtex={setBibtex}
                   onClose={() => setActiveDrawerType(null)}
                   showBibliography={!!settings.showBibliography}
                   onToggleShowBibliography={(show) => setSettings(prev => ({ ...prev, showBibliography: show }))}

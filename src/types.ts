@@ -101,12 +101,14 @@ export interface PageSettings {
   // Bibliografía APA automática
   showBibliography?: boolean;
   bibliographyTitle?: string;
+  headerHtml?: string;
+  footerHtml?: string;
 }
 
 export interface BibliographyItem {
   id: string;
   key: string;       // Unique citation key, e.g., "patino2026"
-  type: 'book' | 'article' | 'web';
+  type: 'book' | 'article' | 'web' | 'thesis' | 'inproceedings';
   authors: string;    // Authors list, e.g., "Patiño, W., & Gómez, E."
   year: string;       // Publication year, e.g., "2026"
   title: string;      // Title of the work, e.g., "Tecnologías de la Información en el Ecuador"
@@ -117,6 +119,12 @@ export interface BibliographyItem {
   pages?: string;     // Journal pages
   url?: string;       // URL (for web/articles)
   retrievedDate?: string; // Retrieved date (for web)
+  school?: string;       // School/institution for thesis
+  thesisType?: string;   // Type of thesis (e.g. Doctoral dissertation, Master's thesis)
+  address?: string;      // Location/address for thesis or publisher
+  booktitle?: string;    // Book/proceedings title for inproceedings
+  editor?: string;       // Editor for inproceedings or book chapters
+  doi?: string;          // DOI for articles, books, chapters
 }
 
 export interface UploadedFile {
