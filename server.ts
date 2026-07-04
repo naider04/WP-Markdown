@@ -17,7 +17,7 @@ setInterval(() => {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = parseInt(process.env.PORT || "3000", 10);
 
   // JSON limit 30mb to safely accommodate embedded high-resolution base64 images
   app.use(express.json({ limit: "30mb" }));
