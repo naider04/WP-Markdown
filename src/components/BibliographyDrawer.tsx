@@ -24,6 +24,8 @@ interface BibliographyDrawerProps {
   onInsertHTML: (snippet: string) => void;
   showBibliography: boolean;
   onToggleShowBibliography: (show: boolean) => void;
+  showOnlyCitedBibliography: boolean;
+  onToggleShowOnlyCitedBibliography: (show: boolean) => void;
   bibliographyTitle: string;
   onChangeBibliographyTitle: (title: string) => void;
 }
@@ -35,6 +37,8 @@ export function BibliographyDrawer({
   onInsertHTML,
   showBibliography,
   onToggleShowBibliography,
+  showOnlyCitedBibliography,
+  onToggleShowOnlyCitedBibliography,
   bibliographyTitle,
   onChangeBibliographyTitle
 }: BibliographyDrawerProps) {
@@ -112,18 +116,41 @@ export function BibliographyDrawer({
           </div>
 
           {showBibliography && (
-            <div className="flex flex-col gap-1 border-t border-slate-900 pt-2.5">
-              <label className="text-[8.5px] text-slate-400 font-bold uppercase">
-                Título de la Sección de Referencias
-              </label>
-              <input
-                type="text"
-                value={bibliographyTitle}
-                onChange={(e) => onChangeBibliographyTitle(e.target.value)}
-                className="p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200 text-xs focus:border-[#FF6600] focus:outline-none"
-                placeholder="Ej: Referencias Bibliográficas"
-              />
-            </div>
+            <>
+              <div className="flex items-center justify-between border-t border-slate-905/30 pt-2.5">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                    Mostrar Solo Citadas
+                  </span>
+                  <span className="text-[8.5px] text-slate-500">
+                    Muestra únicamente las referencias que cites con [@key]
+                  </span>
+                </div>
+                <button
+                  onClick={() => onToggleShowOnlyCitedBibliography(!showOnlyCitedBibliography)}
+                  className={`text-xs px-2.5 py-1 rounded border font-bold transition-all cursor-pointer ${
+                    showOnlyCitedBibliography
+                      ? 'bg-[#004080] border-[#FF6600] text-white'
+                      : 'bg-slate-900 border-slate-800 text-slate-500'
+                  }`}
+                >
+                  {showOnlyCitedBibliography ? 'SÍ (SOLO CITADAS)' : 'TODAS'}
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-1 border-t border-slate-905/30 pt-2.5">
+                <label className="text-[8.5px] text-slate-400 font-bold uppercase">
+                  Título de la Sección de Referencias
+                </label>
+                <input
+                  type="text"
+                  value={bibliographyTitle}
+                  onChange={(e) => onChangeBibliographyTitle(e.target.value)}
+                  className="p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200 text-xs focus:border-[#FF6600] focus:outline-none"
+                  placeholder="Ej: Referencias Bibliográficas"
+                />
+              </div>
+            </>
           )}
         </div>
 

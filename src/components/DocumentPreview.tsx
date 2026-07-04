@@ -23,6 +23,7 @@ interface DocumentPreviewProps {
   uploadedFiles?: UploadedFile[];
   htmlBlocks?: HTMLBlock[];
   bibliography?: BibliographyItem[];
+  isCompiling?: boolean;
 }
 
 interface HeadingItem {
@@ -233,6 +234,159 @@ function renderMathInHtml(html: string): string {
   return doc.body.innerHTML;
 }
 
+function compileAndProcessMarkdown(
+  text: string,
+  isMarkdown: boolean,
+  figureMap: Map<string, number>,
+  tableMap: Map<string, number>,
+  figureCounterRef: { val: number },
+  tableCounterRef: { val: number }
+): string {
+  if (!isMarkdown) return text;
+
+  let code = text;
+  const generatedFigures = new Map<string, string>();
+  const generatedTables = new Map<string, string>();
+
+  // 1. Figures: ![Alt](img.png){...} (supports both simple {#fig-id} and multiline key-value pairs)
+  const figRegex = /!\[([^\]]*)\]\(([^)]*)\)\s*\{([^}]+)\}/g;
+  code = code.replace(figRegex, (match, altText, imgSrc, attrsText) => {
+    let idVal = '';
+    let widthVal = '';
+    let alignVal = 'center';
+    let wrapVal = 'none';
+    let captionVal = altText || '';
+    let noteVal = '';
+
+    const trimmedAttrs = attrsText.trim();
+    if (trimmedAttrs.startsWith('#')) {
+      idVal = trimmedAttrs.substring(1);
+    } else {
+      // Parse key-value attributes
+      const lines = trimmedAttrs.split('\n');
+      lines.forEach(line => {
+        const parts = line.split('=');
+        if (parts.length >= 2) {
+          const key = parts[0].trim().toLowerCase();
+          let val = parts.slice(1).join('=').trim();
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.substring(1, val.length - 1);
+          }
+          if (key === 'id') idVal = val;
+          else if (key === 'width') widthVal = val;
+          else if (key === 'align') alignVal = val;
+          else if (key === 'wrap') wrapVal = val;
+          else if (key === 'caption') captionVal = val;
+          else if (key === 'note') noteVal = val;
+        }
+      });
+    }
+
+    if (!idVal) {
+      idVal = 'fig-' + Math.random().toString(36).substring(2, 8);
+    }
+
+    const figNumber = figureCounterRef.val++;
+    figureMap.set(idVal, figNumber);
+
+    // Styling according to wrap and alignment values (APA 7 Compliant)
+    let containerStyle = "font-family: 'Times New Roman', Times, serif; font-size: 14px; margin: 24px 0; clear: both; width: 100%;";
+    let imgStyle = "height: auto; border-radius: 4px; display: block;";
+
+    if (widthVal) {
+      imgStyle += ` width: ${widthVal};`;
+    } else {
+      imgStyle += " max-width: 100%;";
+    }
+
+    if (wrapVal === 'left') {
+      containerStyle += " float: left; margin: 8px 24px 20px 0; width: auto; max-width: 50%; text-align: left;";
+      imgStyle += " margin: 0;";
+    } else if (wrapVal === 'right') {
+      containerStyle += " float: right; margin: 8px 0 20px 24px; width: auto; max-width: 50%; text-align: left;";
+      imgStyle += " margin: 0;";
+    } else if (wrapVal === 'square') {
+      containerStyle += " float: left; margin: 8px 24px 20px 0; width: auto; max-width: 45%; text-align: left;";
+      imgStyle += " margin: 0;";
+    } else {
+      // 'none' or 'top-bottom'
+      containerStyle += " clear: both; display: block;";
+      if (alignVal === 'center') {
+        containerStyle = `font-family: 'Times New Roman', Times, serif; font-size: 14px; margin: 24px auto; text-align: left; clear: both; display: block; width: fit-content; max-width: 100%;`;
+        imgStyle += " margin: 0 auto;";
+      } else if (alignVal === 'right') {
+        containerStyle += " margin: 24px 0 24px auto; text-align: right; width: fit-content;";
+        imgStyle += " margin: 0 0 0 auto;";
+      } else {
+        containerStyle += " margin: 24px 0; text-align: left; width: fit-content;";
+        imgStyle += " margin: 0;";
+      }
+    }
+
+    // APA 7 structure:
+    // Line 1: Figura X in Bold (flush left)
+    // Line 2: Title in Italics (flush left)
+    // Line 3: Image
+    // Line 4: Note underneath (with Nota. in italics)
+    const figHtml = `
+<div id="${idVal}" class="unemi-rendered-figure" style="${containerStyle}">
+  <div style="text-align: left; margin-bottom: 8px; font-family: 'Times New Roman', Times, serif;">
+    <strong style="display: block; font-weight: bold; font-size: 14px; margin-bottom: 2px; color: #000;">Figura ${figNumber}</strong>
+    <em style="display: block; font-style: italic; font-size: 14px; margin-bottom: 8px; color: #000;">${captionVal}</em>
+  </div>
+  <img src="${imgSrc}" alt="${captionVal}" style="${imgStyle}" />
+  ${noteVal ? `<div style="font-size: 11px; color: #333; text-align: left; margin-top: 6px; font-family: 'Times New Roman', Times, serif; line-height: 1.4;"><em>Nota.</em> ${noteVal}</div>` : ''}
+</div>
+    `;
+    generatedFigures.set(idVal, figHtml);
+    return `FIGPLACEHOLDER-${idVal}`;
+  });
+
+  // 2. Tables with captions: table followed by : Caption {#tbl-id}
+  const tableCaptionRegex = /((?:^|\n)(?:[ \t]*\|[^\n]*(?:\n|$))+)\s*:\s*([^\n]+?)\s*\{#(tbl-[a-zA-Z0-9_-]+)\}/g;
+  code = code.replace(tableCaptionRegex, (match, tableMarkdown, captionText, tblId) => {
+    const tblNumber = tableCounterRef.val++;
+    tableMap.set(tblId, tblNumber);
+    
+    const tableHtml = String(marked.parse(tableMarkdown)).trim();
+    
+    const captionHtml = `
+  <caption style="caption-side: top; text-align: left; font-family: 'Times New Roman', Times, serif; font-size: 14px; color: #333; margin-bottom: 8px;">
+    <strong style="display: block; font-weight: bold;">Tabla ${tblNumber}</strong>
+    <span class="caption-text" style="display: block; font-style: italic; font-weight: normal; margin-top: 4px;">${captionText}</span>
+  </caption>
+    `;
+    
+    const modifiedTableHtml = tableHtml.replace(/<table([^>]*)>/i, `<table$1>${captionHtml}`);
+    generatedTables.set(tblId, modifiedTableHtml);
+    return `\nTBLPLACEHOLDER-${tblId}\n`;
+  });
+
+  // 3. Parse Markdown
+  let resultHtml = String(marked.parse(code));
+
+  // 4. Restore placeholders
+  generatedFigures.forEach((figHtml, figId) => {
+    const wrappedRegex = new RegExp(`<p>\\s*FIGPLACEHOLDER-${figId}\\s*</p>`, 'g');
+    if (wrappedRegex.test(resultHtml)) {
+      resultHtml = resultHtml.replace(wrappedRegex, figHtml);
+    } else {
+      resultHtml = resultHtml.replace(`FIGPLACEHOLDER-${figId}`, figHtml);
+    }
+  });
+
+  generatedTables.forEach((tableHtml, tblId) => {
+    const wrappedRegex = new RegExp(`<p>\\s*TBLPLACEHOLDER-${tblId}\\s*</p>`, 'g');
+    if (wrappedRegex.test(resultHtml)) {
+      resultHtml = resultHtml.replace(wrappedRegex, tableHtml);
+    } else {
+      resultHtml = resultHtml.replace(`TBLPLACEHOLDER-${tblId}`, tableHtml);
+    }
+  });
+
+  return resultHtml;
+}
+
 export default function DocumentPreview({
   cover,
   settings,
@@ -244,17 +398,20 @@ export default function DocumentPreview({
   uploadedFiles = [],
   htmlBlocks = [],
   bibliography = [],
+  isCompiling = false,
 }: DocumentPreviewProps) {
   const hiddenMeasureRef = useRef<HTMLDivElement>(null);
   const savedScrollTopRef = useRef<number>(0);
+  const [isScrollSyncing, setIsScrollSyncing] = useState<boolean>(false);
 
   const handleIframeLoad = (e: React.SyntheticEvent<HTMLIFrameElement>) => {
     const iframe = e.currentTarget;
     if (!iframe || !iframe.contentWindow) return;
 
-    // 1. Restore scroll position if we have a saved one
-    if (savedScrollTopRef.current > 0) {
-      const targetScroll = savedScrollTopRef.current;
+    setIsScrollSyncing(true);
+
+    const targetScroll = savedScrollTopRef.current;
+    if (targetScroll > 0) {
       iframe.contentWindow.scrollTo(0, targetScroll);
       
       // Retry in a few timeouts to allow dynamic elements to finish layout/painting
@@ -263,6 +420,14 @@ export default function DocumentPreview({
       }, 50);
       setTimeout(() => {
         if (iframe.contentWindow) iframe.contentWindow.scrollTo(0, targetScroll);
+      }, 150);
+      setTimeout(() => {
+        if (iframe.contentWindow) iframe.contentWindow.scrollTo(0, targetScroll);
+        setIsScrollSyncing(false);
+      }, 350);
+    } else {
+      setTimeout(() => {
+        setIsScrollSyncing(false);
       }, 150);
     }
 
@@ -436,7 +601,6 @@ export default function DocumentPreview({
         .unemi-bibliography-item {
           padding-left: 0.5in !important;
           text-indent: -0.5in !important;
-          margin-bottom: 12px !important;
           line-height: 2.0 !important;
           font-size: 16px !important;
           font-family: 'Times New Roman', Times, serif !important;
@@ -480,7 +644,7 @@ export default function DocumentPreview({
     body, html {
       margin: 0;
       padding: 0;
-      background-color: #f1f5f9;
+      background-color: #fafafa !important;
       font-family: "Inter", system-ui, -apple-system, sans-serif;
       text-rendering: optimizeLegibility;
       -webkit-font-smoothing: antialiased;
@@ -492,6 +656,7 @@ export default function DocumentPreview({
       align-items: center;
       gap: 32px;
       padding: 48px 24px;
+      background-color: #fafafa !important;
     }
 
     div[name^="document-page-"] {
@@ -1285,18 +1450,52 @@ export default function DocumentPreview({
   };
 
   const resolvedHtmlContent = React.useMemo(() => {
+    const figureMap = new Map<string, number>();
+    const tableMap = new Map<string, number>();
+    const figureCounterRef = { val: 1 };
+    const tableCounterRef = { val: 1 };
+
     // 1. Compile blocks (HTML vs Markdown)
     let selectHtml = "";
     if (htmlBlocks && htmlBlocks.length > 0) {
       selectHtml = htmlBlocks.map(b => {
-        if (b.isMarkdown) {
-          return String(marked.parse(b.code));
-        }
-        return b.code;
+        return compileAndProcessMarkdown(
+          b.code,
+          !!b.isMarkdown,
+          figureMap,
+          tableMap,
+          figureCounterRef,
+          tableCounterRef
+        );
       }).join('\n\n');
     } else {
-      selectHtml = htmlContent;
+      const isMarkdown = !htmlContent.trim().startsWith('<html');
+      selectHtml = compileAndProcessMarkdown(
+        htmlContent,
+        isMarkdown,
+        figureMap,
+        tableMap,
+        figureCounterRef,
+        tableCounterRef
+      );
     }
+
+    // 1b. Replace cross-references like @fig-id or @tbl-id
+    const refRegex = /@(fig-[a-zA-Z0-9_-]+|tbl-[a-zA-Z0-9_-]+)/g;
+    selectHtml = selectHtml.replace(refRegex, (match, id) => {
+      if (id.startsWith('fig-')) {
+        const num = figureMap.get(id);
+        if (num !== undefined) {
+          return `<a href="#${id}" class="cross-reference-link" style="color: #004080; text-decoration: none; font-weight: 500; border-bottom: 1px dashed #004080;">Figura ${num}</a>`;
+        }
+      } else if (id.startsWith('tbl-')) {
+        const num = tableMap.get(id);
+        if (num !== undefined) {
+          return `<a href="#${id}" class="cross-reference-link" style="color: #004080; text-decoration: none; font-weight: 500; border-bottom: 1px dashed #004080;">Tabla ${num}</a>`;
+        }
+      }
+      return match;
+    });
 
     // 2. Resolve image uploads
     if (uploadedFiles && uploadedFiles.length > 0) {
@@ -1308,7 +1507,14 @@ export default function DocumentPreview({
     }
 
     // 3. Replace in-text citations like [@key] or [@key1; @key2]
+    const citedKeys = new Set<string>();
     const citationRegex = /\[@([a-zA-Z0-9_;\s@]+)\]/g;
+    let citeMatch;
+    while ((citeMatch = citationRegex.exec(selectHtml)) !== null) {
+      const keys = citeMatch[1].split(';').map((k: string) => k.replace(/@/g, '').trim().toLowerCase()).filter(Boolean);
+      keys.forEach(k => citedKeys.add(k));
+    }
+
     selectHtml = selectHtml.replace(citationRegex, (match, keysGroup) => {
       const keys = keysGroup.split(';').map((k: string) => k.replace(/@/g, '').trim()).filter(Boolean);
       const citations = keys.map((key: string) => {
@@ -1323,7 +1529,12 @@ export default function DocumentPreview({
 
     // 4. Append automatic APA bibliography page at the very end
     if (settings.showBibliography && bibliography && bibliography.length > 0) {
-      const sortedBib = [...bibliography].sort((a, b) => a.authors.localeCompare(b.authors));
+      let bibItemsToShow = [...bibliography];
+      if (settings.showOnlyCitedBibliography) {
+        bibItemsToShow = bibItemsToShow.filter(b => citedKeys.has(b.key.toLowerCase()));
+      }
+
+      const sortedBib = bibItemsToShow.sort((a, b) => a.authors.localeCompare(b.authors));
       const bibTitle = settings.bibliographyTitle || 'Referencias Bibliográficas';
       
       // We append elements as flat sibling nodes so the paginator can cleanly slice them across pages!
@@ -1336,7 +1547,7 @@ export default function DocumentPreview({
 
       sortedBib.forEach(item => {
         bibHtml += `
-          <div style="padding-left: 0.5in !important; text-indent: -0.5in !important; margin-bottom: 12px !important; line-height: 2.0 !important; font-size: 16px !important; font-family: 'Times New Roman', Times, serif !important; text-align: left !important; display: block !important;" class="unemi-bibliography-item">
+          <div style="padding-left: 0.5in !important; text-indent: -0.5in !important; line-height: 2.0 !important; font-size: 16px !important; font-family: 'Times New Roman', Times, serif !important; text-align: left !important; display: block !important;" class="unemi-bibliography-item">
             ${formatAPABibliographyItem(item)}
           </div>
         `;
@@ -1346,7 +1557,7 @@ export default function DocumentPreview({
     }
 
     return renderMathInHtml(selectHtml);
-  }, [htmlContent, htmlBlocks, uploadedFiles, bibliography, settings.showBibliography, settings.bibliographyTitle]);
+  }, [htmlContent, htmlBlocks, uploadedFiles, bibliography, settings.showBibliography, settings.bibliographyTitle, settings.showOnlyCitedBibliography]);
 
   const resolvedCover = React.useMemo(() => {
     let selectCover = { ...cover };
@@ -1531,7 +1742,7 @@ export default function DocumentPreview({
     body, html {
       margin: 0;
       padding: 0;
-      background-color: #f1f5f9;
+      background-color: #fafafa !important;
       font-family: "Inter", system-ui, -apple-system, sans-serif;
       text-rendering: optimizeLegibility;
       -webkit-font-smoothing: antialiased;
@@ -1543,6 +1754,7 @@ export default function DocumentPreview({
       align-items: center;
       gap: 32px;
       padding: 48px 24px;
+      background-color: #fafafa !important;
     }
 
     div[name^="document-page-"] {
@@ -2219,6 +2431,12 @@ export default function DocumentPreview({
     return () => clearTimeout(timer);
   }, [paginatedPages, settings, cover, resolvedHtmlContent]);
 
+  useEffect(() => {
+    if (serverPreviewId) {
+      setIsScrollSyncing(true);
+    }
+  }, [serverPreviewId]);
+
   // Local React preview iframe sync for functional blocks
   useEffect(() => {
     if (previewMode === 'server' || recalculating) return;
@@ -2383,16 +2601,115 @@ export default function DocumentPreview({
         const elementHeight = node.getBoundingClientRect().height + marginTopVal + marginBottomVal;
 
         const isPageBreak = node.classList.contains('page-break');
+        const isTable = node.tagName === 'TABLE';
 
-        // Safety cutoff check: If elements exceed max height or a manual page-break exists, break onto a new page.
-        // We only break if the current page already contains elements to avoid zero-item endless paging loop.
-        if ((accumulatedPageHeight + elementHeight > maxHeight || isPageBreak) && accumulatedPageHeight > 0) {
-          currentPageIndex++;
-          pagesList.push([]);
-          accumulatedPageHeight = 0;
+        // Helper to build a table part with cloned caption/thead/tbody
+        const buildTablePart = (originalTable: HTMLTableElement, rowsToInsert: HTMLElement[], isContinuation: boolean) => {
+          const clone = originalTable.cloneNode(false) as HTMLTableElement;
+          
+          clone.style.width = '100%';
+          clone.style.tableLayout = 'auto';
+
+          const caption = originalTable.querySelector('caption');
+          if (caption) {
+            const captionClone = caption.cloneNode(true) as HTMLTableCaptionElement;
+            if (isContinuation) {
+              const textSpan = captionClone.querySelector('.caption-text') || captionClone;
+              if (textSpan && textSpan.textContent && !textSpan.textContent.includes('(continuación)')) {
+                textSpan.textContent += ' (continuación)';
+              }
+            }
+            clone.appendChild(captionClone);
+          }
+
+          const thead = originalTable.querySelector('thead');
+          if (thead) {
+            clone.appendChild(thead.cloneNode(true));
+          }
+          
+          const tbody = document.createElement('tbody');
+          rowsToInsert.forEach(r => tbody.appendChild(r.cloneNode(true)));
+          clone.appendChild(tbody);
+          
+          return clone.outerHTML;
+        };
+
+        if (isTable) {
+          const tableEl = node as HTMLTableElement;
+          const thead = tableEl.querySelector('thead');
+          const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
+          const rows = Array.from(tableEl.querySelectorAll('tbody > tr')) as HTMLElement[];
+          
+          // Let's check: if it fits entirely on a single page, but doesn't fit on the current page:
+          if (elementHeight <= maxHeight && accumulatedPageHeight + elementHeight > maxHeight) {
+            // Push the entire table to the next page!
+            currentPageIndex++;
+            pagesList.push([]);
+            accumulatedPageHeight = 0;
+            pagesList[currentPageIndex].push(tableEl.outerHTML);
+            accumulatedPageHeight += elementHeight;
+          } else if (elementHeight > maxHeight) {
+            // It is a long table that MUST be split!
+            const remainingHeight = maxHeight - accumulatedPageHeight;
+            const minStartHeight = theadHeight + (rows[0] ? rows[0].getBoundingClientRect().height : 30) * 2 + 15;
+            
+            // If remaining height on current page is too small, start split on a fresh page
+            if (remainingHeight < minStartHeight && accumulatedPageHeight > 0) {
+              currentPageIndex++;
+              pagesList.push([]);
+              accumulatedPageHeight = 0;
+            }
+            
+            let currentPartRows: HTMLElement[] = [];
+            let currentPartHeight = theadHeight + 10; // offset for table borders/padding
+            let splitIndex = 0;
+
+            for (let i = 0; i < rows.length; i++) {
+              const row = rows[i];
+              const rowHeight = row.getBoundingClientRect().height;
+              const limit = maxHeight - accumulatedPageHeight;
+              
+              if (currentPartHeight + rowHeight > limit && currentPartRows.length > 0) {
+                // Finish current page's table part
+                const isCont = splitIndex > 0;
+                const tableHtml = buildTablePart(tableEl, currentPartRows, isCont);
+                pagesList[currentPageIndex].push(tableHtml);
+                splitIndex++;
+
+                // Move to next page
+                currentPageIndex++;
+                pagesList.push([]);
+                accumulatedPageHeight = 0;
+                currentPartRows = [row];
+                currentPartHeight = theadHeight + 10 + rowHeight;
+              } else {
+                currentPartRows.push(row);
+                currentPartHeight += rowHeight;
+              }
+            }
+            
+            if (currentPartRows.length > 0) {
+              const isCont = splitIndex > 0;
+              const tableHtml = buildTablePart(tableEl, currentPartRows, isCont);
+              pagesList[currentPageIndex].push(tableHtml);
+              accumulatedPageHeight = currentPartHeight;
+            }
+          } else {
+            // Fits entirely on current page
+            pagesList[currentPageIndex].push(tableEl.outerHTML);
+            accumulatedPageHeight += elementHeight;
+          }
+        } else {
+          // Standard block layout measuring and breaking
+          if ((accumulatedPageHeight + elementHeight > maxHeight || isPageBreak) && accumulatedPageHeight > 0) {
+            currentPageIndex++;
+            pagesList.push([]);
+            accumulatedPageHeight = 0;
+          }
+
+          pagesList[currentPageIndex].push(node.outerHTML);
+          accumulatedPageHeight += elementHeight;
         }
-
-        pagesList[currentPageIndex].push(node.outerHTML);
 
         // Scan for headings (H1, H2, H3) inside our page nodes
         const isHeading = ['H1', 'H2', 'H3'].includes(node.tagName || '');
@@ -2412,8 +2729,6 @@ export default function DocumentPreview({
             });
           }
         });
-
-        accumulatedPageHeight += elementHeight;
       });
 
       // Update states
@@ -2668,7 +2983,6 @@ export default function DocumentPreview({
     .unemi-bibliography-item {
       padding-left: 0.5in !important;
       text-indent: -0.5in !important;
-      margin-bottom: 12px !important;
       line-height: 2.0 !important;
       font-size: 16px !important;
       font-family: 'Times New Roman', Times, serif !important;
@@ -2805,7 +3119,6 @@ export default function DocumentPreview({
       <div className="p-3 bg-white border-b border-gray-200 flex items-center justify-between shadow-sm select-none shrink-0 print:hidden z-10">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-[#004080]" />
-          <span className="font-bold text-xs text-gray-800 uppercase tracking-tight">Previsualizador</span>
           
           {/* Segmented Control Selector for previewMode */}
           <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 ml-2">
@@ -2958,16 +3271,7 @@ export default function DocumentPreview({
             )}
           </button>
 
-          <button
-            onClick={onExportZIP}
-            className="py-1.5 px-3 rounded bg-[#FF6600] text-white hover:bg-[#ff8533] active:scale-[95%] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm border border-[#FF6600]/25"
-            title="Exportar archivo compactado .zip del proyecto"
-          >
-            <FolderArchive className="w-4 h-4 text-white" />
-            Exportar ZIP
-          </button>
 
-          <div className="h-4 w-[1px] bg-gray-200" />
 
           {/* Zoom controllers */}
           <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 p-0.5 rounded text-xs select-none">
@@ -3012,7 +3316,7 @@ export default function DocumentPreview({
       </div>
 
       {/* 4. ACTUAL ENEMY PAGE SHEETS STAGE */}
-      <div className={`flex-1 overflow-auto custom-scrollbar print:p-0 print:overflow-visible print:bg-white bg-slate-150 flex flex-col items-center select-none min-h-0 w-full ${previewMode === 'server' ? 'p-0' : 'p-8'}`}>
+      <div className={`flex-1 overflow-auto custom-scrollbar print:p-0 print:overflow-visible print:bg-white bg-neutral-100 flex flex-col items-center select-none min-h-0 w-full ${previewMode === 'server' ? 'p-0' : 'p-8'}`}>
         {previewMode === 'server' && (
           <div className="w-full h-full flex flex-col overflow-hidden bg-white relative shrink-0">
             {/* Sync status indicator overlay */}
@@ -3022,20 +3326,31 @@ export default function DocumentPreview({
                 : 'bg-emerald-50 text-emerald-700 border-emerald-200/50'
             }`}>
               <span className={`h-1.5 w-1.5 rounded-full ${isSyncingServer ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-              {isSyncingServer ? 'Sincronizando cambios cambiados...' : 'Sincronizado'}
+              {isSyncingServer ? 'Sincronizando cambios...' : 'Sincronizado'}
             </div>
             
+            {/* Overlay to block interaction until compiling, server sync, and scroll sync are done */}
+            {(isScrollSyncing || isSyncingServer || isCompiling) && (
+              <div 
+                className="absolute inset-0 bg-transparent z-[1000] cursor-wait pointer-events-auto select-none"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onWheel={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onTouchMove={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              />
+            )}
+
             {/* Server preview iframe */}
             {serverPreviewId ? (
               <iframe
                 id="unemi-server-iframe"
                 src={`/preview/${serverPreviewId}`}
-                className="w-full h-full border-0 bg-slate-50"
+                className="w-full h-full border-0 bg-neutral-50"
                 title="Servidor Interactivo de Previsualización"
                 onLoad={handleIframeLoad}
               />
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-gray-500 gap-4 bg-slate-50">
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-gray-500 gap-4 bg-neutral-50">
                 <RefreshCw className="w-10 h-10 text-[#004080] animate-spin" />
                 <div>
                   <h3 className="font-bold text-sm text-gray-700">Compilando documento en servidor...</h3>

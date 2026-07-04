@@ -10,8 +10,11 @@ import {
   ChevronDown,
   ChevronUp,
   Code,
-  Trash2
+  Trash2,
+  AlertTriangle,
+  AlertCircle
 } from 'lucide-react';
+import { validateContent } from '../utils/validation';
 
 interface AutoGrowingTextAreaProps {
   id: string;
@@ -107,7 +110,7 @@ export function SidebarEditor({
     const blockId = 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     
     const name = `Bloque ${nextNum}: Sección Nueva`;
-    const code = `<!-- Bloque ${nextNum} -->\n<section>\n  <h2>Título de la Sección ${nextNum}</h2>\n  <p>\n    Escribe el contenido de esta sección. Puedes usar los Formatos Rápidos de la barra superior para insertar estructuras.\n  </p>\n</section>\n`;
+    const code = `## Sección Nueva ${nextNum}\n\nEscribe el contenido de esta sección en Markdown o HTML. Puedes usar los Formatos Rápidos de la barra superior para insertar estructuras.\n`;
 
     const newBlock: HTMLBlock = {
       id: blockId,
@@ -115,7 +118,7 @@ export function SidebarEditor({
       code,
       collapsed: false,
       isFunctional: false,
-      isMarkdown: false,
+      isMarkdown: true,
     };
     setHtmlBlocks((prev) => [...prev, newBlock]);
     setLastFocusedBlockId(newBlock.id);
@@ -331,79 +334,89 @@ export function SidebarEditor({
 
               {/* Center Column: Code Editor content / Collapsed preview (with padding right to clear the floating number badge) */}
               <div className="flex-1 flex flex-col min-w-0 pr-14">
-                {!block.collapsed ? (
-                  <div className="flex-1 flex flex-col relative bg-slate-950 select-text p-1.5 py-3">
-                    {/* Block Header Toolbar */}
-                    <div className="flex items-center justify-between gap-2 px-2 pb-2 mb-2 border-b border-slate-900/60">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <input
-                          type="text"
-                          value={block.name}
-                          onChange={(e) => handleNameChange(block.id, e.target.value)}
-                          className="bg-transparent text-slate-200 font-bold text-[11px] focus:outline-none focus:border-orange-500 border-b border-transparent max-w-[160px] truncate cursor-text"
-                          title="Haz clic para renombrar el bloque"
-                        />
-                      </div>
-                      <div className="flex items-center bg-slate-900 rounded p-0.5 border border-slate-800 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleMarkdown(block.id, false)}
-                          className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-all cursor-pointer ${
-                            !block.isMarkdown
-                              ? 'bg-orange-600 text-white shadow'
-                              : 'text-slate-400 hover:text-slate-200'
-                          }`}
-                        >
-                          HTML
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleMarkdown(block.id, true)}
-                          className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-all cursor-pointer ${
-                            block.isMarkdown
-                              ? 'bg-orange-600 text-white shadow'
-                              : 'text-slate-400 hover:text-slate-200'
-                          }`}
-                        >
-                          Markdown
-                        </button>
-                      </div>
-                    </div>
+                {(() => {
+                  const validationErrors = validateContent(block.code);
+                  const hasErrors = validationErrors.some(e => e.severity === 'error');
 
-                    <AutoGrowingTextArea
-                      id={`editor-textarea-${block.id}`}
-                      value={block.code}
-                      onChange={(val) => handleCodeChange(block.id, val)}
-                      placeholder={block.isMarkdown ? "Escribe aquí en Markdown..." : "Escribe aquí tu código HTML..."}
-                    />
-                    {block.code.length === 0 && (
-                      <span className="absolute left-4 top-12 text-slate-600 italic pointer-events-none font-mono text-[10px]">
-                        {block.isMarkdown 
-                          ? "<!-- Escribe contenido en Markdown (ej: ## Título, **negrita**, etc.) -->"
-                          : "<!-- Inserta etiquetas o escribe contenido académico HTML -->"}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleCollapseBlock(block.id);
-                    }}
-                    className="flex-1 p-3 py-3.5 bg-[#002e45]/5 hover:bg-[#002e45]/10 cursor-pointer flex flex-col gap-1 min-w-0 select-none"
-                    title="Haga clic para expandir y editar"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-slate-350 text-[10px] truncate max-w-[140px]">{block.name}</span>
-                      <span className={`text-[8px] font-bold px-1 py-0.5 rounded uppercase tracking-wider ${block.isMarkdown ? 'bg-orange-950/45 text-orange-400 border border-orange-900/30' : 'bg-slate-900 text-slate-400 border border-slate-800'}`}>
-                        {block.isMarkdown ? 'Markdown' : 'HTML'}
-                      </span>
+                  return !block.collapsed ? (
+                    <div className="flex-1 flex flex-col relative bg-slate-950 select-text p-1.5 py-3">
+                      {/* Block Header Toolbar */}
+                      <div className="flex items-center justify-between gap-2 px-2 pb-2 mb-2 border-b border-slate-900/60">
+                        {/* Status indicators */}
+                        <div className="flex items-center gap-1 shrink-0 text-[10px] font-semibold select-none">
+                          {validationErrors.length === 0 ? (
+                            <span className="text-emerald-400 flex items-center gap-1 font-mono text-[9px]" title="La sintaxis de HTML y LaTeX es correcta">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              ✓ Código OK
+                            </span>
+                          ) : (
+                            <span className={`flex items-center gap-1 font-mono text-[9px] ${hasErrors ? 'text-red-400' : 'text-amber-400'}`}>
+                              <AlertTriangle className="w-3 h-3 shrink-0" />
+                              {validationErrors.length} {validationErrors.length === 1 ? 'aviso' : 'avisos'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <AutoGrowingTextArea
+                        id={`editor-textarea-${block.id}`}
+                        value={block.code}
+                        onChange={(val) => handleCodeChange(block.id, val)}
+                        placeholder="Escribe aquí en Markdown (puedes incluir fórmulas LaTeX y etiquetas HTML)..."
+                      />
+                      {block.code.length === 0 && (
+                        <span className="absolute left-4 top-12 text-slate-600 italic pointer-events-none font-mono text-[10px]">
+                          Escribe contenido en Markdown, LaTeX (ej: $$x^2$$) o HTML (ej: &lt;p&gt;...&lt;/p&gt;)
+                        </span>
+                      )}
+
+                      {/* Display of real-time validation feedback */}
+                      {validationErrors.length > 0 && (
+                        <div className="mt-2.5 p-2 bg-slate-950 border border-slate-850 rounded-lg flex flex-col gap-1.5 text-[10px] select-text">
+                          <div className="flex items-center gap-1 text-[9.5px] font-bold text-slate-400 border-b border-slate-900/50 pb-1 mb-0.5 select-none">
+                            <AlertCircle className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+                            <span>ANÁLISIS DE SINTAXIS EN TIEMPO REAL:</span>
+                          </div>
+                          {validationErrors.map((err, errIdx) => (
+                            <div key={errIdx} className="flex gap-1.5 leading-relaxed">
+                              <span className={`shrink-0 font-bold text-[9px] uppercase px-1 rounded select-none ${
+                                err.severity === 'error' ? 'bg-red-950/40 text-red-400 border border-red-900/50' : 'bg-amber-950/40 text-amber-400 border border-amber-900/50'
+                              }`}>
+                                {err.type}
+                              </span>
+                              <span className="text-slate-350">{err.message}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-[10px] font-mono text-slate-500 truncate leading-tight">
-                      {block.code.trim().slice(0, 80) || <span className="italic text-slate-600">&lt;vacío&gt;</span>}
+                  ) : (
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleCollapseBlock(block.id);
+                      }}
+                      className="flex-1 p-3 py-3.5 bg-[#002e45]/5 hover:bg-[#002e45]/10 cursor-pointer flex flex-col justify-center min-w-0 select-none"
+                      title="Haga clic para expandir y editar"
+                    >
+                      <div className="flex items-center justify-between gap-1.5 min-w-0">
+                        <span className="font-mono text-xs text-slate-300 truncate flex-1">
+                          {block.code.trim().split('\n')[0] || <span className="italic text-slate-600">&lt;vacío&gt;</span>}
+                        </span>
+                        {validationErrors.length > 0 && (
+                          <span 
+                            className={`shrink-0 flex items-center justify-center p-0.5 rounded-full ${
+                              hasErrors ? 'bg-red-950 text-red-500 border border-red-900/40' : 'bg-amber-950 text-amber-500 border border-amber-900/40'
+                            }`}
+                            title={`Este bloque contiene ${validationErrors.length} advertencia(s) de sintaxis`}
+                          >
+                            <AlertTriangle className="w-2.5 h-2.5" />
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Floating Absolute Block Number & Drag Handle on the Right side */}

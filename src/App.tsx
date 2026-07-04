@@ -11,7 +11,7 @@ import DocumentPreview from './components/DocumentPreview';
 import { ConfigDrawer } from './components/ConfigDrawer';
 import { BibliographyDrawer } from './components/BibliographyDrawer';
 import { parseBibtex, generateBibtexFromItems } from './utils/bibParser';
-import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen } from 'lucide-react';
+import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive } from 'lucide-react';
 
 const DEFAULT_HEADER_HTML = `<div class="flex justify-between items-end text-[10px] uppercase font-bold tracking-wider pb-1 px-0.5 w-full">
   <div class="flex items-center gap-1.5 max-w-[320px]">
@@ -321,6 +321,7 @@ export default function App() {
           customAddedCss: '',
           customAddedJs: '',
           showBibliography: false,
+          showOnlyCitedBibliography: false,
           bibliographyTitle: 'Referencias Bibliográficas',
           headerHtml: DEFAULT_HEADER_HTML,
           footerHtml: DEFAULT_FOOTER_HTML,
@@ -353,6 +354,7 @@ export default function App() {
       customAddedCss: '',
       customAddedJs: '',
       showBibliography: false,
+      showOnlyCitedBibliography: false,
       bibliographyTitle: 'Referencias Bibliográficas',
       headerHtml: DEFAULT_HEADER_HTML,
       footerHtml: DEFAULT_FOOTER_HTML,
@@ -423,7 +425,7 @@ export default function App() {
       try {
         const blocks = JSON.parse(cached);
         if (Array.isArray(blocks) && blocks.length > 0) {
-          return blocks;
+          return blocks.map(b => ({ ...b, isMarkdown: true }));
         }
       } catch (e) {
         console.error('Error parsing cached html blocks:', e);
@@ -437,13 +439,17 @@ export default function App() {
       name: 'Bloque Principal',
       code: singleContent || `<!-- === INICIO DEL DOCUMENTO === -->\n<h1>Tema del Reporte Académico</h1>\n<p>Escriba aquí la introducción de su tarea académica...</p>\n`,
       collapsed: false,
-      isMarkdown: false
+      isMarkdown: true
     }];
   });
 
   const [lastFocusedBlockId, setLastFocusedBlockId] = useState<string | null>(null);
   const [activeDrawerType, setActiveDrawerType] = useState<'cover' | 'settings' | 'uploads' | 'bibliography' | null>(null);
-  const [showTopBarFormats, setShowTopBarFormats] = useState<boolean>(false);
+  const [autoCompile, setAutoCompile] = useState<boolean>(() => {
+    const cached = localStorage.getItem('unemi_auto_compile');
+    return cached !== 'false';
+  });
+  const [isCompiling, setIsCompiling] = useState<boolean>(false);
 
   // Helper to split any flat content back into blocks (used for initial or backup parses)
   const updateBlocksFromHTML = (htmlText: string) => {
@@ -456,14 +462,13 @@ export default function App() {
     while ((match = blockRegex.exec(htmlText)) !== null) {
       const name = match[1];
       const isCollapsed = match[2] === 'true';
-      const isMarkdown = match[3] === 'true';
       const code = match[4];
       blocks.push({
         id: `block_${Date.now()}_${index++}_${Math.random().toString(36).substr(2, 5)}`,
         name,
         code,
         collapsed: isCollapsed,
-        isMarkdown
+        isMarkdown: true
       });
     }
     
@@ -475,7 +480,8 @@ export default function App() {
         id: 'block_default',
         name: 'Bloque Principal',
         code: htmlText,
-        collapsed: false
+        collapsed: false,
+        isMarkdown: true
       }]);
     }
   };
@@ -512,10 +518,79 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [pageCount, setPageCount] = useState<number>(1);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string>('');
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState<boolean>(false);
   
   const lastFetchedContentRef = useRef<string>('');
   const isResizingRef = useRef<boolean>(false);
   const [isResizing, setIsResizing] = useState<boolean>(false);
+
+  // Compiled states for frozen preview
+  const [compiledCover, setCompiledCover] = useState<CoverConfig>(cover);
+  const [compiledSettings, setCompiledSettings] = useState<PageSettings>(settings);
+  const [compiledHtmlBlocks, setCompiledHtmlBlocks] = useState<HTMLBlock[]>(htmlBlocks);
+  const [compiledBibliography, setCompiledBibliography] = useState<BibliographyItem[]>(bibliography);
+  const [compiledUploadedFiles, setCompiledUploadedFiles] = useState<UploadedFile[]>(uploadedFiles);
+  const [compiledHtmlContent, setCompiledHtmlContent] = useState<string>(htmlContent);
+
+  // Save autoCompile setting
+  useEffect(() => {
+    localStorage.setItem('unemi_auto_compile', String(autoCompile));
+  }, [autoCompile]);
+
+  // Handle manual compilation
+  const handleCompile = () => {
+    if (isCompiling) return;
+    setIsCompiling(true);
+    setTimeout(() => {
+      setCompiledCover(JSON.parse(JSON.stringify(cover)));
+      setCompiledSettings(JSON.parse(JSON.stringify(settings)));
+      setCompiledHtmlBlocks(JSON.parse(JSON.stringify(htmlBlocks)));
+      setCompiledBibliography(JSON.parse(JSON.stringify(bibliography)));
+      setCompiledUploadedFiles(JSON.parse(JSON.stringify(uploadedFiles)));
+      setCompiledHtmlContent(htmlContent);
+      setIsCompiling(false);
+    }, 800);
+  };
+
+  // Keyboard shortcut listener for Ctrl+S / Cmd+S manual compilation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleCompile();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [cover, settings, htmlBlocks, bibliography, uploadedFiles, htmlContent, isCompiling]);
+
+  // Click outside detector for export dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const container = document.getElementById('export-dropdown-container');
+      if (container && !container.contains(e.target as Node)) {
+        setIsExportDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Sync automatically if autoCompile is true
+  useEffect(() => {
+    if (autoCompile) {
+      setCompiledCover(cover);
+      setCompiledSettings(settings);
+      setCompiledHtmlBlocks(htmlBlocks);
+      setCompiledBibliography(bibliography);
+      setCompiledUploadedFiles(uploadedFiles);
+      setCompiledHtmlContent(htmlContent);
+    }
+  }, [autoCompile, cover, settings, htmlBlocks, bibliography, uploadedFiles, htmlContent]);
 
   // Sync state changes back to localStorage
   useEffect(() => {
@@ -751,7 +826,7 @@ export default function App() {
   };
 
   // HIGH-FIDELITY SELF-CONTAINED ZIP EXPORTER
-  const handleExportZIP = () => {
+  const handleExport = (type: 'project' | 'html' | 'pdf_generator' = 'project') => {
     const coverElement = document.getElementById('unemi-cover-page');
     const pageElements = document.querySelectorAll('[name^="document-page-"]');
 
@@ -908,7 +983,7 @@ export default function App() {
     body, html {
       margin: 0;
       padding: 0;
-      background-color: #f1f5f9;
+      background-color: #fafafa !important;
       font-family: "Inter", system-ui, -apple-system, sans-serif;
       text-rendering: optimizeLegibility;
       -webkit-font-smoothing: antialiased;
@@ -921,6 +996,7 @@ export default function App() {
       align-items: center;
       gap: 32px;
       padding: 48px 24px;
+      background-color: #fafafa !important;
     }
 
     /* Core Pages layout constraints matching original previews */
@@ -1722,6 +1798,23 @@ export default function App() {
       .replace(/srcset="\/\//g, 'srcset="https://')
       .replace(/href="\/\//g, 'href="https://');
 
+    if (type === 'html') {
+      let customName = (exportFileName || '').trim();
+      if (!customName) {
+        customName = cover.title.slice(0, 30).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'proyecto_academico';
+      }
+      const blob = new Blob([sanitizedHTML], { type: 'text/html;charset=utf-8' });
+      const fileUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.setAttribute('download', `${customName}.html`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(fileUrl);
+      return;
+    }
+
     // Package the documents asynchronously into high-fidelity academic ZIP
     const zip = new JSZip();
 
@@ -2026,8 +2119,10 @@ read -p "Presione [Enter] para salir..."`;
     }
 
     zip.file("documento_formateado_imprimible.html", processedHTML);
-    zip.file("contenido_fuente.html", processedContent);
-    zip.file("configuracion_metadatos.json", JSON.stringify({ cover, settings, uploadedFiles, htmlBlocks, bibliography }, null, 2));
+    if (type === 'project') {
+      zip.file("contenido_fuente.html", processedContent);
+      zip.file("configuracion_metadatos.json", JSON.stringify({ cover, settings, uploadedFiles, htmlBlocks, bibliography }, null, 2));
+    }
 
     // Compile & download
     zip.generateAsync({ type: 'blob' }).then((blob) => {
@@ -2040,108 +2135,19 @@ read -p "Presione [Enter] para salir..."`;
         customName = cover.title.slice(0, 30).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'proyecto_academico';
       }
       
-      link.setAttribute('download', `${customName}.zip`);
+      const suffix = type === 'pdf_generator' ? '_generador_pdf' : '_proyecto';
+      link.setAttribute('download', `${customName}${suffix}.zip`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(fileUrl);
     }).catch((err) => {
       console.error('Error compiling ZIP package:', err);
       alert('Error al compilar el archivo ZIP.');
     });
   };
 
-  const insertHTMLSnippetAtFocusedBlock = (type: string) => {
-    let snippet = '';
-    switch (type) {
-      case 'h1':
-        snippet = '\n<h1>Título de Sección</h1>\n';
-        break;
-      case 'h2':
-        snippet = '\n<h2>Subtítulo Secundario</h2>\n';
-        break;
-      case 'p':
-        snippet = '\n<p>Escriba aquí el bloque de texto académico formal...</p>\n';
-        break;
-      case 'list':
-        snippet = '\n<ul>\n  <li>Primer elemento de la lista académica</li>\n  <li>Segundo elemento de desarrollo</li>\n</ul>\n';
-        break;
-      case 'table':
-        snippet = `\n<table class="academic-table">
-  <thead>
-    <tr>
-      <th>Componente</th>
-      <th>Descripción del Proceso</th>
-      <th>Porcentaje</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Investigación Teórica</td>
-      <td>Recopilación de normativas y referencias indexadas.</td>
-      <td>35%</td>
-    </tr>
-    <tr>
-      <td>Propuesta Tecnológica</td>
-      <td>Diseño de un compilador de hojas académicas autogestionadas.</td>
-      <td>65%</td>
-    </tr>
-  </tbody>
-</table>\n`;
-        break;
-      case 'note':
-        snippet = `\n<div class="note">
-  <strong>NOTA RECOMENDADA:</strong>
-  <p>Este informe cuenta con validación técnica del equipo de investigación internacional.</p>
-</div>\n`;
-        break;
-      case 'blockquote':
-        snippet = `\n<blockquote>
-  "El desarrollo contemporáneo de aplicaciones de auto-paginación demanda balances estrictos entre rendimiento y adaptabilidad visual."
-  <cite>— Decanato de la Facultad (2026)</cite>
-</blockquote>\n`;
-        break;
-      case 'math':
-        snippet = `\n<div class="math-expr">
-  \\[ f(x) = \\sum_{n=0}^{\\infty} \\frac{f^{(n)}(a)}{n!} (x-a)^n \\]
-</div>\n`;
-        break;
-      case 'pagebreak':
-        snippet = '\n<div class="page-break"></div>\n';
-        break;
-      default:
-        break;
-    }
 
-    if (!snippet) return;
-
-    // Use our state updating callback
-    const targetBlockId = lastFocusedBlockId || (htmlBlocks[0] && htmlBlocks[0].id);
-    if (!targetBlockId) {
-      alert("Por favor haga clic o enfoque algún bloque de código HTML primero.");
-      return;
-    }
-
-    setHtmlBlocks(prev => prev.map(b => {
-      if (b.id !== targetBlockId) return b;
-      
-      const textarea = document.getElementById(`editor-textarea-${targetBlockId}`) as HTMLTextAreaElement;
-      if (textarea) {
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const currentVal = b.code;
-        const newVal = currentVal.substring(0, start) + snippet + currentVal.substring(end);
-        
-        setTimeout(() => {
-          textarea.focus();
-          textarea.selectionStart = textarea.selectionEnd = start + snippet.length;
-        }, 50);
-        
-        return { ...b, code: newVal };
-      } else {
-        return { ...b, code: b.code + snippet };
-      }
-    }));
-  };
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950 font-sans antialiased text-slate-100 select-none">
@@ -2169,151 +2175,113 @@ read -p "Presione [Enter] para salir..."`;
             </div>
           </div>
 
-          {/* Middle part: FORMATOS RÁPIDOS DROPDOWN */}
-          <div className="relative">
+          {/* Middle part: COMPILE & AUTO-COMPILE SELECTOR */}
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowTopBarFormats(!showTopBarFormats)}
-              className="px-3.5 py-1.5 bg-[#FF6600]/10 hover:bg-[#FF6600]/25 border border-orange-500/40 hover:border-[#FF6600] rounded text-orange-400 text-[11px] font-extrabold tracking-wider uppercase transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
-              title="Inyectar bloques de HTML pre-diseñados en tu editor de código enfocado"
+              onClick={handleCompile}
+              disabled={autoCompile || isCompiling}
+              className={`px-3.5 py-1.5 rounded text-[11px] font-extrabold tracking-wider uppercase transition-all flex items-center gap-1.5 shadow-md ${
+                autoCompile
+                  ? 'bg-slate-900 text-slate-500 border border-slate-800/80 cursor-not-allowed opacity-40 select-none'
+                  : isCompiling
+                  ? 'bg-orange-700 text-slate-200 border border-orange-600 cursor-not-allowed select-none animate-pulse'
+                  : 'bg-orange-600 hover:bg-orange-500 text-white border border-orange-500 cursor-pointer active:scale-95'
+              }`}
+              title={
+                autoCompile
+                  ? "Compilación automática activa (se recompila al escribir)"
+                  : isCompiling
+                  ? "Compilando cambios..."
+                  : "Haz clic para compilar los cambios actuales y actualizar la vista previa"
+              }
             >
-              <span>Formatos Rápidos</span>
-              <ChevronDown className={`w-3.5 h-3.5 transform transition-transform duration-150 ${showTopBarFormats ? 'rotate-180' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isCompiling ? 'animate-spin' : ''}`} style={isCompiling ? { animationDuration: '1.5s' } : undefined} />
+              <span>{isCompiling ? 'Compilando' : 'Compilar'}</span>
             </button>
 
-            {showTopBarFormats && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setShowTopBarFormats(false)} 
-                />
-                <div className="absolute right-1/2 translate-x-1/2 mt-2 w-64 bg-slate-950 border border-slate-800 rounded-lg shadow-2xl z-50 overflow-hidden divide-y divide-slate-850">
-                  {[
-                    { label: 'Título H1', description: 'Sección Principal', tag: 'h1' },
-                    { label: 'Subtítulo H2', description: 'Sección Secundaria', tag: 'h2' },
-                    { label: 'Párrafo', description: 'Bloque Académico', tag: 'p' },
-                    { label: 'Lista', description: 'Lista de Viñetas', tag: 'list' },
-                    { label: 'Cita en Bloque', description: 'Cita Académica Profesional', tag: 'blockquote' },
-                    { label: 'Fórmula Matemática', description: 'Fórmula MathJax auto-renderizada', tag: 'math' },
-                    { label: 'Salto de Página', description: 'Forzar Nueva Página en Impresión', tag: 'pagebreak' },
-                  ].map((fmt, i) => (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        insertHTMLSnippetAtFocusedBlock(fmt.tag);
-                        setShowTopBarFormats(false);
-                      }}
-                      className="w-full text-left px-3.5 py-2.5 hover:bg-[#004080]/20 transition-colors flex flex-col gap-0.5 group cursor-pointer"
-                    >
-                      <span className="text-[11.5px] font-bold text-slate-200 group-hover:text-orange-400">{fmt.label}</span>
-                      <span className="text-[9.5px] text-slate-500 group-hover:text-slate-400">{fmt.description}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
+            <select
+              value={autoCompile ? "auto" : "manual"}
+              onChange={(e) => setAutoCompile(e.target.value === "auto")}
+              className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-[10px] text-slate-200 font-extrabold uppercase tracking-wider focus:outline-none focus:border-orange-500 cursor-pointer text-center"
+              title="Modo de compilación de la vista previa"
+            >
+              <option value="auto">Auto-Compilar</option>
+              <option value="manual">Compilar Manual</option>
+            </select>
           </div>
 
-          {/* Right part: Settings Drawers Trigger, ZIP import/export and resets */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            
-            {/* Drawers toggler controls */}
-            <div className="flex items-center bg-slate-900 border border-slate-800 rounded-md p-0.5 shrink-0">
+          {/* Right part: Split export options dropdown replacing the old export button */}
+          <div className="flex items-center gap-1.5 shrink-0" id="export-dropdown-container">
+            <div className="relative">
               <button
-                onClick={() => setActiveDrawerType(null)}
-                className={`px-2.5 py-1 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  activeDrawerType === null
-                    ? 'bg-[#004080] text-white border border-[#FF6600]'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Volver a los Editores de Contenido HTML"
+                onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+                className="py-1.5 px-3 rounded bg-[#FF6600] hover:bg-[#ff8533] text-white active:scale-[95%] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm border border-[#FF6600]/25"
+                title="Opciones de descarga y exportación"
               >
-                <Code className="w-3.5 h-3.5" />
-                <span>Editores</span>
+                <FolderArchive className="w-4 h-4 text-white" />
+                <span>Exportar Trabajo</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${isExportDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
-              <button
-                onClick={() => {
-                  if (activeDrawerType === 'cover') {
-                    setActiveDrawerType(null);
-                  } else {
-                    setActiveDrawerType('cover');
-                  }
-                }}
-                className={`px-2.5 py-1 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  activeDrawerType === 'cover'
-                    ? 'bg-[#004080] text-white border border-[#FF6600]'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Configurar Portada"
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>Portada (Cover)</span>
-              </button>
-              <button
-                onClick={() => {
-                  if (activeDrawerType === 'settings') {
-                    setActiveDrawerType(null);
-                  } else {
-                    setActiveDrawerType('settings');
-                  }
-                }}
-                className={`px-2.5 py-1 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  activeDrawerType === 'settings'
-                    ? 'bg-[#004080] text-white border border-[#FF6600]'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Personalizar Estilo de Hojas"
-              >
-                <Sliders className="w-3.5 h-3.5" />
-                <span>Estilos</span>
-              </button>
-              <button
-                onClick={() => {
-                  if (activeDrawerType === 'uploads') {
-                    setActiveDrawerType(null);
-                  } else {
-                    setActiveDrawerType('uploads');
-                  }
-                }}
-                className={`px-2.5 py-1 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  activeDrawerType === 'uploads'
-                    ? 'bg-[#004080] text-white border border-[#FF6600]'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Ver Banco de Imágenes y Recursos"
-              >
-                <Image className="w-3.5 h-3.5" />
-                <span>Archivos</span>
-              </button>
-              <button
-                onClick={() => {
-                  if (activeDrawerType === 'bibliography') {
-                    setActiveDrawerType(null);
-                  } else {
-                    setActiveDrawerType('bibliography');
-                  }
-                }}
-                className={`px-2.5 py-1 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  activeDrawerType === 'bibliography'
-                    ? 'bg-[#004080] text-white border border-[#FF6600]'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Gestionar Referencias Bibliográficas BibTeX (.bib)"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Bibliografía</span>
-              </button>
+
+              {isExportDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-72 rounded-lg bg-slate-900 border border-slate-800 shadow-2xl z-[100] p-1.5 flex flex-col gap-1 select-none">
+                  <div className="px-2 py-1 text-[9px] font-black text-[#FF6600] uppercase tracking-wider border-b border-slate-800/60 pb-1.5 mb-1">
+                    Formatos de Descarga Disponibles
+                  </div>
+                  
+                  {/* Opción 1: Descargar Proyecto Completo */}
+                  <button
+                    onClick={() => {
+                      handleExport('project');
+                      setIsExportDropdownOpen(false);
+                    }}
+                    className="w-full text-left p-2 hover:bg-slate-800/80 rounded transition-all flex flex-col gap-0.5 cursor-pointer"
+                  >
+                    <span className="text-[11px] font-extrabold text-slate-100 flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                      💼 Descargar Proyecto (.zip)
+                    </span>
+                    <span className="text-[9.5px] text-slate-400 pl-3 leading-tight font-normal">
+                      Incluye metadatos de respaldo (JSON) y fuentes para poder importar y seguir editando luego.
+                    </span>
+                  </button>
+
+                  {/* Opción 2: Descargar HTML Independiente */}
+                  <button
+                    onClick={() => {
+                      handleExport('html');
+                      setIsExportDropdownOpen(false);
+                    }}
+                    className="w-full text-left p-2 hover:bg-slate-800/80 rounded transition-all flex flex-col gap-0.5 cursor-pointer"
+                  >
+                    <span className="text-[11px] font-extrabold text-slate-100 flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#004080]"></span>
+                      🌐 Descargar HTML Autónomo (.html)
+                    </span>
+                    <span className="text-[9.5px] text-slate-400 pl-3 leading-tight font-normal">
+                      Un solo archivo HTML portátil. Imágenes locales incrustadas en Base64 e imágenes URL enlazadas.
+                    </span>
+                  </button>
+
+                  {/* Opción 3: Descargar Generador de PDF */}
+                  <button
+                    onClick={() => {
+                      handleExport('pdf_generator');
+                      setIsExportDropdownOpen(false);
+                    }}
+                    className="w-full text-left p-2 hover:bg-slate-800/80 rounded transition-all flex flex-col gap-0.5 cursor-pointer"
+                  >
+                    <span className="text-[11px] font-extrabold text-slate-100 flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-orange-500"></span>
+                      📊 Descargar Generador de PDF (.zip)
+                    </span>
+                    <span className="text-[9.5px] text-slate-400 pl-3 leading-tight font-normal">
+                      Solo el documento HTML limpio, activos de imagen sueltos y scripts Puppeteer locales automatizados.
+                    </span>
+                  </button>
+                </div>
+              )}
             </div>
-
-
-
-            {/* Reset All */}
-            <button
-              onClick={handleResetAllToZero}
-              className="p-1.5 text-slate-400 hover:text-red-500 rounded bg-transparent hover:bg-slate-900 transition-all cursor-pointer border border-transparent hover:border-red-500/20"
-              title="Reiniciar y borrar todos los cambios para volver al formato UNEMI oficial"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
           </div>
         </div>
       )}
@@ -2323,6 +2291,99 @@ read -p "Presione [Enter] para salir..."`;
         {/* Dynamic Sized Container Wrap */}
         {!isFullscreen && (
           <>
+            {/* 1. Left Toolbar Sidebar (Narrow vertical navigation bar with stacked buttons) */}
+            <div className="w-[76px] shrink-0 bg-slate-950 border-r border-slate-800/80 flex flex-col items-center py-4 gap-3 h-full print:hidden select-none">
+              <button
+                onClick={() => setActiveDrawerType(null)}
+                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
+                  activeDrawerType === null
+                    ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                }`}
+                title="Volver a los Editores de Contenido HTML"
+              >
+                <Code className="w-5 h-5 shrink-0" />
+                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Editores</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (activeDrawerType === 'cover') {
+                    setActiveDrawerType(null);
+                  } else {
+                    setActiveDrawerType('cover');
+                  }
+                }}
+                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
+                  activeDrawerType === 'cover'
+                    ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                }`}
+                title="Configurar Portada"
+              >
+                <Layers className="w-5 h-5 shrink-0" />
+                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Portada</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (activeDrawerType === 'settings') {
+                    setActiveDrawerType(null);
+                  } else {
+                    setActiveDrawerType('settings');
+                  }
+                }}
+                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
+                  activeDrawerType === 'settings'
+                    ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                }`}
+                title="Personalizar Estilo de Hojas"
+              >
+                <Sliders className="w-5 h-5 shrink-0" />
+                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Estilos</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (activeDrawerType === 'uploads') {
+                    setActiveDrawerType(null);
+                  } else {
+                    setActiveDrawerType('uploads');
+                  }
+                }}
+                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
+                  activeDrawerType === 'uploads'
+                    ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                }`}
+                title="Ver Banco de Imágenes y Recursos"
+              >
+                <Image className="w-5 h-5 shrink-0" />
+                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Archivos</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (activeDrawerType === 'bibliography') {
+                    setActiveDrawerType(null);
+                  } else {
+                    setActiveDrawerType('bibliography');
+                  }
+                }}
+                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
+                  activeDrawerType === 'bibliography'
+                    ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                }`}
+                title="Gestionar Referencias Bibliográficas"
+              >
+                <BookOpen className="w-5 h-5 shrink-0" />
+                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Bibliografía</span>
+              </button>
+            </div>
+
+            {/* 2. Content Editing Screen (second part) */}
             <div 
               style={{ width: `${sidebarWidth}px` }} 
               className="shrink-0 flex flex-col h-full print:hidden select-none border-r border-slate-800 bg-slate-900"
@@ -2347,6 +2408,8 @@ read -p "Presione [Enter] para salir..."`;
                   onClose={() => setActiveDrawerType(null)}
                   showBibliography={!!settings.showBibliography}
                   onToggleShowBibliography={(show) => setSettings(prev => ({ ...prev, showBibliography: show }))}
+                  showOnlyCitedBibliography={!!settings.showOnlyCitedBibliography}
+                  onToggleShowOnlyCitedBibliography={(show) => setSettings(prev => ({ ...prev, showOnlyCitedBibliography: show }))}
                   bibliographyTitle={settings.bibliographyTitle || 'Referencias Bibliográficas'}
                   onChangeBibliographyTitle={(title) => setSettings(prev => ({ ...prev, bibliographyTitle: title }))}
                   onInsertHTML={handleInsertHTML}
@@ -2385,16 +2448,17 @@ read -p "Presione [Enter] para salir..."`;
             <div className="absolute inset-0 z-50 bg-transparent cursor-col-resize pointer-events-auto" />
           )}
           <DocumentPreview
-            cover={cover}
-            settings={settings}
-            htmlContent={htmlContent}
+            cover={compiledCover}
+            settings={compiledSettings}
+            htmlContent={compiledHtmlContent}
             setPageCount={setPageCount}
             onExportZIP={handleExportZIP}
             isFullscreen={isFullscreen}
             setIsFullscreen={setIsFullscreen}
-            uploadedFiles={uploadedFiles}
-            htmlBlocks={htmlBlocks}
-            bibliography={bibliography}
+            uploadedFiles={compiledUploadedFiles}
+            htmlBlocks={compiledHtmlBlocks}
+            bibliography={compiledBibliography}
+            isCompiling={isCompiling}
           />
         </div>
       </div>

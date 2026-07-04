@@ -100,6 +100,7 @@ export interface PageSettings {
 
   // Bibliografía APA automática
   showBibliography?: boolean;
+  showOnlyCitedBibliography?: boolean;
   bibliographyTitle?: string;
   headerHtml?: string;
   footerHtml?: string;

@@ -313,10 +313,10 @@ export function formatAPABibliographyItem(item: BibliographyItem): string {
   if (item.doi) {
     const cleanDoi = cleanBraces(item.doi);
     const doiUrl = cleanDoi.startsWith('http') ? cleanDoi : `https://doi.org/${cleanDoi}`;
-    doiOrUrl = `<a href="${doiUrl}" target="_blank" class="text-[#004080] underline break-all">${doiUrl}</a>`;
+    doiOrUrl = `<a href="${doiUrl}" target="_blank" style="color: inherit; text-decoration: none; overflow-wrap: anywhere;">${doiUrl}</a>`;
   } else if (item.url) {
     const cleanUrl = cleanBraces(item.url);
-    doiOrUrl = `<a href="${cleanUrl}" target="_blank" class="text-[#004080] underline break-all">${cleanUrl}</a>`;
+    doiOrUrl = `<a href="${cleanUrl}" target="_blank" style="color: inherit; text-decoration: none; overflow-wrap: anywhere;">${cleanUrl}</a>`;
   }
 
   if (doiOrUrl) {

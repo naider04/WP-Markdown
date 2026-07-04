@@ -233,42 +233,86 @@ Márgenes de Página (Bordes):
     setSettings((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleFileUpload = (file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      alert("El archivo supera el límite de 5MB. Por favor suba una imagen de menor peso.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      if (!dataUrl) return;
-      const newFile: UploadedFile = {
-        id: 'file_' + Date.now(),
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        dataUrl: dataUrl,
-        uploadedAt: new Date().toISOString(),
+  const handleMultipleFilesUpload = (files: FileList | File[] | null) => {
+    if (!files || files.length === 0) return;
+    let successCount = 0;
+    Array.from(files).forEach((file, index) => {
+      if (file.size > 5 * 1024 * 1024) {
+        alert(`El archivo "${file.name}" supera el límite de 5MB.`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        if (!dataUrl) return;
+        const newFile: UploadedFile = {
+          id: 'file_' + Date.now() + '_' + index + '_' + Math.random().toString(36).substring(2, 6),
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          dataUrl: dataUrl,
+          uploadedAt: new Date().toISOString(),
+        };
+        setUploadedFiles((prev) => [...prev, newFile]);
+        successCount++;
+        if (successCount === files.length) {
+          triggerSuccessMsg(`${files.length} archivo(s) cargado(s) con éxito`);
+        }
       };
-      setUploadedFiles((prev) => [...prev, newFile]);
-      triggerSuccessMsg('Archivo subido con éxito');
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleAddFileByUrl = (url: string, name: string) => {
+    if (!url.trim()) return;
+    const sanitizedUrl = url.trim();
+    let sanitizedName = name.trim();
+    if (!sanitizedName) {
+      try {
+        const parts = sanitizedUrl.split('/');
+        const lastPart = parts[parts.length - 1];
+        sanitizedName = lastPart.split('?')[0] || 'imagen_url.png';
+      } catch {
+        sanitizedName = 'imagen_url.png';
+      }
+    }
+    if (!sanitizedName.includes('.')) {
+      sanitizedName += '.png';
+    }
+
+    const newFile: UploadedFile = {
+      id: 'file_url_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      name: sanitizedName,
+      type: 'image/url',
+      size: 0,
+      dataUrl: sanitizedUrl,
+      uploadedAt: new Date().toISOString(),
     };
-    reader.readAsDataURL(file);
+    setUploadedFiles((prev) => [...prev, newFile]);
+    triggerSuccessMsg('Imagen por URL agregada!');
   };
 
   const handleCopySnippet = (filename: string) => {
-    const htmlSnippet = `<img src="${filename}" alt="Imagen académica" style="max-width: 100%; height: auto; display: block; margin: 16px auto; border-radius: 4px;" referrerPolicy="no-referrer" />`;
-    navigator.clipboard.writeText(htmlSnippet).then(() => {
-      triggerSuccessMsg('Etiqueta HTML copiada!');
+    const nameWithoutExt = filename.split('.')[0] || 'imagen';
+    const cleanId = nameWithoutExt.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const figId = `fig-${cleanId || 'img'}-${Math.random().toString(36).substring(2, 6)}`;
+    const figureSnippet = `![Descripción de la figura](${filename}){#${figId}}`;
+    
+    navigator.clipboard.writeText(figureSnippet).then(() => {
+      triggerSuccessMsg('¡Formato de Figura copiado!');
     }).catch(() => {
       alert('Error de portapapeles.');
     });
   };
 
   const handleInsertImgTag = (filename: string) => {
-    const htmlSnippet = `\n<img src="${filename}" alt="Imagen académica" style="max-width: 100%; height: auto; display: block; margin: 16px auto; border-radius: 4px;" referrerPolicy="no-referrer" />\n`;
-    onInsertHTML(htmlSnippet);
-    triggerSuccessMsg('Imagen insertada en el código!');
+    const nameWithoutExt = filename.split('.')[0] || 'imagen';
+    const cleanId = nameWithoutExt.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const figId = `fig-${cleanId || 'img'}-${Math.random().toString(36).substring(2, 6)}`;
+    const figureSnippet = `\n![Descripción de la figura](${filename}){#${figId}}\n`;
+    
+    onInsertHTML(figureSnippet);
+    triggerSuccessMsg('¡Figura insertada en el editor!');
   };
 
   const handleDeleteFile = (id: string) => {
@@ -763,13 +807,31 @@ Márgenes de Página (Bordes):
                 </button>
                 {isTableStyleOpen && (
                   <div className="p-3 border-t border-slate-850 bg-slate-900/10 flex flex-col gap-2">
-                    <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Editor CSS de Tablas de Documento</span>
+                    <span className="text-[9px] text-slate-400 font-bold uppercase">Editor CSS de Tablas de Documento</span>
                     <textarea
                       value={settings.tableCustomCss !== undefined && settings.tableCustomCss !== null ? settings.tableCustomCss : DEFAULT_TABLE_CSS}
                       onChange={(e) => handleSettingsChange('tableCustomCss', e.target.value)}
-                      rows={5}
+                      rows={6}
                       className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-[10px]"
                     />
+                    <div className="mt-1 p-2.5 bg-slate-950 border border-slate-850 rounded-lg flex flex-col gap-1.5 text-[10px]">
+                      <span className="text-[10px] text-[#FF6600] font-extrabold flex items-center gap-1 uppercase tracking-wider">
+                        <span>📊 ¿Cómo poner bordes a tus Tablas?</span>
+                      </span>
+                      <p className="text-slate-400 text-[10px] leading-relaxed">
+                        Por defecto, el estilo UNEMI/APA 7 inserta tablas sin bordes verticales. Copia y pega el siguiente código arriba para activar una cuadrícula completa en tu previsualización de tablas:
+                      </p>
+                      <pre className="p-2 bg-slate-900 rounded font-mono text-[9px] text-[#FF6600]/90 select-all border border-slate-800/60 overflow-x-auto leading-normal">
+{`.unemi-document-content table, 
+.unemi-document-content table th, 
+.unemi-document-content table td {
+  border: 1px solid #000000 !important;
+}`}
+                      </pre>
+                      <p className="text-slate-500 text-[9px] italic">
+                        * Nota: Haz clic dentro del recuadro naranja de arriba para seleccionarlo y copiarlo fácilmente, luego pégalo en el editor de arriba.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -885,31 +947,7 @@ Márgenes de Página (Bordes):
                 )}
               </div>
 
-              {/* Custom custom styles addition */}
-              <div className="border border-slate-800 rounded bg-slate-950/25 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setIsCustomCssStyleOpen(!isCustomCssStyleOpen)}
-                  className="w-full p-2.5 bg-slate-950 hover:bg-slate-900/80 flex justify-between items-center text-left transition-all"
-                >
-                  <span className="font-extrabold uppercase text-[10px] tracking-wider text-slate-350">
-                    🧩 Inyección CSS Personalizado
-                  </span>
-                  <span>{isCustomCssStyleOpen ? '▲' : '▼'}</span>
-                </button>
-                {isCustomCssStyleOpen && (
-                  <div className="p-3 border-t border-slate-850 bg-slate-900/10 flex flex-col gap-1">
-                    <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Reglas CSS Adicionales</span>
-                    <textarea
-                      value={settings.customAddedCss || ''}
-                      onChange={(e) => handleSettingsChange('customAddedCss', e.target.value)}
-                      rows={6}
-                      className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-[10px]"
-                      placeholder="/* .unemi-document-content p {} */"
-                    />
-                  </div>
-                )}
-              </div>
+
 
 
 
@@ -937,28 +975,69 @@ Márgenes de Página (Bordes):
                 e.stopPropagation();
                 const files = e.dataTransfer.files;
                 if (files && files.length > 0) {
-                  handleFileUpload(files[0]);
+                  handleMultipleFilesUpload(files);
                 }
               }}
             >
               <Upload className="w-8 h-8 text-slate-500 group-hover:text-orange-500 transition-colors" />
               <div className="flex flex-col gap-1">
-                <span className="font-bold text-slate-350 text-[11px]">Subir archivo o recurso</span>
-                <span className="text-[9.5px] text-slate-500 font-normal">Arrastre y suelte o haga clic (PNG, JPG, GIF, SVG)</span>
+                <span className="font-bold text-slate-350 text-[11px]">Subir uno o varios archivos</span>
+                <span className="text-[9.5px] text-slate-500 font-normal">Soporta selección múltiple y arrastrar/soltar</span>
               </div>
               <input
                 id="drawer-assets-uploader"
                 type="file"
+                multiple
                 accept="image/*"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    handleFileUpload(file);
+                  const files = e.target.files;
+                  if (files && files.length > 0) {
+                    handleMultipleFilesUpload(files);
                   }
                   e.target.value = '';
                 }}
                 className="hidden"
               />
+            </div>
+
+            {/* Panel de Enlaces URL Externos */}
+            <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-lg flex flex-col gap-2">
+              <span className="font-extrabold uppercase text-[9.5px] tracking-wider text-slate-350">
+                🌐 Añadir imagen por URL externa
+              </span>
+              <div className="flex flex-col gap-1.5">
+                <input
+                  type="text"
+                  id="url-uploader-src"
+                  placeholder="Pegue la URL de la imagen (ej: https://ejemplo.com/grafico.png)"
+                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 text-[11px] focus:ring-1 focus:ring-orange-500 focus:outline-none focus:border-[#FF6600]/80 font-mono"
+                />
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    id="url-uploader-name"
+                    placeholder="Nombre opcional (ej: mi_grafico.png)"
+                    className="flex-1 p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 text-[11px] focus:ring-1 focus:ring-orange-500 focus:outline-none focus:border-[#FF6600]/80 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const urlEl = document.getElementById('url-uploader-src') as HTMLInputElement;
+                      const nameEl = document.getElementById('url-uploader-name') as HTMLInputElement;
+                      if (urlEl && urlEl.value.trim()) {
+                        handleAddFileByUrl(urlEl.value, nameEl.value);
+                        urlEl.value = '';
+                        nameEl.value = '';
+                      } else {
+                        alert('Por favor ingrese una URL de imagen válida.');
+                      }
+                    }}
+                    className="px-3 bg-[#004080] hover:bg-[#003060] border border-slate-800 rounded text-white font-bold text-[10.5px] cursor-pointer transition-all active:scale-95"
+                  >
+                    Agregar URL
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Uploaded assets list */}
