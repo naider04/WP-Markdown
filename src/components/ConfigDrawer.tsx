@@ -293,10 +293,7 @@ Márgenes de Página (Bordes):
   };
 
   const handleCopySnippet = (filename: string) => {
-    const nameWithoutExt = filename.split('.')[0] || 'imagen';
-    const cleanId = nameWithoutExt.toLowerCase().replace(/[^a-z0-9_-]/g, '');
-    const figId = `fig-${cleanId || 'img'}-${Math.random().toString(36).substring(2, 6)}`;
-    const figureSnippet = `![Descripción de la figura](${filename}){#${figId}}`;
+    const figureSnippet = `![Descripción de la figura](${filename}){width=60%}`;
     
     navigator.clipboard.writeText(figureSnippet).then(() => {
       triggerSuccessMsg('¡Formato de Figura copiado!');
@@ -306,10 +303,7 @@ Márgenes de Página (Bordes):
   };
 
   const handleInsertImgTag = (filename: string) => {
-    const nameWithoutExt = filename.split('.')[0] || 'imagen';
-    const cleanId = nameWithoutExt.toLowerCase().replace(/[^a-z0-9_-]/g, '');
-    const figId = `fig-${cleanId || 'img'}-${Math.random().toString(36).substring(2, 6)}`;
-    const figureSnippet = `\n![Descripción de la figura](${filename}){#${figId}}\n`;
+    const figureSnippet = `\n![Descripción de la figura](${filename}){width=60%}\n`;
     
     onInsertHTML(figureSnippet);
     triggerSuccessMsg('¡Figura insertada en el editor!');
@@ -1167,12 +1161,30 @@ Márgenes de Página (Bordes):
             </div>
 
             {/* Instruction helper */}
-            <div className="p-3 bg-slate-950 border border-slate-850 rounded text-slate-400 flex flex-col gap-1.5 text-[10.5px]">
-              <span className="font-bold text-slate-300 uppercase text-[9.5px] tracking-wider">💡 Tip rápido de Imágenes:</span>
+            <div className="p-3 bg-slate-950 border border-slate-850 rounded text-slate-400 flex flex-col gap-2 text-[10.5px]">
+              <span className="font-bold text-slate-300 uppercase text-[9.5px] tracking-wider">💡 Sintaxis y Variables de Imagen:</span>
+              <p className="text-slate-400 leading-normal">
+                Puedes personalizar las figuras usando atributos clave-valor entre llaves <code className="text-orange-400 font-mono text-[9.5px]">{"{...}"}</code> justo después del paréntesis:
+              </p>
               <ul className="list-disc pl-4 space-y-1 text-slate-400 leading-normal">
-                <li>Haz clic en <span className="font-bold text-orange-400">Insertar (+)</span> para inyectar la etiqueta del recurso directo en el último editor de código que estuviste editando.</li>
-                <li>Si prefieres, copia el HTML y pégalo manualmente en cualquier sección de tus editores.</li>
+                <li><strong className="text-slate-200">id</strong>: Identificador de la figura para citas (ej: <code className="text-orange-400 font-mono text-[9px]">id=fig-mi_grafico</code>).</li>
+                <li><strong className="text-slate-200">width</strong>: Ancho de la imagen (ej: <code className="text-orange-400 font-mono text-[9px]">width=60%</code> o <code className="text-orange-400 font-mono text-[9px]">width=400px</code>).</li>
+                <li><strong className="text-slate-200">align</strong>: Alineación horizontal (<code className="text-orange-400 font-mono text-[9px]">left</code>, <code className="text-orange-400 font-mono text-[9px]">center</code> o <code className="text-orange-400 font-mono text-[9px]">right</code>; solo si <code className="text-slate-300 font-mono text-[9px]">wrap=none</code>).</li>
+                <li><strong className="text-slate-200">wrap</strong>: Ajuste y flotación del texto (<code className="text-orange-400 font-mono text-[9px]">left</code>, <code className="text-orange-400 font-mono text-[9px]">right</code>, <code className="text-orange-400 font-mono text-[9px]">square</code> o <code className="text-orange-400 font-mono text-[9px]">none</code>).</li>
+                <li><strong className="text-slate-200">note</strong>: Nota explicativa al pie de la figura, adaptada al formato académico APA 7.</li>
               </ul>
+              <div className="mt-1 pt-1.5 border-t border-slate-900">
+                <span className="font-bold text-slate-300 text-[9px] uppercase block mb-1">Ejemplo de sintaxis:</span>
+                <pre className="p-1.5 bg-slate-900 rounded font-mono text-[9px] text-[#FF6600]/90 select-all border border-slate-800/60 overflow-x-auto leading-normal">
+{`![Título de la Figura](imagen.png){
+  id=fig-ejemplo
+  width=60%
+  align=center
+  wrap=none
+  note="Datos recopilados del censo de software 2026."
+}`}
+                </pre>
+              </div>
             </div>
           </div>
         )}

@@ -2452,7 +2452,7 @@ read -p "Presione [Enter] para salir..."`;
             settings={compiledSettings}
             htmlContent={compiledHtmlContent}
             setPageCount={setPageCount}
-            onExportZIP={handleExportZIP}
+            onExportZIP={() => handleExport('project')}
             isFullscreen={isFullscreen}
             setIsFullscreen={setIsFullscreen}
             uploadedFiles={compiledUploadedFiles}

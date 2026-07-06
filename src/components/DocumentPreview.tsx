@@ -290,7 +290,7 @@ function compileAndProcessMarkdown(
     figureMap.set(idVal, figNumber);
 
     // Styling according to wrap and alignment values (APA 7 Compliant)
-    let containerStyle = "font-family: 'Times New Roman', Times, serif; font-size: 14px; margin: 24px 0; clear: both; width: 100%;";
+    let containerStyle = "font-family: 'Times New Roman', Times, serif; margin: 24px 0; clear: both; width: 100%; display: block;";
     let imgStyle = "height: auto; border-radius: 4px; display: block;";
 
     if (widthVal) {
@@ -300,42 +300,51 @@ function compileAndProcessMarkdown(
     }
 
     if (wrapVal === 'left') {
-      containerStyle += " float: left; margin: 8px 24px 20px 0; width: auto; max-width: 50%; text-align: left;";
+      containerStyle = "font-family: 'Times New Roman', Times, serif; float: left; margin: 8px 24px 20px 0; width: auto; max-width: 50%; display: block;";
       imgStyle += " margin: 0;";
     } else if (wrapVal === 'right') {
-      containerStyle += " float: right; margin: 8px 0 20px 24px; width: auto; max-width: 50%; text-align: left;";
+      containerStyle = "font-family: 'Times New Roman', Times, serif; float: right; margin: 8px 0 20px 24px; width: auto; max-width: 50%; display: block;";
       imgStyle += " margin: 0;";
     } else if (wrapVal === 'square') {
-      containerStyle += " float: left; margin: 8px 24px 20px 0; width: auto; max-width: 45%; text-align: left;";
+      containerStyle = "font-family: 'Times New Roman', Times, serif; float: left; margin: 8px 24px 20px 0; width: auto; max-width: 45%; display: block;";
       imgStyle += " margin: 0;";
     } else {
       // 'none' or 'top-bottom'
-      containerStyle += " clear: both; display: block;";
+      containerStyle = "font-family: 'Times New Roman', Times, serif; clear: both; display: block; width: 100%;";
+    }
+
+    // Set horizontal alignment inside image parent container
+    let imgContainerStyle = "width: 100%; display: block; margin: 12px 0;";
+    if (wrapVal === 'none' || !wrapVal) {
       if (alignVal === 'center') {
-        containerStyle = `font-family: 'Times New Roman', Times, serif; font-size: 14px; margin: 24px auto; text-align: left; clear: both; display: block; width: fit-content; max-width: 100%;`;
+        imgContainerStyle += " text-align: center;";
         imgStyle += " margin: 0 auto;";
       } else if (alignVal === 'right') {
-        containerStyle += " margin: 24px 0 24px auto; text-align: right; width: fit-content;";
+        imgContainerStyle += " text-align: right;";
         imgStyle += " margin: 0 0 0 auto;";
       } else {
-        containerStyle += " margin: 24px 0; text-align: left; width: fit-content;";
+        imgContainerStyle += " text-align: left;";
         imgStyle += " margin: 0;";
       }
+    } else {
+      imgStyle += " margin: 0;";
     }
 
     // APA 7 structure:
-    // Line 1: Figura X in Bold (flush left)
-    // Line 2: Title in Italics (flush left)
+    // Line 1: Figura X in Bold (flush left of page/container, no indent)
+    // Line 2: Title in Italics (flush left of page/container, no indent)
     // Line 3: Image
-    // Line 4: Note underneath (with Nota. in italics)
+    // Line 4: Note underneath (flush left, no indent, with Nota. in italics)
     const figHtml = `
 <div id="${idVal}" class="unemi-rendered-figure" style="${containerStyle}">
-  <div style="text-align: left; margin-bottom: 8px; font-family: 'Times New Roman', Times, serif;">
-    <strong style="display: block; font-weight: bold; font-size: 14px; margin-bottom: 2px; color: #000;">Figura ${figNumber}</strong>
-    <em style="display: block; font-style: italic; font-size: 14px; margin-bottom: 8px; color: #000;">${captionVal}</em>
+  <div style="text-align: left !important; margin-bottom: 8px; font-family: 'Times New Roman', Times, serif; width: 100% !important; display: block !important; text-indent: 0 !important; margin-left: 0 !important; padding-left: 0 !important;">
+    <strong style="display: block !important; font-weight: bold !important; font-size: 16px !important; margin-bottom: 2px !important; color: #000 !important; text-align: left !important; text-indent: 0 !important; margin-left: 0 !important;">Figura ${figNumber}</strong>
+    <em style="display: block !important; font-style: italic !important; font-size: 16px !important; margin-bottom: 8px !important; color: #000 !important; text-align: left !important; text-indent: 0 !important; margin-left: 0 !important;">${captionVal}</em>
   </div>
-  <img src="${imgSrc}" alt="${captionVal}" style="${imgStyle}" />
-  ${noteVal ? `<div style="font-size: 11px; color: #333; text-align: left; margin-top: 6px; font-family: 'Times New Roman', Times, serif; line-height: 1.4;"><em>Nota.</em> ${noteVal}</div>` : ''}
+  <div style="${imgContainerStyle}">
+    <img src="${imgSrc}" alt="${captionVal}" style="${imgStyle}" />
+  </div>
+  ${noteVal ? `<div style="font-size: 16px !important; color: #000 !important; text-align: left !important; margin-top: 6px !important; font-family: 'Times New Roman', Times, serif !important; line-height: 1.4 !important; width: 100% !important; display: block !important; text-indent: 0 !important; margin-left: 0 !important; padding-left: 0 !important;"><em style="font-style: italic !important;">Nota.</em> ${noteVal}</div>` : ''}
 </div>
     `;
     generatedFigures.set(idVal, figHtml);
