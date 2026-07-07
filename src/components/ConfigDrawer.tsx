@@ -550,142 +550,108 @@ Márgenes de Página (Bordes):
                 type="button"
                 onClick={() => {
                   navigator.clipboard.writeText(`<style>
-.cv-page {
-    box-sizing: border-box;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: var(--cover-padding-y, 7.5cqh) var(--cover-padding-x, 8cqw);
-    font-family: 'Arial', sans-serif;
-    color: #002E45;
+body{
+    margin:0;
+    background:transparent;
+    font-family: Arial, sans-serif;
+    color:#002E45;
 }
-.cv-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-    text-align: center;
-    width: 100%;
-    height: 100%;
+
+/* hoja */
+.cv-page{
+    height:297mm;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding-left:96px;
+    padding-right:96px;
 }
-.cv-logo {
-    max-height: 12cqh;
-    object-fit: contain;
-    margin-bottom: 2cqh;
+
+/* bloque real centrado */
+.cv-content{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
 }
-.cv-header {
-    font-size: 3cqw;
-    font-weight: 800;
-    line-height: 1.3;
-    text-transform: uppercase;
-    color: #004080;
-    margin-bottom: 3cqh;
+
+/* imagen separada pero alineada */
+.cv-logo{
+    max-width:40%;
+    margin-bottom:40px;
 }
-.cv-label {
-    font-size: 2cqw;
-    font-weight: 800;
-    color: #FF6600;
-    margin-top: 1.5cqh;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+
+/* encabezado */
+.cv-header{
+    font-size:24px;
+    font-weight:bold;
+    line-height:1.4;
+    text-transform:uppercase;
+    margin-bottom:18px;
 }
-.cv-value {
-    font-size: 2.2cqw;
-    font-weight: 600;
-    margin-top: 0.2cqh;
-    line-height: 1.3;
+
+.cv-label{
+    font-weight:bold;
+    margin-top:10px;
+    font-size:20px; 
 }
-.cv-list {
-    line-height: 1.4;
+
+.cv-value{
+    margin-top:1px;
+    font-size:18px;
 }
-.cv-footer {
-    font-size: 2cqw;
-    font-weight: 800;
-    margin-top: auto;
-    letter-spacing: 0.1em;
-    color: #004080;
+
+.cv-list{
+    line-height:1.5;
 }
+
 </style>
 
 <div class="cv-page">
+
     <div class="cv-content">
-        <img src="icon.png" class="cv-logo" onError="this.src='https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=120'; this.onerror=null;" referrerpolicy="no-referrer">
-        
+
+        <img src="icon.png" class="cv-logo">
+
         <div class="cv-header">
-            FACULTAD DE CIENCIAS E INGENIERÍA<br>
-            CARRERA DE INGENIERÍA DE SOFTWARE
+            FACULTAD DE CIENCIAS DE INGENIERÍA<br>
+            CARRERA DE TECNOLOGÍAS DE LA INFORMACIÓN Y COMUNICACIÓN EN LINEA.
         </div>
 
-        <div>
-            <div class="cv-label">TEMA:</div>
-            <div class="cv-value">Análisis del Impacto del Aprendizaje Autónomo en Estudiantes Universitarios</div>
+        <div class="cv-label">TEMA:</div>
+        <div class="cv-value">
+            APE 2
         </div>
 
-        <div>
-            <div class="cv-label">AUTORES:</div>
-            <div class="cv-value cv-list">
-                Joel Agustín Párraga<br>
-                Wilmer Sandro Patiño Cuastuza
-            </div>
+        <div class="cv-label">GRUPO:</div>
+        <div class="cv-value cv-list">
+
+            Wilmer Sandro Patiño Cuastuza
         </div>
 
-        <div>
-            <div class="cv-label">ASIGNATURA:</div>
-            <div class="cv-value">Metodología y Técnicas de la Investigación</div>
-        </div>
+        <div class="cv-label">CURSO:</div>
+        <div class="cv-value">Arquitectura de Computador</div>
 
-        <div>
-            <div class="cv-label">DOCENTE:</div>
-            <div class="cv-value font-bold">Mtr. Mendoza Cabrera</div>
-        </div>
+        <div class="cv-label">PROFESOR:</div>
+        <div class="cv-value">Ing. Bermeo Paucar Javier, Mgti</div>
 
-        <div class="cv-footer">
-            MILAGRO - ECUADOR<br>
-            <span style="color: #FF6600; font-size: 0.8em;">JUNIO, 2026</span>
-        </div>
+        <div class="cv-label">FECHA:</div>
+        <div class="cv-value">Junio 18, 2026</div>
+
+        <div class="cv-label">PERIODO:</div>
+        <div class="cv-value">Abril 2026 - Julio 2026</div>
+<br>
+<br>
+
+        <div class="cv-label">MILAGRO-ECUADOR</div>
+
     </div>
 </div>`);
-                  triggerSuccessMsg('¡Plantilla Copiada!');
+                  triggerSuccessMsg('¡Plantilla de Portada Copiada!');
                 }}
                 className="w-full py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 hover:text-white transition-all text-[11px] font-bold text-orange-400 cursor-pointer text-center"
               >
                 Copiar Plantilla Académica
-              </button>
-            </div>
-
-            {/* Plantilla de Marco de Márgenes SVG */}
-            <div className="p-3 bg-slate-950/80 border border-slate-850 rounded flex flex-col gap-2">
-              <div className="flex items-center gap-1.5">
-                <FileCode className="w-4 h-4 text-orange-400 shrink-0" />
-                <span className="text-[10px] font-bold text-slate-200 uppercase tracking-wider">📐 Plantilla de Marco de Márgenes SVG</span>
-              </div>
-              <p className="text-[9px] text-slate-400 leading-normal">
-                Esta plantilla genera un marco vectorial decorativo con doble borde institucional (azul estricto y naranja punteado) y esquinas ornamentales. Copia y pégalo al inicio de tu Overlay en Portada.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(`<div style="position: absolute; inset: 0; pointer-events: none; width: 100%; height: 100%; box-sizing: border-box; padding: 20px; z-index: 1;">
-  <svg width="100%" height="100%" viewBox="0 0 816 1056" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: block; width: 100%; height: 100%;">
-    <!-- Borde Principal Institucional Azul -->
-    <rect x="15" y="15" width="786" height="1026" stroke="#004080" stroke-width="3" rx="4"/>
-    <!-- Borde Interno Naranja Punteado Académico -->
-    <rect x="22" y="22" width="772" height="1012" stroke="#FF6600" stroke-width="1.5" rx="2" stroke-dasharray="6 3"/>
-    
-    <!-- Esquineras de Esquinas de Refuerzo Visual (Top Left, Top Right, Bottom Left, Bottom Right) -->
-    <path d="M 12 40 L 12 12 L 40 12" stroke="#004080" stroke-width="5" fill="none"/>
-    <path d="M 804 40 L 804 12 L 776 12" stroke="#004080" stroke-width="5" fill="none"/>
-    <path d="M 12 1016 L 12 1044 L 40 1044" stroke="#004080" stroke-width="5" fill="none"/>
-    <path d="M 804 1016 L 804 1044 L 776 1044" stroke="#004080" stroke-width="5" fill="none"/>
-  </svg>
-</div>`);
-                  triggerSuccessMsg('¡Marco SVG Copiado!');
-                }}
-                className="w-full py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 hover:text-white transition-all text-[11px] font-bold text-orange-400 cursor-pointer text-center"
-              >
-                Copiar Marco SVG (Márgenes)
               </button>
             </div>
           </div>

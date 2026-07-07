@@ -245,13 +245,116 @@ const DEFAULT_BLOCK_TABLE = `/* Estilos de Tablas Académicas APA 7 */
   background-color: rgba(0, 0, 0, 0.02) !important;
 }`;
 
+const DEFAULT_OVERLAY_HTML = `<style>
+body{
+    margin:0;
+    background:transparent;
+    font-family: Arial, sans-serif;
+    color:#002E45;
+}
+
+/* hoja */
+.cv-page{
+    height:297mm;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding-left:96px;
+    padding-right:96px;
+}
+
+/* bloque real centrado */
+.cv-content{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+}
+
+/* imagen separada pero alineada */
+.cv-logo{
+    max-width:40%;
+    margin-bottom:40px;
+}
+
+/* encabezado */
+.cv-header{
+    font-size:24px;
+    font-weight:bold;
+    line-height:1.4;
+    text-transform:uppercase;
+    margin-bottom:18px;
+}
+
+.cv-label{
+    font-weight:bold;
+    margin-top:10px;
+    font-size:20px; 
+}
+
+.cv-value{
+    margin-top:1px;
+    font-size:18px;
+}
+
+.cv-list{
+    line-height:1.5;
+}
+
+</style>
+
+<div class="cv-page">
+
+    <div class="cv-content">
+
+        <img src="icon.png" class="cv-logo">
+
+        <div class="cv-header">
+            FACULTAD DE CIENCIAS DE INGENIERÍA<br>
+            CARRERA DE TECNOLOGÍAS DE LA INFORMACIÓN Y COMUNICACIÓN EN LINEA.
+        </div>
+
+        <div class="cv-label">TEMA:</div>
+        <div class="cv-value">
+            APE 2
+        </div>
+
+        <div class="cv-label">GRUPO:</div>
+        <div class="cv-value cv-list">
+
+            Wilmer Sandro Patiño Cuastuza
+        </div>
+
+        <div class="cv-label">CURSO:</div>
+        <div class="cv-value">Arquitectura de Computador</div>
+
+        <div class="cv-label">PROFESOR:</div>
+        <div class="cv-value">Ing. Bermeo Paucar Javier, Mgti</div>
+
+        <div class="cv-label">FECHA:</div>
+        <div class="cv-value">Junio 18, 2026</div>
+
+        <div class="cv-label">PERIODO:</div>
+        <div class="cv-value">Abril 2026 - Julio 2026</div>
+<br>
+<br>
+
+        <div class="cv-label">MILAGRO-ECUADOR</div>
+
+    </div>
+</div>`;
+
 export default function App() {
   // 1. Initial Cover Page Metadata with localStorage fallback
   const [cover, setCover] = useState<CoverConfig>(() => {
     const cached = localStorage.getItem('unemi_cover_config');
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const parsed = JSON.parse(cached);
+        if (parsed && !parsed.overlayHtml) {
+          parsed.overlayHtml = DEFAULT_OVERLAY_HTML;
+        }
+        return parsed;
       } catch (e) {
         console.error('Error parsing cover config cache:', e);
       }
@@ -267,6 +370,7 @@ export default function App() {
       city: 'Ciudad, País',
       date: 'Junio, 2026',
       logoType: 'standard',
+      overlayHtml: DEFAULT_OVERLAY_HTML,
     };
   });
 
