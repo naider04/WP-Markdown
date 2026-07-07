@@ -618,36 +618,6 @@ body{
     width: 100%;
 }
 
-/* imagen separada pero alineada */
-.cv-logo{
-    max-width:40%;
-    margin-bottom:40px;
-}
-
-/* encabezado */
-.cv-header{
-    font-size:24px;
-    font-weight:bold;
-    line-height:1.4;
-    text-transform:uppercase;
-    margin-bottom:18px;
-}
-
-.cv-label{
-    font-weight:bold;
-    margin-top:10px;
-    font-size:20px; 
-}
-
-.cv-value{
-    margin-top:1px;
-    font-size:18px;
-}
-
-.cv-list{
-    line-height:1.5;
-}
-
 /* Estilos de compatibilidad para Markdown compilado */
 .cv-content h1 {
     font-size:24px;
@@ -666,14 +636,6 @@ body{
     margin-bottom:2px;
     color:#002E45;
     text-transform:uppercase;
-}
-
-.cv-content strong {
-    font-weight:bold;
-    margin-top:10px;
-    font-size:20px;
-    display:inline-block;
-    color:#002E45;
 }
 
 .cv-content p {

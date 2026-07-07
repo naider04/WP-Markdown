@@ -219,7 +219,7 @@ export function SidebarEditor({
         <div className="flex items-center gap-1.5 min-w-0">
           <Code className="w-4 h-4 text-orange-500 shrink-0" />
           <span className="font-extrabold uppercase tracking-widest text-[11px] text-slate-100 truncate">
-            Editores ({htmlBlocks.length})
+            Contenido ({htmlBlocks.length})
           </span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -372,11 +372,6 @@ export function SidebarEditor({
                         onChange={(val) => handleCodeChange(block.id, val)}
                         placeholder="Escribe aquí en Markdown (puedes incluir fórmulas LaTeX y etiquetas HTML)..."
                       />
-                      {block.code.length === 0 && (
-                        <span className="absolute left-4 top-12 text-slate-600 italic pointer-events-none font-mono text-[10px]">
-                          Escribe contenido en Markdown, LaTeX (ej: $$x^2$$) o HTML (ej: &lt;p&gt;...&lt;/p&gt;)
-                        </span>
-                      )}
 
                       {/* Display of real-time validation feedback */}
                       {validationErrors.length > 0 && (

@@ -10,8 +10,9 @@ import SidebarEditor from './components/SidebarEditor';
 import DocumentPreview from './components/DocumentPreview';
 import { ConfigDrawer } from './components/ConfigDrawer';
 import { BibliographyDrawer } from './components/BibliographyDrawer';
+import { MarginsDrawer } from './components/MarginsDrawer';
 import { parseBibtex, generateBibtexFromItems } from './utils/bibParser';
-import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive } from 'lucide-react';
+import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2 } from 'lucide-react';
 
 const DEFAULT_HEADER_HTML = `<div class="flex justify-between items-end text-[10px] uppercase font-bold tracking-wider pb-1 px-0.5 w-full">
   <div class="flex items-center gap-1.5 max-w-[320px]">
@@ -371,36 +372,6 @@ body{
     width: 100%;
 }
 
-/* imagen separada pero alineada */
-.cv-logo{
-    max-width:40%;
-    margin-bottom:40px;
-}
-
-/* encabezado */
-.cv-header{
-    font-size:24px;
-    font-weight:bold;
-    line-height:1.4;
-    text-transform:uppercase;
-    margin-bottom:18px;
-}
-
-.cv-label{
-    font-weight:bold;
-    margin-top:10px;
-    font-size:20px; 
-}
-
-.cv-value{
-    margin-top:1px;
-    font-size:18px;
-}
-
-.cv-list{
-    line-height:1.5;
-}
-
 /* Estilos de compatibilidad para Markdown compilado */
 .cv-content h1 {
     font-size:24px;
@@ -419,14 +390,6 @@ body{
     margin-bottom:2px;
     color:#002E45;
     text-transform:uppercase;
-}
-
-.cv-content strong {
-    font-weight:bold;
-    margin-top:10px;
-    font-size:20px;
-    display:inline-block;
-    color:#002E45;
 }
 
 .cv-content p {
@@ -497,7 +460,7 @@ export default function App() {
           if (!parsed.overlayHtml) {
             parsed.overlayHtml = DEFAULT_OVERLAY_HTML;
           }
-          if (!parsed.overlayTemplate) {
+          if (!parsed.overlayTemplate || parsed.overlayTemplate.includes('.cv-logo')) {
             parsed.overlayTemplate = DEFAULT_OVERLAY_TEMPLATE;
           }
           if (parsed.overlayMarkdown === undefined || parsed.overlayMarkdown === '') {
@@ -700,7 +663,7 @@ export default function App() {
   });
 
   const [lastFocusedBlockId, setLastFocusedBlockId] = useState<string | null>(null);
-  const [activeDrawerType, setActiveDrawerType] = useState<'cover' | 'settings' | 'uploads' | 'bibliography' | null>(null);
+  const [activeDrawerType, setActiveDrawerType] = useState<'cover' | 'settings' | 'uploads' | 'bibliography' | 'margins' | null>(null);
   const [autoCompile, setAutoCompile] = useState<boolean>(() => {
     const cached = localStorage.getItem('unemi_auto_compile');
     return cached !== 'false';
@@ -2548,7 +2511,7 @@ read -p "Presione [Enter] para salir..."`;
         {!isFullscreen && (
           <>
             {/* 1. Left Toolbar Sidebar (Narrow vertical navigation bar with stacked buttons) */}
-            <div className="w-[76px] shrink-0 bg-slate-950 border-r border-slate-800/80 flex flex-col items-center py-4 gap-3 h-full print:hidden select-none">
+            <div className="w-[76px] shrink-0 bg-slate-950 border-r border-slate-800/80 flex flex-col items-center py-4 gap-3 h-full print:hidden select-none animate-fade-in">
               <button
                 onClick={() => setActiveDrawerType(null)}
                 className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
@@ -2556,10 +2519,10 @@ read -p "Presione [Enter] para salir..."`;
                     ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)]'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                 }`}
-                title="Volver a los Editores de Contenido HTML"
+                title="Volver al Editor de Contenido HTML"
               >
                 <Code className="w-5 h-5 shrink-0" />
-                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Editores</span>
+                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Contenido</span>
               </button>
 
               <button
@@ -2637,6 +2600,25 @@ read -p "Presione [Enter] para salir..."`;
                 <BookOpen className="w-5 h-5 shrink-0" />
                 <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Bibliografía</span>
               </button>
+
+              <button
+                onClick={() => {
+                  if (activeDrawerType === 'margins') {
+                    setActiveDrawerType(null);
+                  } else {
+                    setActiveDrawerType('margins');
+                  }
+                }}
+                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
+                  activeDrawerType === 'margins'
+                    ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                }`}
+                title="Configurar Elementos del Margen"
+              >
+                <Maximize2 className="w-5 h-5 shrink-0" />
+                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Elementos del Margen</span>
+              </button>
             </div>
 
             {/* 2. Content Editing Screen (second part) */}
@@ -2670,6 +2652,12 @@ read -p "Presione [Enter] para salir..."`;
                   bibliographyTitle={settings.bibliographyTitle || 'Referencias Bibliográficas'}
                   onChangeBibliographyTitle={(title) => setSettings(prev => ({ ...prev, bibliographyTitle: title }))}
                   onInsertHTML={handleInsertHTML}
+                />
+              ) : activeDrawerType === 'margins' ? (
+                <MarginsDrawer
+                  settings={settings}
+                  setSettings={setSettings}
+                  onClose={() => setActiveDrawerType(null)}
                 />
               ) : (
                 <ConfigDrawer

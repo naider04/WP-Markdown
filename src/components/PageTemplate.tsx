@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { PageSettings, PageSize, CoverConfig } from '../types';
+import { shouldShowOnPage } from '../utils/pageSyntaxEvaluator';
 
 interface PageTemplateProps {
   key?: any;
@@ -16,6 +17,16 @@ interface PageTemplateProps {
   coverConfig: CoverConfig;
   children: React.ReactNode;
   uploadedFiles?: any[];
+}
+
+function formatCoordinate(val: string | undefined): string {
+  if (val === undefined || val === null) return 'auto';
+  const trimmed = String(val).trim();
+  if (trimmed === '') return 'auto';
+  if (/^\d+$/.test(trimmed)) {
+    return `${trimmed}px`;
+  }
+  return trimmed;
 }
 
 export default function PageTemplate({
@@ -49,16 +60,8 @@ export default function PageTemplate({
   const leftMargin = settings.marginLeft !== undefined ? settings.marginLeft : 96;
   const rightMargin = settings.marginRight !== undefined ? settings.marginRight : 96;
 
-  // Substitute tags like {page} and {total} and resolve uploaded image base64s on the fly
-  const renderTemplateHTML = (htmlStr: string | undefined, defaultContent: React.ReactNode) => {
-    if (htmlStr === undefined) return defaultContent;
-    if (htmlStr.trim() === '') return null; // If empty, render nothing
-    
-    let processed = htmlStr
-      .replace(/{page}/g, String(pageNumber))
-      .replace(/{total}/g, String(totalPages));
-    
-    // Resolve uploaded files images in header/footer
+  const resolveUploadedImages = (htmlStr: string): string => {
+    let processed = htmlStr;
     if (uploadedFiles && uploadedFiles.length > 0) {
       uploadedFiles.forEach((file) => {
         const escapedName = file.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -66,6 +69,49 @@ export default function PageTemplate({
         processed = processed.replace(regex, `src="${file.dataUrl}"`);
       });
     }
+    return processed;
+  };
+
+  const resolvePageVariables = (htmlStr: string, pageNum: number, totalPagesNum: number): string => {
+    let processed = htmlStr;
+    
+    // Page with arithmetic (e.g. {page + 1}, {page - 2}, {page})
+    processed = processed.replace(/\{\s*page\s*(?:([+-])\s*(\d+))?\s*\}/gi, (match, op, num) => {
+      if (!op) return String(pageNum);
+      const value = parseInt(num, 10);
+      if (op === '+') return String(pageNum + value);
+      if (op === '-') return String(pageNum - value);
+      return String(pageNum);
+    });
+
+    // Hoja or sheet with arithmetic (e.g. {hoja + 1}, {sheet - 1}, etc.)
+    processed = processed.replace(/\{\s*(?:hoja|sheet)\s*(?:([+-])\s*(\d+))?\s*\}/gi, (match, op, num) => {
+      if (!op) return String(pageNum);
+      const value = parseInt(num, 10);
+      if (op === '+') return String(pageNum + value);
+      if (op === '-') return String(pageNum - value);
+      return String(pageNum);
+    });
+
+    // Total with arithmetic (e.g. {total - 1}, {total})
+    processed = processed.replace(/\{\s*total\s*(?:([+-])\s*(\d+))?\s*\}/gi, (match, op, num) => {
+      if (!op) return String(totalPagesNum);
+      const value = parseInt(num, 10);
+      if (op === '+') return String(totalPagesNum + value);
+      if (op === '-') return String(totalPagesNum - value);
+      return String(totalPagesNum);
+    });
+
+    return processed;
+  };
+
+  // Substitute tags like {page} and {total} and resolve uploaded image base64s on the fly
+  const renderTemplateHTML = (htmlStr: string | undefined, defaultContent: React.ReactNode) => {
+    if (htmlStr === undefined) return defaultContent;
+    if (htmlStr.trim() === '') return null; // If empty, render nothing
+    
+    let processed = resolvePageVariables(htmlStr, pageNumber, totalPages);
+    processed = resolveUploadedImages(processed);
     
     return <div dangerouslySetInnerHTML={{ __html: processed }} className="w-full h-full flex flex-col justify-end" />;
   };
@@ -84,6 +130,27 @@ export default function PageTemplate({
         paddingRight: `${rightMargin}px`,
       }}
     >
+      {/* Margin-bypassing Elements */}
+      {settings.marginElements && settings.marginElements.map((el) => {
+        if (!shouldShowOnPage(el.pagesPattern, pageNumber, totalPages)) return null;
+        return (
+          <div
+            key={el.id}
+            style={{
+              position: 'absolute',
+              top: formatCoordinate(el.top),
+              right: formatCoordinate(el.right),
+              bottom: formatCoordinate(el.bottom),
+              left: formatCoordinate(el.left),
+              width: formatCoordinate(el.width),
+              height: formatCoordinate(el.height),
+              zIndex: 35,
+              pointerEvents: 'auto',
+            }}
+            dangerouslySetInnerHTML={{ __html: resolveUploadedImages(resolvePageVariables(el.code, pageNumber, totalPages)) }}
+          />
+        );
+      })}
       {/* Background Image applied to all pages if enabled */}
       {coverConfig.applyBgImageToAllPages && coverConfig.backgroundImage && (
         <div 

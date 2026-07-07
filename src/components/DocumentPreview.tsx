@@ -3378,7 +3378,14 @@ export default function DocumentPreview({
           }}
         >
           {/* PAGE 1: COVER PAGE (No headers/footers) */}
-          <CoverPage config={resolvedCover} pageSize={settings.pageSize} orientation={settings.orientation} />
+          <CoverPage 
+            config={resolvedCover} 
+            pageSize={settings.pageSize} 
+            orientation={settings.orientation} 
+            marginElements={settings.marginElements}
+            totalPages={paginatedPages.length + 1 + (settings.showTOC ? 1 : 0)}
+            uploadedFiles={uploadedFiles}
+          />
 
           {/* PAGE 2: TABLE OF CONTENTS (Optional academic page, strictly out of content.html) */}
           {settings.showTOC && (

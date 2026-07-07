@@ -106,6 +106,20 @@ export interface PageSettings {
   bibliographyTitle?: string;
   headerHtml?: string;
   footerHtml?: string;
+  marginElements?: MarginElement[];
+}
+
+export interface MarginElement {
+  id: string;
+  name: string;
+  code: string;
+  top?: string;
+  right?: string;
+  bottom?: string;
+  left?: string;
+  width?: string;
+  height?: string;
+  pagesPattern: string;
 }
 
 export interface BibliographyItem {
