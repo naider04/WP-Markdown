@@ -344,6 +344,148 @@ body{
     </div>
 </div>`;
 
+const DEFAULT_OVERLAY_TEMPLATE = `<style>
+body{
+    margin:0;
+    background:transparent;
+    font-family: Arial, sans-serif;
+    color:#002E45;
+}
+
+/* hoja */
+.cv-page{
+    height:100%;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding-left:96px;
+    padding-right:96px;
+}
+
+/* bloque real centrado */
+.cv-content{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+    width: 100%;
+}
+
+/* imagen separada pero alineada */
+.cv-logo{
+    max-width:40%;
+    margin-bottom:40px;
+}
+
+/* encabezado */
+.cv-header{
+    font-size:24px;
+    font-weight:bold;
+    line-height:1.4;
+    text-transform:uppercase;
+    margin-bottom:18px;
+}
+
+.cv-label{
+    font-weight:bold;
+    margin-top:10px;
+    font-size:20px; 
+}
+
+.cv-value{
+    margin-top:1px;
+    font-size:18px;
+}
+
+.cv-list{
+    line-height:1.5;
+}
+
+/* Estilos de compatibilidad para Markdown compilado */
+.cv-content h1 {
+    font-size:24px;
+    font-weight:bold;
+    line-height:1.4;
+    text-transform:uppercase;
+    margin-top:0;
+    margin-bottom:18px;
+    color:#002E45;
+}
+
+.cv-content h2 {
+    font-size:20px;
+    font-weight:bold;
+    margin-top:10px;
+    margin-bottom:2px;
+    color:#002E45;
+    text-transform:uppercase;
+}
+
+.cv-content strong {
+    font-weight:bold;
+    margin-top:10px;
+    font-size:20px;
+    display:inline-block;
+    color:#002E45;
+}
+
+.cv-content p {
+    margin:1px 0 10px 0;
+    font-size:18px;
+    line-height:1.5;
+    color:#002E45;
+}
+
+.cv-content ul {
+    list-style: none;
+    padding: 0;
+    margin: 1px 0 10px 0;
+}
+
+.cv-content li {
+    font-size: 18px;
+    line-height: 1.5;
+    color: #002E45;
+}
+
+</style>
+
+<div class="cv-page">
+    <div class="cv-content">
+        {{content}}
+    </div>
+</div>`;
+
+const DEFAULT_OVERLAY_MARKDOWN = `<img src="icon.png" style="max-width:40%; margin-bottom:40px; display:block; margin-left:auto; margin-right:auto;">
+
+# FACULTAD DE CIENCIAS DE INGENIERÍA  
+# CARRERA DE TECNOLOGÍAS DE LA INFORMACIÓN Y COMUNICACIÓN EN LINEA.
+
+## TEMA:
+APE 2
+
+## GRUPO:
+Wilmer Patiño
+Maria Fernandez
+Stefanía Rodriguez
+
+## CURSO:
+Arquitectura de Computador
+
+## PROFESOR:
+Ing. Bermeo Paucar Javier, Mgti
+
+## FECHA:
+Junio 18, 2026
+
+## PERIODO:
+Abril 2026 - Julio 2026
+
+<br>
+<br>
+
+# MILAGRO-ECUADOR`;
+
 export default function App() {
   // 1. Initial Cover Page Metadata with localStorage fallback
   const [cover, setCover] = useState<CoverConfig>(() => {
@@ -351,10 +493,18 @@ export default function App() {
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        if (parsed && !parsed.overlayHtml) {
-          parsed.overlayHtml = DEFAULT_OVERLAY_HTML;
+        if (parsed) {
+          if (!parsed.overlayHtml) {
+            parsed.overlayHtml = DEFAULT_OVERLAY_HTML;
+          }
+          if (!parsed.overlayTemplate) {
+            parsed.overlayTemplate = DEFAULT_OVERLAY_TEMPLATE;
+          }
+          if (parsed.overlayMarkdown === undefined || parsed.overlayMarkdown === '') {
+            parsed.overlayMarkdown = DEFAULT_OVERLAY_MARKDOWN;
+          }
+          return parsed;
         }
-        return parsed;
       } catch (e) {
         console.error('Error parsing cover config cache:', e);
       }
@@ -371,6 +521,8 @@ export default function App() {
       date: 'Junio, 2026',
       logoType: 'standard',
       overlayHtml: DEFAULT_OVERLAY_HTML,
+      overlayTemplate: DEFAULT_OVERLAY_TEMPLATE,
+      overlayMarkdown: DEFAULT_OVERLAY_MARKDOWN,
     };
   });
 

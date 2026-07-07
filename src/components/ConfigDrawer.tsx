@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { marked } from 'marked';
 import { CoverConfig, PageSettings, UploadedFile } from '../types';
 import {
   FileText,
@@ -64,10 +65,12 @@ function AutoGrowingTextArea({
   value,
   onChange,
   placeholder,
+  className = 'text-slate-200',
 }: {
   value: string;
   onChange: (val: string) => void;
   placeholder?: string;
+  className?: string;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -92,7 +95,7 @@ function AutoGrowingTextArea({
         adjustHeight();
       }}
       style={{ resize: 'none' }}
-      className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-xs focus:ring-1 focus:ring-orange-500 focus:outline-none overflow-y-hidden"
+      className={`w-full p-2.5 bg-slate-950 border border-slate-800 rounded font-mono text-xs focus:ring-1 focus:ring-orange-500 focus:outline-none overflow-y-hidden ${className}`}
       placeholder={placeholder}
     />
   );
@@ -317,8 +320,21 @@ Márgenes de Página (Bordes):
 
   if (!isOpen || !activeType) return null;
 
-  const handleCoverChange = (field: keyof CoverConfig, value: string) => {
-    setCover((prev) => ({ ...prev, [field]: value }));
+  const handleCoverChange = (field: keyof CoverConfig, value: any) => {
+    setCover((prev) => {
+      const updated = { ...prev, [field]: value };
+      if (field === 'overlayTemplate' || field === 'overlayMarkdown') {
+        try {
+          const md = updated.overlayMarkdown || '';
+          const tmpl = updated.overlayTemplate || '';
+          const compiledMarkdown = marked.parse(md) as string;
+          updated.overlayHtml = tmpl.replace('{{content}}', compiledMarkdown);
+        } catch (e) {
+          console.error('Error compiling markdown on cover change:', e);
+        }
+      }
+      return updated;
+    });
   };
 
   const handleSettingsChange = (field: keyof PageSettings, value: any) => {
@@ -527,13 +543,37 @@ Márgenes de Página (Bordes):
               )}
             </div>
 
-            {/* Custom html overlay */}
+            {/* Markdown content of cover */}
             <div className="flex flex-col gap-2 mt-2">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Editor HTML Overlay Portada</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-orange-500" />
+                Contenido Markdown de Portada
+              </span>
+              <p className="text-[9px] text-slate-400 leading-normal mb-0.5">
+                Escribe o pega el contenido textual de tu portada utilizando formato Markdown. Este se inyectará automáticamente en la plantilla definida abajo.
+              </p>
               <AutoGrowingTextArea
-                value={cover.overlayHtml || ''}
-                onChange={(val) => handleCoverChange('overlayHtml', val)}
-                placeholder="Escribe tu HTML para la capa de la portada (Overlay)..."
+                value={cover.overlayMarkdown || ''}
+                onChange={(val) => handleCoverChange('overlayMarkdown', val)}
+                className="text-white"
+                placeholder="Escribe el contenido en Markdown de la carátula..."
+              />
+            </div>
+
+            {/* Custom html overlay (Template Styles/HTML) */}
+            <div className="flex flex-col gap-2 mt-2">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <FileCode className="w-3.5 h-3.5 text-orange-500" />
+                Estilos CSS y Estructura HTML de Portada
+              </span>
+              <p className="text-[9px] text-slate-400 leading-normal mb-0.5">
+                Define las reglas CSS y la estructura HTML de la carátula. Usa el marcador de posición <code className="font-mono bg-slate-950 px-1 py-0.5 rounded text-orange-400 font-bold">{"{{content}}"}</code> donde desees que se renderice el contenido en Markdown.
+              </p>
+              <AutoGrowingTextArea
+                value={cover.overlayTemplate || ''}
+                onChange={(val) => handleCoverChange('overlayTemplate', val)}
+                className="text-green-400"
+                placeholder="Escribe la estructura HTML y estilos CSS con {{content}}..."
               />
             </div>
 
@@ -541,15 +581,17 @@ Márgenes de Página (Bordes):
             <div className="p-3 bg-slate-950/80 border border-slate-850 rounded flex flex-col gap-2">
               <div className="flex items-center gap-1.5">
                 <HelpCircle className="w-4 h-4 text-orange-400 shrink-0" />
-                <span className="text-[10px] font-bold text-slate-200 uppercase tracking-wider">🎓 Copiar Borrador de Portada Académica</span>
+                <span className="text-[10px] font-bold text-slate-200 uppercase tracking-wider">🎓 Plantillas Académicas para Portada</span>
               </div>
               <p className="text-[9px] text-slate-400 leading-normal">
-                Esta plantilla contiene la estructura académica requerida para las portadas formales. Cópiala al portapapeles y pégala en el editor de arriba de Portada.
+                Usa estas plantillas modulares para configurar tu portada académica en segundos. Copia el diseño contenedor (Estilos/HTML) y el contenido textual (Markdown).
               </p>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(`<style>
+              
+              <div className="flex flex-col gap-1.5 mt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`<style>
 body{
     margin:0;
     background:transparent;
@@ -559,7 +601,7 @@ body{
 
 /* hoja */
 .cv-page{
-    height:297mm;
+    height:100%;
     display:flex;
     justify-content:center;
     align-items:center;
@@ -573,6 +615,7 @@ body{
     flex-direction:column;
     align-items:center;
     text-align:center;
+    width: 100%;
 }
 
 /* imagen separada pero alineada */
@@ -605,54 +648,106 @@ body{
     line-height:1.5;
 }
 
+/* Estilos de compatibilidad para Markdown compilado */
+.cv-content h1 {
+    font-size:24px;
+    font-weight:bold;
+    line-height:1.4;
+    text-transform:uppercase;
+    margin-top:0;
+    margin-bottom:18px;
+    color:#002E45;
+}
+
+.cv-content h2 {
+    font-size:20px;
+    font-weight:bold;
+    margin-top:10px;
+    margin-bottom:2px;
+    color:#002E45;
+    text-transform:uppercase;
+}
+
+.cv-content strong {
+    font-weight:bold;
+    margin-top:10px;
+    font-size:20px;
+    display:inline-block;
+    color:#002E45;
+}
+
+.cv-content p {
+    margin:1px 0 10px 0;
+    font-size:18px;
+    line-height:1.5;
+    color:#002E45;
+}
+
+.cv-content ul {
+    list-style: none;
+    padding: 0;
+    margin: 1px 0 10px 0;
+}
+
+.cv-content li {
+    font-size: 18px;
+    line-height: 1.5;
+    color: #002E45;
+}
+
 </style>
 
 <div class="cv-page">
-
     <div class="cv-content">
-
-        <img src="icon.png" class="cv-logo">
-
-        <div class="cv-header">
-            FACULTAD DE CIENCIAS DE INGENIERÍA<br>
-            CARRERA DE TECNOLOGÍAS DE LA INFORMACIÓN Y COMUNICACIÓN EN LINEA.
-        </div>
-
-        <div class="cv-label">TEMA:</div>
-        <div class="cv-value">
-            APE 2
-        </div>
-
-        <div class="cv-label">GRUPO:</div>
-        <div class="cv-value cv-list">
-
-            Wilmer Sandro Patiño Cuastuza
-        </div>
-
-        <div class="cv-label">CURSO:</div>
-        <div class="cv-value">Arquitectura de Computador</div>
-
-        <div class="cv-label">PROFESOR:</div>
-        <div class="cv-value">Ing. Bermeo Paucar Javier, Mgti</div>
-
-        <div class="cv-label">FECHA:</div>
-        <div class="cv-value">Junio 18, 2026</div>
-
-        <div class="cv-label">PERIODO:</div>
-        <div class="cv-value">Abril 2026 - Julio 2026</div>
-<br>
-<br>
-
-        <div class="cv-label">MILAGRO-ECUADOR</div>
-
+        {{content}}
     </div>
 </div>`);
-                  triggerSuccessMsg('¡Plantilla de Portada Copiada!');
-                }}
-                className="w-full py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 hover:text-white transition-all text-[11px] font-bold text-orange-400 cursor-pointer text-center"
-              >
-                Copiar Plantilla Académica
-              </button>
+                    triggerSuccessMsg('¡Plantilla Estilos/HTML Copiada!');
+                  }}
+                  className="w-full py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 hover:text-white transition-all text-[11px] font-bold text-orange-400 cursor-pointer text-center"
+                >
+                  Copiar Plantilla Estilos/HTML
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`<img src="icon.png" style="max-width:40%; margin-bottom:40px; display:block; margin-left:auto; margin-right:auto;">
+
+# FACULTAD DE CIENCIAS DE INGENIERÍA  
+# CARRERA DE TECNOLOGÍAS DE LA INFORMACIÓN Y COMUNICACIÓN EN LINEA.
+
+## TEMA:
+APE 2
+
+## GRUPO:
+Wilmer Patiño
+Maria Fernandez
+Stefanía Rodriguez
+
+## CURSO:
+Arquitectura de Computador
+
+## PROFESOR:
+Ing. Bermeo Paucar Javier, Mgti
+
+## FECHA:
+Junio 18, 2026
+
+## PERIODO:
+Abril 2026 - Julio 2026
+
+<br>
+<br>
+
+# MILAGRO-ECUADOR`);
+                    triggerSuccessMsg('¡Contenido Markdown Copiado!');
+                  }}
+                  className="w-full py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 hover:text-white transition-all text-[11px] font-bold text-orange-400 cursor-pointer text-center"
+                >
+                  Copiar Contenido (Markdown)
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -18,6 +18,8 @@ export interface CoverConfig {
   customHtml?: string;
   backgroundImage?: string;
   overlayHtml?: string;
+  overlayTemplate?: string;
+  overlayMarkdown?: string;
   bgImageWidth?: string;
   bgImageHeight?: string;
   bgImageObjectFit?: 'cover' | 'fill' | 'contain' | 'none';
