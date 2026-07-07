@@ -3343,9 +3343,9 @@ export default function DocumentPreview({
               <div 
                 className="absolute inset-0 bg-transparent z-[1000] cursor-wait pointer-events-auto select-none"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                onWheel={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                onTouchMove={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onWheel={(e) => { if (e.cancelable) e.preventDefault(); e.stopPropagation(); }}
+                onTouchStart={(e) => { if (e.cancelable) e.preventDefault(); e.stopPropagation(); }}
+                onTouchMove={(e) => { if (e.cancelable) e.preventDefault(); e.stopPropagation(); }}
               />
             )}
 

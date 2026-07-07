@@ -135,6 +135,7 @@ export interface UploadedFile {
   size: number;
   dataUrl: string; // Base64 data string
   uploadedAt: string;
+  description?: string; // Metadata or user-entered description
 }
 
 export interface HTMLBlock {

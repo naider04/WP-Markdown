@@ -98,6 +98,94 @@ function AutoGrowingTextArea({
   );
 }
 
+function readDescriptionFromPng(uint8: Uint8Array): string | null {
+  try {
+    const view = new DataView(uint8.buffer, uint8.byteOffset, uint8.byteLength);
+    let pos = 8; // skip PNG signature
+    while (pos + 8 <= uint8.length) {
+      const len = view.getUint32(pos, false); // big-endian
+      // chunk type at pos + 4
+      const type = String.fromCharCode(
+        uint8[pos + 4],
+        uint8[pos + 5],
+        uint8[pos + 6],
+        uint8[pos + 7]
+      );
+      if (type === 'IEND') break;
+      if (type === 'tEXt') {
+        const dataStart = pos + 8;
+        const dataEnd = dataStart + len;
+        // find null byte
+        let nullIdx = -1;
+        for (let i = dataStart; i < dataEnd; i++) {
+          if (uint8[i] === 0) {
+            nullIdx = i;
+            break;
+          }
+        }
+        if (nullIdx !== -1) {
+          // Keyword
+          let keyword = '';
+          for (let i = dataStart; i < nullIdx; i++) {
+            keyword += String.fromCharCode(uint8[i]);
+          }
+          if (keyword === 'Description') {
+            // Text is UTF-8 decoded
+            const textBytes = uint8.subarray(nullIdx + 1, dataEnd);
+            return new TextDecoder('utf-8').decode(textBytes);
+          }
+        }
+      }
+      pos += 12 + len;
+    }
+  } catch (err) {
+    console.error('Error reading description from PNG:', err);
+  }
+  return null;
+}
+
+function readDescriptionFromJpeg(uint8: Uint8Array): string | null {
+  try {
+    let pos = 2; // skip SOI marker (FF D8)
+    const view = new DataView(uint8.buffer, uint8.byteOffset, uint8.byteLength);
+    while (pos + 4 <= uint8.length) {
+      if (uint8[pos] !== 0xFF) break;
+      const marker = uint8[pos + 1];
+      if (marker === 0xD8 || marker === 0xD9) break; // SOI / EOI
+      if (marker === 0xFE) { // COM marker (Comment)
+        const len = view.getUint16(pos + 2, false); // big-endian, includes length field itself (2 bytes)
+        const start = pos + 4;
+        const end = pos + 2 + len;
+        if (end <= uint8.length) {
+          const textBytes = uint8.subarray(start, end);
+          const comment = new TextDecoder('utf-8').decode(textBytes);
+          if (comment.trim()) return comment.trim();
+        }
+        break;
+      }
+      if (marker === 0x00 || marker === 0xFF) {
+        pos++;
+        continue;
+      }
+      const segLen = view.getUint16(pos + 2, false);
+      pos += 2 + segLen;
+    }
+  } catch (err) {
+    console.error('Error reading description from JPEG:', err);
+  }
+  return null;
+}
+
+function readDescription(uint8: Uint8Array): string | null {
+  if (uint8[0] === 0xFF && uint8[1] === 0xD8) {
+    return readDescriptionFromJpeg(uint8);
+  }
+  if (uint8[0] === 0x89 && uint8[1] === 0x50 && uint8[2] === 0x4E && uint8[3] === 0x47) {
+    return readDescriptionFromPng(uint8);
+  }
+  return null;
+}
+
 export function ConfigDrawer({
   isOpen,
   activeType,
@@ -135,6 +223,10 @@ export function ConfigDrawer({
   // File renaming states
   const [editingFileId, setEditingFileId] = useState<string | null>(null);
   const [editingFileName, setEditingFileName] = useState<string>('');
+
+  // Description editing states
+  const [isEditingDescId, setIsEditingDescId] = useState<string | null>(null);
+  const [editingDescText, setEditingDescText] = useState<string>('');
 
   const triggerSuccessMsg = (msg: string) => {
     setSuccessMsg(msg);
@@ -241,26 +333,53 @@ Márgenes de Página (Bordes):
         alert(`El archivo "${file.name}" supera el límite de 5MB.`);
         return;
       }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        if (!dataUrl) return;
-        const newFile: UploadedFile = {
-          id: 'file_' + Date.now() + '_' + index + '_' + Math.random().toString(36).substring(2, 6),
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          dataUrl: dataUrl,
-          uploadedAt: new Date().toISOString(),
-        };
-        setUploadedFiles((prev) => [...prev, newFile]);
-        successCount++;
-        if (successCount === files.length) {
-          triggerSuccessMsg(`${files.length} archivo(s) cargado(s) con éxito`);
+
+      // Read ArrayBuffer to extract PNG/JPEG metadata description
+      const bufferReader = new FileReader();
+      bufferReader.onload = (be) => {
+        const arrayBuffer = be.target?.result as ArrayBuffer;
+        let extractedDesc = '';
+        if (arrayBuffer) {
+          const uint8 = new Uint8Array(arrayBuffer);
+          const metaDesc = readDescription(uint8);
+          if (metaDesc) {
+            extractedDesc = metaDesc;
+          }
         }
+
+        // Read DataURL for previews and document compilation
+        const dataUrlReader = new FileReader();
+        dataUrlReader.onload = (de) => {
+          const dataUrl = de.target?.result as string;
+          if (!dataUrl) return;
+
+          const newFile: UploadedFile = {
+            id: 'file_' + Date.now() + '_' + index + '_' + Math.random().toString(36).substring(2, 6),
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            dataUrl: dataUrl,
+            uploadedAt: new Date().toISOString(),
+            description: extractedDesc || '',
+          };
+          setUploadedFiles((prev) => [...prev, newFile]);
+          successCount++;
+          if (successCount === files.length) {
+            triggerSuccessMsg(`${files.length} imagen(es) cargada(s) con éxito`);
+          }
+        };
+        dataUrlReader.readAsDataURL(file);
       };
-      reader.readAsDataURL(file);
+      bufferReader.readAsArrayBuffer(file);
     });
+  };
+
+  const handleSaveDesc = (id: string) => {
+    setUploadedFiles((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, description: editingDescText } : f))
+    );
+    setIsEditingDescId(null);
+    triggerSuccessMsg('¡Descripción guardada!');
   };
 
   const handleAddFileByUrl = (url: string, name: string) => {
@@ -975,7 +1094,7 @@ Márgenes de Página (Bordes):
             >
               <Upload className="w-8 h-8 text-slate-500 group-hover:text-orange-500 transition-colors" />
               <div className="flex flex-col gap-1">
-                <span className="font-bold text-slate-350 text-[11px]">Subir uno o varios archivos</span>
+                <span className="font-bold text-slate-350 text-[11px]">Subir una o varias imágenes</span>
                 <span className="text-[9.5px] text-slate-500 font-normal">Soporta selección múltiple y arrastrar/soltar</span>
               </div>
               <input
@@ -1037,11 +1156,11 @@ Márgenes de Página (Bordes):
             {/* Uploaded assets list */}
             <div className="flex flex-col gap-2">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex justify-between items-center">
-                <span>Archivos Guardados ({uploadedFiles.length})</span>
+                <span>Imágenes Guardadas ({uploadedFiles.length})</span>
                 {uploadedFiles.length > 0 && (
                   <button
                     onClick={() => {
-                      if (confirm("¿Está seguro de eliminar TODOS los archivos guardados hoy?")) {
+                      if (confirm("¿Está seguro de eliminar TODAS las imágenes guardadas hoy?")) {
                         setUploadedFiles([]);
                       }
                     }}
@@ -1054,7 +1173,7 @@ Márgenes de Página (Bordes):
 
               {uploadedFiles.length === 0 ? (
                 <div className="p-6 text-center border border-slate-800 bg-slate-950/20 rounded-md text-slate-500 italic text-[11px]">
-                  No hay archivos locales agregados. Use el cuadro superior para cargar su primer recurso.
+                  No hay imágenes agregadas. Use el cuadro superior para cargar su primer recurso.
                 </div>
               ) : (
                 <div className="flex flex-col gap-2 max-h-[380px] overflow-y-auto custom-scrollbar pr-0.5 select-text">
@@ -1063,10 +1182,10 @@ Márgenes de Página (Bordes):
                     return (
                       <div 
                         key={item.id}
-                        className="p-2 border border-slate-850 bg-slate-950/40 rounded flex items-center gap-2.5 hover:border-slate-800 transition-all text-xs"
+                        className="p-2 border border-slate-850 bg-slate-950/40 rounded flex items-start gap-2.5 hover:border-slate-800 transition-all text-xs"
                       >
                         {/* Thumbnail */}
-                        <div className="w-10 h-10 rounded bg-slate-900 border border-slate-800 shrink-0 overflow-hidden flex items-center justify-center">
+                        <div className="w-10 h-10 rounded bg-slate-900 border border-slate-800 shrink-0 overflow-hidden flex items-center justify-center mt-0.5">
                           <img 
                             src={item.dataUrl} 
                             alt={item.name} 
@@ -1076,36 +1195,36 @@ Márgenes de Página (Bordes):
                         </div>
 
                         {/* File Details / Rename Input */}
-                        {isEditing ? (
-                          <div className="flex-1 min-w-0 flex items-center gap-1">
-                            <input
-                              type="text"
-                              value={editingFileName}
-                              onChange={(e) => setEditingFileName(e.target.value)}
-                              className="flex-1 bg-slate-900 border border-orange-500 rounded px-1.5 py-0.5 text-[11px] text-white font-mono focus:outline-none focus:ring-1 focus:ring-orange-500"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveRename(item.id);
-                                if (e.key === 'Escape') setEditingFileId(null);
-                              }}
-                              autoFocus
-                            />
-                            <button
-                              onClick={() => handleSaveRename(item.id)}
-                              className="p-1 rounded bg-[#004080] text-white hover:bg-[#003060] border border-slate-800 transition-all cursor-pointer flex items-center justify-center shrink-0"
-                              title="Guardar nombre"
-                            >
-                              <Check className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={() => setEditingFileId(null)}
-                              className="p-1 rounded bg-slate-950 text-slate-400 hover:text-white border border-slate-800 transition-all cursor-pointer flex items-center justify-center shrink-0"
-                              title="Cancelar"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <div className="flex-1 min-w-0 flex flex-col gap-1">
+                          {isEditing ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={editingFileName}
+                                onChange={(e) => setEditingFileName(e.target.value)}
+                                className="flex-1 bg-slate-900 border border-orange-500 rounded px-1.5 py-0.5 text-[11px] text-white font-mono focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveRename(item.id);
+                                  if (e.key === 'Escape') setEditingFileId(null);
+                                }}
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => handleSaveRename(item.id)}
+                                className="p-1 rounded bg-[#004080] text-white hover:bg-[#003060] border border-slate-800 transition-all cursor-pointer flex items-center justify-center shrink-0"
+                                title="Guardar nombre"
+                              >
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => setEditingFileId(null)}
+                                className="p-1 rounded bg-slate-950 text-slate-400 hover:text-white border border-slate-800 transition-all cursor-pointer flex items-center justify-center shrink-0"
+                                title="Cancelar"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
                             <div className="flex items-center gap-1 group/item">
                               <span className="font-bold text-[11px] text-slate-300 truncate" title={item.name}>
                                 {item.name}
@@ -1116,43 +1235,105 @@ Márgenes de Página (Bordes):
                                   setEditingFileName(item.name);
                                 }}
                                 className="p-0.5 rounded text-slate-500 hover:text-orange-400 hover:bg-slate-950/40 opacity-40 group-hover/item:opacity-100 transition-all cursor-pointer shrink-0"
-                                title="Renombrar archivo"
+                                title="Renombrar imagen"
                               >
                                 <Edit2 className="w-2.5 h-2.5" />
                               </button>
                             </div>
-                            <div className="flex items-center gap-1.5 text-[9.5px] text-slate-500 font-mono">
-                              <span>{(item.size / 1024).toFixed(1)} KB</span>
-                            </div>
-                          </div>
-                        )}
+                          )}
 
-                        {/* Quick actions buttons (disabled in editing mode) */}
-                        {!isEditing && (
-                          <div className="flex gap-1 shrink-0">
-                            <button
-                              onClick={() => handleCopySnippet(item.name)}
-                              className="p-1 px-1.5 rounded bg-slate-950 hover:bg-[#004080] border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer"
-                              title="Copiar etiqueta HTML del recurso"
-                            >
-                              <Copy className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={() => handleInsertImgTag(item.name)}
-                              className="p-1 px-1.5 rounded bg-slate-950 hover:bg-[#004080] border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer text-xs font-bold"
-                              title="Insertar en último editor con foco"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteFile(item.id)}
-                              className="p-1 px-1.5 rounded bg-slate-950 hover:bg-red-950/80 hover:border-red-500 border border-slate-800 text-slate-400 hover:text-red-400 transition-all cursor-pointer"
-                              title="Borrar archivo"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                          <div className="flex items-center gap-1.5 text-[9.5px] text-slate-500 font-mono">
+                            <span>{(item.size / 1024).toFixed(1)} KB</span>
                           </div>
-                        )}
+
+                          {/* Editable Image Description Field */}
+                          <div className="mt-1.5 border-t border-slate-900 pt-1 flex flex-col gap-0.5">
+                            <span className="text-[8px] text-orange-400 uppercase font-black tracking-wider">Descripción:</span>
+                            {isEditingDescId === item.id ? (
+                              <div className="flex gap-1 items-start mt-0.5">
+                                <textarea
+                                  value={editingDescText}
+                                  onChange={(e) => setEditingDescText(e.target.value)}
+                                  placeholder="Escribe la descripción de la imagen..."
+                                  rows={2}
+                                  className="flex-1 bg-slate-900 border border-orange-500 rounded px-1.5 py-1 text-[10px] text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 leading-normal"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      handleSaveDesc(item.id);
+                                    }
+                                    if (e.key === 'Escape') setIsEditingDescId(null);
+                                  }}
+                                  autoFocus
+                                />
+                                <div className="flex flex-col gap-1 shrink-0">
+                                  <button
+                                    onClick={() => handleSaveDesc(item.id)}
+                                    className="p-1 rounded bg-[#004080] text-white hover:bg-[#003060] transition-all cursor-pointer flex items-center justify-center"
+                                    title="Guardar descripción"
+                                  >
+                                    <Check className="w-2.5 h-2.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => setIsEditingDescId(null)}
+                                    className="p-1 rounded bg-slate-950 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center"
+                                    title="Cancelar"
+                                  >
+                                    <X className="w-2.5 h-2.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-start gap-1 group/desc min-h-[16px] mt-0.5">
+                                <span 
+                                  onClick={() => {
+                                    setIsEditingDescId(item.id);
+                                    setEditingDescText(item.description || '');
+                                  }}
+                                  className="text-[10px] text-slate-400 hover:text-slate-200 cursor-pointer break-words line-clamp-3 leading-normal flex-1 pr-4"
+                                  title="Haz clic para editar la descripción"
+                                >
+                                  {item.description ? item.description : <span className="text-slate-600 italic">(Haz clic para añadir descripción)</span>}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setIsEditingDescId(item.id);
+                                    setEditingDescText(item.description || '');
+                                  }}
+                                  className="p-0.5 rounded text-slate-500 hover:text-orange-400 opacity-0 group-hover/desc:opacity-100 transition-all cursor-pointer shrink-0"
+                                  title="Editar descripción"
+                                >
+                                  <Edit2 className="w-2.5 h-2.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Quick actions buttons */}
+                        <div className="flex flex-col gap-1 shrink-0">
+                          <button
+                            onClick={() => handleCopySnippet(item.name)}
+                            className="p-1 rounded bg-slate-950 hover:bg-[#004080] border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center"
+                            title="Copiar formato de figura"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleInsertImgTag(item.name)}
+                            className="p-1 rounded bg-slate-950 hover:bg-[#004080] border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center font-bold"
+                            title="Insertar en último editor"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteFile(item.id)}
+                            className="p-1 rounded bg-slate-950 hover:bg-red-950/80 hover:border-red-500 border border-slate-800 text-slate-400 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center"
+                            title="Borrar imagen"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

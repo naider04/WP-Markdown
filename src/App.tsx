@@ -2360,7 +2360,7 @@ read -p "Presione [Enter] para salir..."`;
                 title="Ver Banco de Imágenes y Recursos"
               >
                 <Image className="w-5 h-5 shrink-0" />
-                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Archivos</span>
+                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Imágenes</span>
               </button>
 
               <button
@@ -2398,6 +2398,7 @@ read -p "Presione [Enter] para salir..."`;
                   isSyncing={isSyncing}
                   pageCount={pageCount}
                   isLocallyEdited={isLocallyEdited}
+                  setIsLocallyEdited={setIsLocallyEdited}
                   onResetToOriginal={handleResetToOriginal}
                   syncStatusMsg={syncStatusMsg}
                 />

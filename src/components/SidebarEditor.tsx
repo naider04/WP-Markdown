@@ -64,6 +64,7 @@ interface SidebarEditorProps {
   isSyncing: boolean;
   pageCount: number;
   isLocallyEdited: boolean;
+  setIsLocallyEdited: (val: boolean) => void;
   onResetToOriginal: () => void;
   syncStatusMsg: string;
 }
@@ -77,6 +78,7 @@ export function SidebarEditor({
   isSyncing,
   pageCount,
   isLocallyEdited,
+  setIsLocallyEdited,
   onResetToOriginal,
   syncStatusMsg,
 }: SidebarEditorProps) {
@@ -121,6 +123,7 @@ export function SidebarEditor({
       isMarkdown: true,
     };
     setHtmlBlocks((prev) => [...prev, newBlock]);
+    setIsLocallyEdited(true);
     setLastFocusedBlockId(newBlock.id);
     setShowAddMenu(false);
   };
@@ -130,6 +133,7 @@ export function SidebarEditor({
     setHtmlBlocks((prev) =>
       prev.map((b) => (b.id === id ? { ...b, collapsed: !b.collapsed } : b))
     );
+    setIsLocallyEdited(true);
   };
 
   // Update name inside a block
@@ -137,6 +141,7 @@ export function SidebarEditor({
     setHtmlBlocks((prev) =>
       prev.map((b) => (b.id === id ? { ...b, name: newName } : b))
     );
+    setIsLocallyEdited(true);
   };
 
   // Toggle markdown mode inside a block
@@ -144,6 +149,7 @@ export function SidebarEditor({
     setHtmlBlocks((prev) =>
       prev.map((b) => (b.id === id ? { ...b, isMarkdown } : b))
     );
+    setIsLocallyEdited(true);
   };
 
   // Update code content inside a block
@@ -151,6 +157,7 @@ export function SidebarEditor({
     setHtmlBlocks((prev) =>
       prev.map((b) => (b.id === id ? { ...b, code: newCode } : b))
     );
+    setIsLocallyEdited(true);
   };
 
   // Drag handlers
@@ -183,6 +190,7 @@ export function SidebarEditor({
         list.splice(targetIndex, 0, removed);
         return list;
       });
+      setIsLocallyEdited(true);
     }
     setDraggedIndex(null);
     setDragOverIndex(null);
@@ -463,6 +471,7 @@ export function SidebarEditor({
                 type="button"
                 onClick={() => {
                   setHtmlBlocks((prev) => prev.filter((b) => b.id !== blockToDelete.id));
+                  setIsLocallyEdited(true);
                   if (lastFocusedBlockId === blockToDelete.id) {
                     setLastFocusedBlockId(null);
                   }
