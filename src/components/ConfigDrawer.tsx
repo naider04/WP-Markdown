@@ -6,6 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { markdownParser } from '../utils/markdownParser';
 import { CoverConfig, PageSettings, UploadedFile } from '../types';
+import { formatFontSize } from '../utils/fontUtils';
 import {
   FileText,
   FileCode,
@@ -1049,7 +1050,7 @@ Abril 2026 - Julio 2026
                         <label className="text-[9px] text-slate-400 font-bold uppercase">Tamaño de Fuente (ej. 13px, 0.85em)</label>
                         <input
                           type="text"
-                          value={settings.blockCodeSize || settings.codeSize || '13px'}
+                          value={settings.blockCodeSize !== undefined ? settings.blockCodeSize : (settings.codeSize || '13px')}
                           onChange={(e) => handleSettingsChange('blockCodeSize', e.target.value)}
                           className="w-full p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-xs focus:ring-1 focus:ring-orange-500 focus:outline-none"
                           placeholder="13px"
@@ -1078,7 +1079,8 @@ Abril 2026 - Julio 2026
                         <label className="text-[8px] text-slate-500 font-bold uppercase tracking-wider mb-1 block">Vista Previa del Bloque</label>
                         {(() => {
                           const previewTheme = settings.blockCodeTheme || settings.codeTheme || 'academic';
-                          const previewSize = settings.blockCodeSize || settings.codeSize || '13px';
+                          const rawSize = settings.blockCodeSize !== undefined ? settings.blockCodeSize : (settings.codeSize || '13px');
+                          const previewSize = formatFontSize(rawSize, '13px');
                           let previewBg = '#f8fafc';
                           let previewFg = '#0f172a';
                           let previewBorder = '#cbd5e1';
@@ -1166,7 +1168,7 @@ Abril 2026 - Julio 2026
                         <label className="text-[9px] text-slate-400 font-bold uppercase">Tamaño de Fuente (ej. 12px, 0.8em)</label>
                         <input
                           type="text"
-                          value={settings.inlineCodeSize || '12px'}
+                          value={settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px'}
                           onChange={(e) => handleSettingsChange('inlineCodeSize', e.target.value)}
                           className="w-full p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-xs focus:ring-1 focus:ring-orange-500 focus:outline-none"
                           placeholder="12px"
@@ -1195,7 +1197,8 @@ Abril 2026 - Julio 2026
                         <label className="text-[8px] text-slate-500 font-bold uppercase tracking-wider mb-1 block">Vista Previa del Código en Línea</label>
                         {(() => {
                           const previewTheme = settings.inlineCodeTheme || settings.codeTheme || 'academic';
-                          const previewSize = settings.inlineCodeSize || '12px';
+                          const rawSize = settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px';
+                          const previewSize = formatFontSize(rawSize, '12px');
                           let inlineBg = '#f1f5f9';
                           let inlineColor = '#0f172a';
                           let inlineBorder = '#cbd5e1';

@@ -10,6 +10,7 @@ import { CoverConfig, PageSettings, UploadedFile, HTMLBlock, BibliographyItem } 
 import CoverPage from './CoverPage';
 import PageTemplate from './PageTemplate';
 import { getAPALastNames, formatAPABibliographyItem, extractAPAYear } from '../utils/apaFormatter';
+import { formatFontSize } from '../utils/fontUtils';
 import { FileText, Layers, RefreshCw, ZoomIn, ZoomOut, FolderArchive, Maximize2, Minimize2, Copy, Check, ExternalLink } from 'lucide-react';
 
 interface DocumentPreviewProps {
@@ -622,9 +623,11 @@ export default function DocumentPreview({
 
         // Código (Monospace) Graphical Styling
         const blockTheme = settings.blockCodeTheme || settings.codeTheme || 'academic';
-        const blockSize = settings.blockCodeSize || settings.codeSize || '13px';
+        const rawBlockSize = settings.blockCodeSize !== undefined ? settings.blockCodeSize : (settings.codeSize || '13px');
+        const blockSize = formatFontSize(rawBlockSize, '13px');
         const inlineTheme = settings.inlineCodeTheme || settings.codeTheme || 'academic';
-        const inlineSize = settings.inlineCodeSize || '12px';
+        const rawInlineSize = settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px';
+        const inlineSize = formatFontSize(rawInlineSize, '12px');
 
         css += `\n.unemi-document-content pre, .unemi-document-content pre span {`;
         css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
@@ -1880,9 +1883,11 @@ export default function DocumentPreview({
 
           // Código (Monospace) Graphical Styling
           const blockTheme = settings.blockCodeTheme || settings.codeTheme || 'academic';
-          const blockSize = settings.blockCodeSize || settings.codeSize || '13px';
+          const rawBlockSize = settings.blockCodeSize !== undefined ? settings.blockCodeSize : (settings.codeSize || '13px');
+          const blockSize = formatFontSize(rawBlockSize, '13px');
           const inlineTheme = settings.inlineCodeTheme || settings.codeTheme || 'academic';
-          const inlineSize = settings.inlineCodeSize || '12px';
+          const rawInlineSize = settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px';
+          const inlineSize = formatFontSize(rawInlineSize, '12px');
 
           css += `\n.unemi-document-content pre, .unemi-document-content pre span {`;
           css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
@@ -2725,7 +2730,7 @@ export default function DocumentPreview({
     }, 700);
 
     return () => clearTimeout(timer);
-  }, [compiledCover, compiledSettings, compiledHtmlContent, compiledHtmlBlocks, compiledBibliography, compiledUploadedFiles]);
+  }, [compiledCover, compiledSettings, compiledHtmlContent, compiledHtmlBlocks, compiledBibliography, compiledUploadedFiles, paginatedPages, previewMode]);
 
   useEffect(() => {
     if (serverPreviewId) {
@@ -2887,69 +2892,209 @@ export default function DocumentPreview({
 
       const detectedHeadings: HeadingItem[] = [];
 
-      childNodes.forEach((node) => {
-        // Measure element height including vertical margin collapse approximation
-        const style = window.getComputedStyle(node);
-        const marginTopVal = parseFloat(style.marginTop) || 0;
-        const marginBottomVal = parseFloat(style.marginBottom) || 0;
+      // Create a temporary measurement container with the exact same styles
+      const tempMeasureContainer = document.createElement('div');
+      tempMeasureContainer.className = 'unemi-document-content';
+      tempMeasureContainer.style.position = 'absolute';
+      tempMeasureContainer.style.top = '-9999px';
+      tempMeasureContainer.style.left = '-9999px';
+      tempMeasureContainer.style.width = `${contentWidth}px`;
+      tempMeasureContainer.style.boxSizing = 'border-box';
+      tempMeasureContainer.style.visibility = 'hidden';
+      document.body.appendChild(tempMeasureContainer);
+
+      const measureHTMLHeight = (htmlContent: string): number => {
+        tempMeasureContainer.innerHTML = htmlContent;
+        return tempMeasureContainer.getBoundingClientRect().height;
+      };
+
+      // Helper to tokenize HTML string safely (preventing breaking tags)
+      const tokenizeHTML = (html: string): string[] => {
+        const tokens: string[] = [];
+        let i = 0;
+        while (i < html.length) {
+          if (html[i] === '<') {
+            const end = html.indexOf('>', i);
+            if (end !== -1) {
+              tokens.push(html.substring(i, end + 1));
+              i = end + 1;
+            } else {
+              tokens.push(html[i]);
+              i++;
+            }
+          } else {
+            let nextSpace = html.indexOf(' ', i);
+            let nextTag = html.indexOf('<', i);
+            let endWord = html.length;
+            if (nextSpace !== -1 && nextTag !== -1) {
+              endWord = Math.min(nextSpace, nextTag);
+            } else if (nextSpace !== -1) {
+              endWord = nextSpace;
+            } else if (nextTag !== -1) {
+              endWord = nextTag;
+            }
+            
+            if (endWord === i) {
+              tokens.push(' ');
+              i++;
+            } else {
+              tokens.push(html.substring(i, endWord));
+              i = endWord;
+            }
+          }
+        }
+        return tokens;
+      };
+
+      // Helper to split tokens into balanced HTML parts (reclosing/reopening open tags)
+      const getBalancedHTMLParts = (tokens: string[], splitIndex: number) => {
+        const part1Tokens = tokens.slice(0, splitIndex);
+        const part2Tokens = tokens.slice(splitIndex);
         
-        // Element height in layout
-        const elementHeight = node.getBoundingClientRect().height + marginTopVal + marginBottomVal;
-
-        const isPageBreak = node.classList.contains('page-break');
-        const isTable = node.tagName === 'TABLE';
-
-        // Helper to build a table part with cloned caption/thead/tbody
-        const buildTablePart = (originalTable: HTMLTableElement, rowsToInsert: HTMLElement[], isContinuation: boolean) => {
-          const clone = originalTable.cloneNode(false) as HTMLTableElement;
-          
-          clone.style.width = '100%';
-          clone.style.tableLayout = 'auto';
-
-          const caption = originalTable.querySelector('caption');
-          if (caption) {
-            const captionClone = caption.cloneNode(true) as HTMLTableCaptionElement;
-            if (isContinuation) {
-              const textSpan = captionClone.querySelector('.caption-text') || captionClone;
-              if (textSpan && textSpan.textContent && !textSpan.textContent.includes('(continuación)')) {
-                textSpan.textContent += ' (continuación)';
+        const openTags: string[] = [];
+        part1Tokens.forEach(t => {
+          if (t.startsWith('<') && t.endsWith('>') && !t.startsWith('</') && !t.endsWith('/>')) {
+            const tagNameMatch = t.match(/<([a-zA-Z0-9:-]+)/);
+            if (tagNameMatch) {
+              openTags.push(tagNameMatch[1]);
+            }
+          } else if (t.startsWith('</')) {
+            const tagNameMatch = t.match(/<\/([a-zA-Z0-9:-]+)/);
+            if (tagNameMatch) {
+              const idx = openTags.lastIndexOf(tagNameMatch[1]);
+              if (idx !== -1) {
+                openTags.splice(idx, 1);
               }
             }
-            clone.appendChild(captionClone);
           }
-
-          const thead = originalTable.querySelector('thead');
-          if (thead) {
-            clone.appendChild(thead.cloneNode(true));
-          }
-          
-          const tbody = document.createElement('tbody');
-          rowsToInsert.forEach(r => tbody.appendChild(r.cloneNode(true)));
-          clone.appendChild(tbody);
-          
-          return clone.outerHTML;
+        });
+        
+        const part1Closed = [...part1Tokens];
+        for (let i = openTags.length - 1; i >= 0; i--) {
+          part1Closed.push(`</${openTags[i]}>`);
+        }
+        
+        const part2Reopened: string[] = [];
+        openTags.forEach(tag => {
+          part2Reopened.push(`<${tag}>`);
+        });
+        const part2Final = [...part2Reopened, ...part2Tokens];
+        
+        return {
+          part1: part1Closed.join(''),
+          part2: part2Final.join('')
         };
+      };
 
-        if (isTable) {
-          const tableEl = node as HTMLTableElement;
+      // Helper to build a table part with cloned caption/thead/tbody
+      const buildTablePart = (originalTable: HTMLTableElement, rowsToInsert: HTMLElement[], isContinuation: boolean) => {
+        const clone = originalTable.cloneNode(false) as HTMLTableElement;
+        
+        clone.style.width = '100%';
+        clone.style.tableLayout = 'auto';
+
+        const caption = originalTable.querySelector('caption');
+        if (caption) {
+          const captionClone = caption.cloneNode(true) as HTMLTableCaptionElement;
+          if (isContinuation) {
+            const textSpan = captionClone.querySelector('.caption-text') || captionClone;
+            if (textSpan && textSpan.textContent && !textSpan.textContent.includes('(continuación)')) {
+              textSpan.textContent += ' (continuación)';
+            }
+          }
+          clone.appendChild(captionClone);
+        }
+
+        const thead = originalTable.querySelector('thead');
+        if (thead) {
+          clone.appendChild(thead.cloneNode(true));
+        }
+        
+        const tbody = document.createElement('tbody');
+        rowsToInsert.forEach(r => tbody.appendChild(r.cloneNode(true)));
+        clone.appendChild(tbody);
+        
+        return clone.outerHTML;
+      };
+
+      // Create a copy of child nodes info into a processing queue
+      const queue: {
+        html: string;
+        tagName: string;
+        className: string;
+        styleAttr: string;
+        isPageBreak: boolean;
+        isTable: boolean;
+      }[] = childNodes.map(node => ({
+        html: node.outerHTML,
+        tagName: node.tagName,
+        className: node.className || '',
+        styleAttr: node.getAttribute('style') || '',
+        isPageBreak: node.classList.contains('page-break'),
+        isTable: node.tagName === 'TABLE',
+      }));
+
+      let qIndex = 0;
+      while (qIndex < queue.length) {
+        const item = queue[qIndex];
+        qIndex++;
+
+        const isHeading = ['H1', 'H2', 'H3'].includes(item.tagName);
+        const elementHeight = measureHTMLHeight(item.html);
+
+        if (item.isPageBreak) {
+          currentPageIndex++;
+          pagesList.push([]);
+          accumulatedPageHeight = 0;
+          pagesList[currentPageIndex].push(item.html);
+          continue;
+        }
+
+        // Check if fits entirely on the current page
+        if (accumulatedPageHeight + elementHeight <= maxHeight) {
+          pagesList[currentPageIndex].push(item.html);
+          accumulatedPageHeight += elementHeight;
+          
+          // Scrape headings for TOC
+          const parserDiv = document.createElement('div');
+          parserDiv.innerHTML = item.html;
+          const hElements = Array.from(parserDiv.querySelectorAll('h1, h2, h3'));
+          if (isHeading) {
+            hElements.unshift(parserDiv.firstElementChild as HTMLElement);
+          }
+          hElements.forEach((h) => {
+            const text = h.textContent?.trim() || '';
+            if (text) {
+              detectedHeadings.push({
+                text,
+                level: parseInt(h.tagName.substring(1), 10),
+                page: currentPageIndex + (settings.showTOC ? 3 : 2)
+              });
+            }
+          });
+          continue;
+        }
+
+        // Does NOT fit on current page. Let's try to split if eligible!
+        if (item.isTable) {
+          tempMeasureContainer.innerHTML = item.html;
+          const tableEl = tempMeasureContainer.firstElementChild as HTMLTableElement;
           const thead = tableEl.querySelector('thead');
           const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
           const rows = Array.from(tableEl.querySelectorAll('tbody > tr')) as HTMLElement[];
           
-          // Let's check: if it fits entirely on a single page, but doesn't fit on the current page:
-          if (elementHeight <= maxHeight && accumulatedPageHeight + elementHeight > maxHeight) {
-            // Push the entire table to the next page!
+          if (elementHeight <= maxHeight && accumulatedPageHeight > 0) {
+            // Fits entirely on a single fresh page, so push the entire table to next page
             currentPageIndex++;
             pagesList.push([]);
             accumulatedPageHeight = 0;
-            pagesList[currentPageIndex].push(tableEl.outerHTML);
+            pagesList[currentPageIndex].push(item.html);
             accumulatedPageHeight += elementHeight;
-          } else if (elementHeight > maxHeight) {
-            // It is a long table that MUST be split!
+          } else {
+            // Table must be split!
             const remainingHeight = maxHeight - accumulatedPageHeight;
             const minStartHeight = theadHeight + (rows[0] ? rows[0].getBoundingClientRect().height : 30) * 2 + 15;
             
-            // If remaining height on current page is too small, start split on a fresh page
             if (remainingHeight < minStartHeight && accumulatedPageHeight > 0) {
               currentPageIndex++;
               pagesList.push([]);
@@ -2957,22 +3102,20 @@ export default function DocumentPreview({
             }
             
             let currentPartRows: HTMLElement[] = [];
-            let currentPartHeight = theadHeight + 10; // offset for table borders/padding
+            let currentPartHeight = theadHeight + 10;
             let splitIndex = 0;
 
             for (let i = 0; i < rows.length; i++) {
               const row = rows[i];
               const rowHeight = row.getBoundingClientRect().height;
-              const limit = maxHeight - accumulatedPageHeight;
+              const curLimit = maxHeight - accumulatedPageHeight;
               
-              if (currentPartHeight + rowHeight > limit && currentPartRows.length > 0) {
-                // Finish current page's table part
+              if (currentPartHeight + rowHeight > curLimit && currentPartRows.length > 0) {
                 const isCont = splitIndex > 0;
                 const tableHtml = buildTablePart(tableEl, currentPartRows, isCont);
                 pagesList[currentPageIndex].push(tableHtml);
                 splitIndex++;
 
-                // Move to next page
                 currentPageIndex++;
                 pagesList.push([]);
                 accumulatedPageHeight = 0;
@@ -2990,42 +3133,206 @@ export default function DocumentPreview({
               pagesList[currentPageIndex].push(tableHtml);
               accumulatedPageHeight = currentPartHeight;
             }
-          } else {
-            // Fits entirely on current page
-            pagesList[currentPageIndex].push(tableEl.outerHTML);
-            accumulatedPageHeight += elementHeight;
           }
-        } else {
-          // Standard block layout measuring and breaking
-          if ((accumulatedPageHeight + elementHeight > maxHeight || isPageBreak) && accumulatedPageHeight > 0) {
+        } else if (item.tagName === 'P') {
+          // Paragraph splitting!
+          tempMeasureContainer.innerHTML = item.html;
+          const pEl = tempMeasureContainer.firstElementChild as HTMLElement;
+          const tokens = tokenizeHTML(pEl.innerHTML);
+          
+          let low = 1;
+          let high = tokens.length;
+          let bestSplitIndex = 0;
+          let bestPart1HTML = '';
+          let bestPart2HTML = '';
+          
+          while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const { part1, part2 } = getBalancedHTMLParts(tokens, mid);
+            const testHTML = `<p class="${item.className}" style="${item.styleAttr}">${part1}</p>`;
+            const h = measureHTMLHeight(testHTML);
+            
+            if (h <= maxHeight - accumulatedPageHeight) {
+              bestSplitIndex = mid;
+              bestPart1HTML = testHTML;
+              bestPart2HTML = `<p class="${item.className}" style="${item.styleAttr}">${part2}</p>`;
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+          
+          if (bestSplitIndex === 0 && accumulatedPageHeight === 0) {
+            // Force at least 1 token if we are already on a fresh page to avoid infinite loops
+            bestSplitIndex = 1;
+            const { part1, part2 } = getBalancedHTMLParts(tokens, 1);
+            bestPart1HTML = `<p class="${item.className}" style="${item.styleAttr}">${part1}</p>`;
+            bestPart2HTML = `<p class="${item.className}" style="${item.styleAttr}">${part2}</p>`;
+          }
+
+          if (bestSplitIndex > 0) {
+            pagesList[currentPageIndex].push(bestPart1HTML);
+            accumulatedPageHeight += measureHTMLHeight(bestPart1HTML);
+            
+            if (bestSplitIndex < tokens.length) {
+              // Push the remaining part back to the queue to be processed next
+              queue.splice(qIndex, 0, {
+                html: bestPart2HTML,
+                tagName: item.tagName,
+                className: item.className,
+                styleAttr: item.styleAttr,
+                isPageBreak: false,
+                isTable: false
+              });
+            }
+          } else {
+            // Cannot fit even 1 word on current page, move to next page and retry
             currentPageIndex++;
             pagesList.push([]);
             accumulatedPageHeight = 0;
+            qIndex--; // retry current item on fresh page
+          }
+        } else if (item.tagName === 'PRE') {
+          // Code Block splitting!
+          tempMeasureContainer.innerHTML = item.html;
+          const preEl = tempMeasureContainer.firstElementChild as HTMLElement;
+          const codeEl = preEl.querySelector('code');
+          const lines = codeEl ? codeEl.innerHTML.split('\n') : preEl.innerHTML.split('\n');
+          
+          const codeClass = codeEl ? codeEl.className || '' : '';
+          const codeStyle = codeEl ? codeEl.getAttribute('style') || '' : '';
+          
+          let low = 1;
+          let high = lines.length;
+          let bestSplitLines = 0;
+          let bestPart1HTML = '';
+          let bestPart2HTML = '';
+          
+          while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const part1Lines = lines.slice(0, mid).join('\n');
+            const part2Lines = lines.slice(mid).join('\n');
+            const testHTML = `<pre class="${item.className}" style="${item.styleAttr}"><code class="${codeClass}" style="${codeStyle}">${part1Lines}</code></pre>`;
+            const h = measureHTMLHeight(testHTML);
+            
+            if (h <= maxHeight - accumulatedPageHeight) {
+              bestSplitLines = mid;
+              bestPart1HTML = testHTML;
+              bestPart2HTML = `<pre class="${item.className}" style="${item.styleAttr}"><code class="${codeClass}" style="${codeStyle}">${part2Lines}</code></pre>`;
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+          
+          if (bestSplitLines === 0 && accumulatedPageHeight === 0) {
+            // Force at least 1 line if on fresh page to avoid infinite loops
+            bestSplitLines = 1;
+            const part1Lines = lines.slice(0, 1).join('\n');
+            const part2Lines = lines.slice(1).join('\n');
+            bestPart1HTML = `<pre class="${item.className}" style="${item.styleAttr}"><code class="${codeClass}" style="${codeStyle}">${part1Lines}</code></pre>`;
+            bestPart2HTML = `<pre class="${item.className}" style="${item.styleAttr}"><code class="${codeClass}" style="${codeStyle}">${part2Lines}</code></pre>`;
           }
 
-          pagesList[currentPageIndex].push(node.outerHTML);
-          accumulatedPageHeight += elementHeight;
-        }
-
-        // Scan for headings (H1, H2, H3) inside our page nodes
-        const isHeading = ['H1', 'H2', 'H3'].includes(node.tagName || '');
-        const headingEls = node.querySelectorAll ? Array.from(node.querySelectorAll('h1, h2, h3')) : [];
-        if (isHeading) {
-          headingEls.unshift(node);
-        }
-
-        headingEls.forEach((h) => {
-          const text = h.textContent?.trim() || '';
-          if (text) {
-            detectedHeadings.push({
-              text,
-              level: parseInt(h.tagName.substring(1), 10),
-              // Page 1 is Cover. If showTOC toggled on, style index starts on page 3.
-              page: currentPageIndex + (settings.showTOC ? 3 : 2)
-            });
+          if (bestSplitLines > 0) {
+            pagesList[currentPageIndex].push(bestPart1HTML);
+            accumulatedPageHeight += measureHTMLHeight(bestPart1HTML);
+            
+            if (bestSplitLines < lines.length) {
+              queue.splice(qIndex, 0, {
+                html: bestPart2HTML,
+                tagName: item.tagName,
+                className: item.className,
+                styleAttr: item.styleAttr,
+                isPageBreak: false,
+                isTable: false
+              });
+            }
+          } else {
+            // Cannot fit even 1 line, move to next page and retry
+            currentPageIndex++;
+            pagesList.push([]);
+            accumulatedPageHeight = 0;
+            qIndex--;
           }
-        });
-      });
+        } else if (item.tagName === 'UL' || item.tagName === 'OL') {
+          // List splitting!
+          tempMeasureContainer.innerHTML = item.html;
+          const listEl = tempMeasureContainer.firstElementChild as HTMLElement;
+          const items = Array.from(listEl.children) as HTMLElement[];
+          const listTag = item.tagName.toLowerCase();
+          
+          let low = 1;
+          let high = items.length;
+          let bestSplitItems = 0;
+          let bestPart1HTML = '';
+          let bestPart2HTML = '';
+          
+          while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const part1ItemsHTML = items.slice(0, mid).map(it => it.outerHTML).join('');
+            const part2ItemsHTML = items.slice(mid).map(it => it.outerHTML).join('');
+            const testHTML = `<${listTag} class="${item.className}" style="${item.styleAttr}">${part1ItemsHTML}</${listTag}>`;
+            const h = measureHTMLHeight(testHTML);
+            
+            if (h <= maxHeight - accumulatedPageHeight) {
+              bestSplitItems = mid;
+              bestPart1HTML = testHTML;
+              const listStart = listTag === 'ol' ? ` start="${mid + 1}"` : '';
+              bestPart2HTML = `<${listTag} class="${item.className}" style="${item.styleAttr}"${listStart}>${part2ItemsHTML}</${listTag}>`;
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+          
+          if (bestSplitItems === 0 && accumulatedPageHeight === 0) {
+            bestSplitItems = 1;
+            const part1ItemsHTML = items.slice(0, 1).map(it => it.outerHTML).join('');
+            const part2ItemsHTML = items.slice(1).map(it => it.outerHTML).join('');
+            bestPart1HTML = `<${listTag} class="${item.className}" style="${item.styleAttr}">${part1ItemsHTML}</${listTag}>`;
+            const listStart = listTag === 'ol' ? ` start="2"` : '';
+            bestPart2HTML = `<${listTag} class="${item.className}" style="${item.styleAttr}"${listStart}>${part2ItemsHTML}</${listTag}>`;
+          }
+
+          if (bestSplitItems > 0) {
+            pagesList[currentPageIndex].push(bestPart1HTML);
+            accumulatedPageHeight += measureHTMLHeight(bestPart1HTML);
+            
+            if (bestSplitItems < items.length) {
+              queue.splice(qIndex, 0, {
+                html: bestPart2HTML,
+                tagName: item.tagName,
+                className: item.className,
+                styleAttr: item.styleAttr,
+                isPageBreak: false,
+                isTable: false
+              });
+            }
+          } else {
+            currentPageIndex++;
+            pagesList.push([]);
+            accumulatedPageHeight = 0;
+            qIndex--;
+          }
+        } else {
+          // Elements that we don't want to split (headings, blockquotes, images, figures etc.)
+          if (accumulatedPageHeight > 0) {
+            // Push to fresh page
+            currentPageIndex++;
+            pagesList.push([]);
+            accumulatedPageHeight = 0;
+            qIndex--; // retry on fresh page
+          } else {
+            // Already on fresh page, force draw
+            pagesList[currentPageIndex].push(item.html);
+            accumulatedPageHeight += elementHeight;
+          }
+        }
+      }
+
+      // Cleanup our temporary workspace
+      document.body.removeChild(tempMeasureContainer);
 
       // Update states
       setPaginatedPages(pagesList);
@@ -3271,6 +3578,133 @@ export default function DocumentPreview({
         css += ` background-color: rgba(0, 0, 0, 0.03) !important;`;
         css += ` }`;
       }
+    }
+
+    // Código (Monospace) Graphical Styling
+    const blockTheme = settings.blockCodeTheme || settings.codeTheme || 'academic';
+    const rawBlockSize = settings.blockCodeSize !== undefined ? settings.blockCodeSize : (settings.codeSize || '13px');
+    const blockSize = formatFontSize(rawBlockSize, '13px');
+    const inlineTheme = settings.inlineCodeTheme || settings.codeTheme || 'academic';
+    const rawInlineSize = settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px';
+    const inlineSize = formatFontSize(rawInlineSize, '12px');
+
+    css += `\n.unemi-document-content pre, .unemi-document-content pre span {`;
+    css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
+    css += ` font-size: ${blockSize} !important;`;
+    css += ` }`;
+
+    css += `\n.unemi-document-content code:not(pre code) {`;
+    css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
+    css += ` font-size: ${inlineSize} !important;`;
+    css += ` }`;
+    
+    css += `\n.unemi-document-content pre {`;
+    css += ` padding: 12px 16px !important;`;
+    css += ` margin: 16px 0 !important;`;
+    css += ` border-radius: 6px !important;`;
+    css += ` overflow-x: auto !important;`;
+    css += ` line-height: 1.5 !important;`;
+    css += ` }`;
+
+    // Inline code styling
+    let inlineBg = '#f1f5f9';
+    let inlineColor = '#0f172a';
+    let inlineBorder = '#cbd5e1';
+    if (inlineTheme === 'dracula') {
+      inlineBg = '#282a36';
+      inlineColor = '#f8f8f2';
+      inlineBorder = '#44475a';
+    } else if (inlineTheme === 'monokai') {
+      inlineBg = '#272822';
+      inlineColor = '#f8f8f2';
+      inlineBorder = '#3e3d32';
+    } else if (inlineTheme === 'github-light') {
+      inlineBg = '#f6f8fa';
+      inlineColor = '#24292f';
+      inlineBorder = '#d0d7de';
+    } else if (inlineTheme === 'solarized-light') {
+      inlineBg = '#fdf6e3';
+      inlineColor = '#657b83';
+      inlineBorder = '#efe8d4';
+    } else if (inlineTheme === 'nord') {
+      inlineBg = '#2e3440';
+      inlineColor = '#d8dee9';
+      inlineBorder = '#3b4252';
+    } else {
+      // academic / default light
+      inlineBg = '#f8fafc';
+      inlineColor = '#0f172a';
+      inlineBorder = '#cbd5e1';
+    }
+
+    css += `\n.unemi-document-content code:not(pre code) {`;
+    css += ` background-color: ${inlineBg} !important;`;
+    css += ` color: ${inlineColor} !important;`;
+    css += ` padding: 2px 5px !important;`;
+    css += ` border-radius: 4px !important;`;
+    css += ` border: 1px solid ${inlineBorder} !important;`;
+    css += ` display: inline !important;`;
+    css += ` text-indent: 0 !important;`;
+    css += ` word-break: break-word !important;`;
+    css += ` box-decoration-break: clone !important;`;
+    css += ` -webkit-box-decoration-break: clone !important;`;
+    css += ` }`;
+    
+    if (blockTheme === 'dracula') {
+      css += `\n.unemi-document-content pre { background-color: #282a36 !important; border: 1px solid #44475a !important; color: #f8f8f2 !important; }`;
+      css += `\n.unemi-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
+      css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #6272a4 !important; font-style: italic !important; }`;
+      css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #ff79c6 !important; }`;
+      css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #f1fa8c !important; }`;
+      css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #50fa7b !important; }`;
+      css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #bd93f9 !important; }`;
+      css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #f8f8f2 !important; }`;
+    } else if (blockTheme === 'monokai') {
+      css += `\n.unemi-document-content pre { background-color: #272822 !important; border: 1px solid #3e3d32 !important; color: #f8f8f2 !important; }`;
+      css += `\n.unemi-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
+      css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #75715e !important; font-style: italic !important; }`;
+      css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #f92672 !important; }`;
+      css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #e6db74 !important; }`;
+      css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #a6e22e !important; }`;
+      css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #ae81ff !important; }`;
+      css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #f8f8f2 !important; }`;
+    } else if (blockTheme === 'github-light') {
+      css += `\n.unemi-document-content pre { background-color: #f6f8fa !important; border: 1px solid #d0d7de !important; color: #24292f !important; }`;
+      css += `\n.unemi-document-content pre code { color: #24292f !important; background-color: transparent !important; padding: 0 !important; }`;
+      css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #6e7781 !important; font-style: italic !important; }`;
+      css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #cf222e !important; font-weight: bold !important; }`;
+      css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #0a3069 !important; }`;
+      css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #8250df !important; }`;
+      css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #0550ae !important; }`;
+      css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #24292f !important; }`;
+    } else if (blockTheme === 'solarized-light') {
+      css += `\n.unemi-document-content pre { background-color: #fdf6e3 !important; border: 1px solid #efe8d4 !important; color: #657b83 !important; }`;
+      css += `\n.unemi-document-content pre code { color: #657b83 !important; background-color: transparent !important; padding: 0 !important; }`;
+      css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #93a1a1 !important; font-style: italic !important; }`;
+      css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #859900 !important; }`;
+      css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #2aa198 !important; }`;
+      css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #268bd2 !important; }`;
+      css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #d33682 !important; }`;
+      css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #586e75 !important; }`;
+    } else if (blockTheme === 'nord') {
+      css += `\n.unemi-document-content pre { background-color: #2e3440 !important; border: 1px solid #3b4252 !important; color: #d8dee9 !important; }`;
+      css += `\n.unemi-document-content pre code { color: #d8dee9 !important; background-color: transparent !important; padding: 0 !important; }`;
+      css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #4c566a !important; font-style: italic !important; }`;
+      css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #81a1c1 !important; }`;
+      css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #a3be8c !important; }`;
+      css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #88c0d0 !important; }`;
+      css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #b48ead !important; }`;
+      css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #eceff4 !important; }`;
+    } else {
+      // academic / default
+      css += `\n.unemi-document-content pre { background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; }`;
+      css += `\n.unemi-document-content pre code { color: #0f172a !important; background-color: transparent !important; padding: 0 !important; }`;
+      css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #64748b !important; font-style: italic !important; }`;
+      css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #0f172a !important; font-weight: bold !important; }`;
+      css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #0f172a !important; font-style: italic !important; }`;
+      css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #0f172a !important; }`;
+      css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #0f172a !important; }`;
+      css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #0f172a !important; }`;
     }
 
     // Custom CSS input by the user (avoiding selector namespace collisions)

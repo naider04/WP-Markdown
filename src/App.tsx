@@ -9,6 +9,7 @@ import { CoverConfig, PageSettings, UploadedFile, HTMLBlock, BibliographyItem } 
 import SidebarEditor from './components/SidebarEditor';
 import DocumentPreview from './components/DocumentPreview';
 import { ConfigDrawer } from './components/ConfigDrawer';
+import { formatFontSize } from './utils/fontUtils';
 import { BibliographyDrawer } from './components/BibliographyDrawer';
 import { MarginsDrawer } from './components/MarginsDrawer';
 import { parseBibtex, generateBibtexFromItems } from './utils/bibParser';
@@ -1190,9 +1191,11 @@ export default function App() {
 
       // Código (Monospace) Graphical Styling
       const blockTheme = settings.blockCodeTheme || settings.codeTheme || 'academic';
-      const blockSize = settings.blockCodeSize || settings.codeSize || '13px';
+      const rawBlockSize = settings.blockCodeSize !== undefined ? settings.blockCodeSize : (settings.codeSize || '13px');
+      const blockSize = formatFontSize(rawBlockSize, '13px');
       const inlineTheme = settings.inlineCodeTheme || settings.codeTheme || 'academic';
-      const inlineSize = settings.inlineCodeSize || '12px';
+      const rawInlineSize = settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px';
+      const inlineSize = formatFontSize(rawInlineSize, '12px');
 
       css += `\n.unemi-document-content pre, .unemi-document-content pre span {`;
       css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
