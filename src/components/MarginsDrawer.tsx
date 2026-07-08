@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { PageSettings, MarginElement } from '../types';
 import {
   X,
-  Maximize2,
+  Layout,
   Trash2,
   Plus,
   Code,
@@ -82,7 +82,7 @@ export function MarginsDrawer({
       {/* Header */}
       <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950 shrink-0">
         <div className="flex items-center gap-2">
-          <Maximize2 className="w-4 h-4 text-orange-500" />
+          <Layout className="w-4 h-4 text-orange-500" />
           <span className="font-extrabold text-[12px] uppercase tracking-wider text-slate-200">
             Elementos del Margen
           </span>

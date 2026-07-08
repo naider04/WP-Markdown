@@ -625,6 +625,11 @@ export default function DocumentPreview({
           margin-bottom: 24px !important;
           display: block !important;
         }
+        .unemi-margin-element img {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: fill !important;
+        }
         `;
 
         return css;
@@ -1727,6 +1732,14 @@ export default function DocumentPreview({
             }
           }
 
+          css += `
+          .unemi-margin-element img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: fill !important;
+          }
+          `;
+
           return css;
         };
 
@@ -2768,6 +2781,10 @@ export default function DocumentPreview({
 
   // Detector de Desbordes Gráfico: Encuentra elementos cuyo ancho o largo excede el espacio neto disponible de la página.
   useEffect(() => {
+    if (previewMode === 'server') {
+      setDetectedOverflows([]);
+      return;
+    }
     const timer = setTimeout(() => {
       const bodies = document.querySelectorAll('.unemi-document-body');
       const scale = zoom / 100;
@@ -2894,7 +2911,7 @@ export default function DocumentPreview({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [paginatedPages, contentWidth, resolvedHtmlContent, zoom, pageHeight, topMargin, bottomMargin]);
+  }, [paginatedPages, contentWidth, resolvedHtmlContent, zoom, pageHeight, topMargin, bottomMargin, previewMode]);
 
   const handleZoomIn = () => setZoom((prev) => Math.min(prev + 10, 150));
   const handleZoomOut = () => setZoom((prev) => Math.max(prev - 10, 60));
@@ -3006,6 +3023,11 @@ export default function DocumentPreview({
       margin-top: 24px !important;
       margin-bottom: 24px !important;
       display: block !important;
+    }
+    .unemi-margin-element img {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: fill !important;
     }
     `;
 
@@ -3306,21 +3328,6 @@ export default function DocumentPreview({
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
           </div>
-
-          <div className="h-4 w-[1px] bg-gray-200" />
-
-          {/* Fullscreen Mode Icon Button */}
-          <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1.5 rounded text-gray-500 hover:text-gray-850 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer bg-gray-50 border border-gray-200 flex items-center justify-center"
-            title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-          >
-            {isFullscreen ? (
-              <Minimize2 className="w-4 h-4 text-gray-600" />
-            ) : (
-              <Maximize2 className="w-4 h-4 text-gray-600" />
-            )}
-          </button>
         </div>
       </div>
 
@@ -3351,13 +3358,22 @@ export default function DocumentPreview({
 
             {/* Server preview iframe */}
             {serverPreviewId ? (
-              <iframe
-                id="unemi-server-iframe"
-                src={`/preview/${serverPreviewId}`}
-                className="w-full h-full border-0 bg-neutral-50"
-                title="Servidor Interactivo de Previsualización"
-                onLoad={handleIframeLoad}
-              />
+              <div
+                className="w-full h-full origin-top-left transition-all duration-200"
+                style={{
+                  transform: `scale(${zoom / 100})`,
+                  width: `${100 / (zoom / 100)}%`,
+                  height: `${100 / (zoom / 100)}%`,
+                }}
+              >
+                <iframe
+                  id="unemi-server-iframe"
+                  src={`/preview/${serverPreviewId}`}
+                  className="w-full h-full border-0 bg-neutral-50"
+                  title="Servidor Interactivo de Previsualización"
+                  onLoad={handleIframeLoad}
+                />
+              </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-gray-500 gap-4 bg-neutral-50">
                 <RefreshCw className="w-10 h-10 text-[#004080] animate-spin" />

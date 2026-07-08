@@ -220,7 +220,6 @@ export function ConfigDrawer({
   const [isTextEditorOpen, setIsTextEditorOpen] = useState<boolean>(false);
   const [isTableStyleOpen, setIsTableStyleOpen] = useState<boolean>(false);
   const [isCustomCssStyleOpen, setIsCustomCssStyleOpen] = useState<boolean>(false);
-  const [isHeaderFooterStyleOpen, setIsHeaderFooterStyleOpen] = useState<boolean>(false);
   const [isTOCStyleOpen, setIsTOCStyleOpen] = useState<boolean>(false);
 
   // File renaming states
@@ -495,11 +494,10 @@ Márgenes de Página (Bordes):
         </div>
         <button 
           onClick={onClose}
-          className="p-1 px-2.5 rounded bg-slate-850 hover:bg-[#004080] hover:border-[#FF6600] border border-slate-800 text-slate-200 text-[10px] font-bold tracking-wide transition-all flex items-center gap-1 cursor-pointer shrink-0"
-          title="Regresar a la vista con la lista de editores de contenido"
+          className="p-1.5 hover:bg-slate-850 rounded transition-all text-slate-400 hover:text-slate-200 cursor-pointer"
+          title="Cerrar panel"
         >
-          <X className="w-3.5 h-3.5" />
-          <span>Volver a Editores</span>
+          <X className="w-4 h-4" />
         </button>
       </div>
 
@@ -717,11 +715,6 @@ Abril 2026 - Julio 2026
         {/* TAB 2: PAGE DESIGN AND STYLING STUFF */}
         {activeType === 'settings' && (
           <div className="flex flex-col gap-4 text-xs">
-            <span className="font-bold uppercase tracking-wider text-slate-400 pb-1 border-b border-slate-800 flex items-center gap-1.5">
-              <Layout className="w-4 h-4 text-orange-500" />
-              Ajustes Físicos de Hoja
-            </span>
-
             {/* General CSS Copy Action */}
             <button
               type="button"
@@ -966,57 +959,6 @@ Abril 2026 - Julio 2026
                       </pre>
                       <p className="text-slate-500 text-[9px] italic">
                         * Nota: Haz clic dentro del recuadro naranja de arriba para seleccionarlo y copiarlo fácilmente, luego pégalo en el editor de arriba.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Academic headers and footers */}
-              <div className="border border-slate-800 rounded bg-slate-950/25 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setIsHeaderFooterStyleOpen(!isHeaderFooterStyleOpen)}
-                  className="w-full p-2.5 bg-slate-950 hover:bg-slate-900/80 flex justify-between items-center text-left transition-all"
-                >
-                  <span className="font-extrabold uppercase text-[10px] tracking-wider text-slate-350">
-                    📝 Encabezados & Pie de Página
-                  </span>
-                  <span>{isHeaderFooterStyleOpen ? '▲' : '▼'}</span>
-                </button>
-                {isHeaderFooterStyleOpen && (
-                  <div className="p-3 border-t border-slate-850 bg-slate-900/10 flex flex-col gap-3.5">
-                    
-                    {/* Header HTML Editor */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center justify-between">
-                        <span>Contenido HTML de Encabezado (Header)</span>
-                        <span className="text-[7.5px] text-slate-500 font-mono normal-case">Soporta HTML, &#123;page&#125;</span>
-                      </label>
-                      <textarea
-                        value={settings.headerHtml !== undefined ? settings.headerHtml : ''}
-                        onChange={(e) => handleSettingsChange('headerHtml', e.target.value)}
-                        rows={10}
-                        className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-[10px] leading-relaxed focus:border-[#FF6600]/80 focus:outline-none"
-                        placeholder="Ej: <div class='flex justify-between'>...</div>"
-                      />
-                    </div>
-
-                    {/* Footer HTML Editor */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center justify-between">
-                        <span>Contenido HTML de Pie de Página (Footer)</span>
-                        <span className="text-[7.5px] text-slate-500 font-mono normal-case">Soporta HTML, &#123;page&#125;, &#123;total&#125;</span>
-                      </label>
-                      <textarea
-                        value={settings.footerHtml !== undefined ? settings.footerHtml : ''}
-                        onChange={(e) => handleSettingsChange('footerHtml', e.target.value)}
-                        rows={10}
-                        className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-[10px] leading-relaxed focus:border-[#FF6600]/80 focus:outline-none"
-                        placeholder="Ej: <div class='footer'>...</div>"
-                      />
-                      <p className="text-[8px] text-slate-500 leading-normal">
-                        * Si borras todo el contenido de este editor, el pie de página de las hojas quedará completamente vacío.
                       </p>
                     </div>
                   </div>

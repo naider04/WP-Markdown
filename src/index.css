@@ -327,6 +327,13 @@
   clear: both;
 }
 
+/* Margin Elements Image Stretch Rules */
+.unemi-margin-element img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: fill !important;
+}
+
 /* PRINT MEDIA OVERLAY FORMAT AND HIGH RESOLUTION COLOR STYLING */
 @media print {
   /* Hide all UI containers */

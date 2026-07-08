@@ -136,6 +136,7 @@ export default function PageTemplate({
         return (
           <div
             key={el.id}
+            className="unemi-margin-element"
             style={{
               position: 'absolute',
               top: formatCoordinate(el.top),

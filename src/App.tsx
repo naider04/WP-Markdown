@@ -12,7 +12,7 @@ import { ConfigDrawer } from './components/ConfigDrawer';
 import { BibliographyDrawer } from './components/BibliographyDrawer';
 import { MarginsDrawer } from './components/MarginsDrawer';
 import { parseBibtex, generateBibtexFromItems } from './utils/bibParser';
-import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2 } from 'lucide-react';
+import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2, Layout, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const DEFAULT_HEADER_HTML = `<div class="flex justify-between items-end text-[10px] uppercase font-bold tracking-wider pb-1 px-0.5 w-full">
   <div class="flex items-center gap-1.5 max-w-[320px]">
@@ -1031,7 +1031,7 @@ export default function App() {
 
   const handleMouseMove = (e: MouseEvent) => {
     if (!isResizingRef.current) return;
-    const newWidth = Math.max(290, Math.min(e.clientX, 1000));
+    const newWidth = Math.max(290, Math.min(e.clientX - 76, 1000));
     setSidebarWidth(newWidth);
   };
 
@@ -2579,7 +2579,7 @@ read -p "Presione [Enter] para salir..."`;
                 title="Ver Banco de Imágenes y Recursos"
               >
                 <Image className="w-5 h-5 shrink-0" />
-                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Imágenes</span>
+                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Gráficos</span>
               </button>
 
               <button
@@ -2616,7 +2616,7 @@ read -p "Presione [Enter] para salir..."`;
                 }`}
                 title="Configurar Elementos del Margen"
               >
-                <Maximize2 className="w-5 h-5 shrink-0" />
+                <Layout className="w-5 h-5 shrink-0" />
                 <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Elementos del Margen</span>
               </button>
             </div>
@@ -2675,17 +2675,35 @@ read -p "Presione [Enter] para salir..."`;
                 />
               )}
             </div>
-
-            {/* Resize handle divider bar */}
-            <div
-              onMouseDown={startResizing}
-              className="w-[5px] hover:w-[8px] bg-slate-800 hover:bg-orange-500 cursor-col-resize h-full transition-all duration-150 select-none print:hidden z-20 shrink-0 flex items-center justify-center relative group"
-              title="Arrastra para ajustar el ancho de la barra editora"
-            >
-              <div className="w-[1.5px] h-10 bg-slate-600 group-hover:bg-white rounded transition-colors" />
-            </div>
           </>
         )}
+
+        {/* Resize handle divider bar */}
+        <div
+          onMouseDown={startResizing}
+          className="w-[6px] bg-slate-950 border-r border-l border-slate-850 cursor-col-resize h-full select-none print:hidden z-20 shrink-0 flex items-center justify-center relative"
+          title="Arrastra para ajustar el ancho de la barra editora"
+        >
+          {/* Collapsible toggle arrow button fused with the right of the divider bar */}
+          <button
+            onMouseDown={(e) => {
+              e.stopPropagation(); // Prevent triggering startResizing drag on mousedown
+            }}
+            onClick={(e) => {
+              e.stopPropagation(); // Avoid triggering startResizing
+              setIsFullscreen(!isFullscreen);
+            }}
+            className="absolute left-full -translate-x-[1px] w-[26px] h-14 bg-slate-950 hover:bg-[#004080] border-t border-b border-r border-slate-850 hover:border-[#FF6600] border-l-0 text-slate-350 hover:text-white flex items-center justify-center cursor-pointer transition-all z-30 active:scale-95 rounded-r-lg shadow-lg"
+            title={isFullscreen ? "Mostrar panel de edición" : "Ocultar panel de edición"}
+            style={{ top: 'calc(50% - 28px)' }}
+          >
+            {isFullscreen ? (
+              <ChevronRight className="w-5 h-5" />
+            ) : (
+              <ChevronLeft className="w-5 h-5" />
+            )}
+          </button>
+        </div>
 
         {/* RIGHT COLUMN: Real page preview layout Stage */}
         <div className="flex-1 h-full flex flex-col relative overflow-hidden min-w-0">

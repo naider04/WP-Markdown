@@ -147,7 +147,7 @@ export default function CoverPage({
         />
       )}
       <div 
-        className="relative z-10 w-full h-full"
+        className="relative z-40 w-full h-full"
         dangerouslySetInnerHTML={{ __html: finalOverlayHtml }}
       />
       {/* Margin-bypassing Elements */}
@@ -156,6 +156,7 @@ export default function CoverPage({
         return (
           <div
             key={el.id}
+            className="unemi-margin-element"
             style={{
               position: 'absolute',
               top: formatCoordinate(el.top),
