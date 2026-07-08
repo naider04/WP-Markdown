@@ -539,6 +539,12 @@ export default function App() {
           marginRight: 96,
           customAddedCss: '',
           customAddedJs: '',
+          codeSize: '13px',
+          codeTheme: 'academic',
+          inlineCodeSize: '12px',
+          inlineCodeTheme: 'academic',
+          blockCodeSize: '13px',
+          blockCodeTheme: 'academic',
           showBibliography: false,
           showOnlyCitedBibliography: false,
           bibliographyTitle: 'Referencias Bibliográficas',
@@ -572,6 +578,12 @@ export default function App() {
       marginRight: 96,
       customAddedCss: '',
       customAddedJs: '',
+      codeSize: '13px',
+      codeTheme: 'academic',
+      inlineCodeSize: '12px',
+      inlineCodeTheme: 'academic',
+      blockCodeSize: '13px',
+      blockCodeTheme: 'academic',
       showBibliography: false,
       showOnlyCitedBibliography: false,
       bibliographyTitle: 'Referencias Bibliográficas',
@@ -1176,6 +1188,131 @@ export default function App() {
         }
       }
 
+      // Código (Monospace) Graphical Styling
+      const blockTheme = settings.blockCodeTheme || settings.codeTheme || 'academic';
+      const blockSize = settings.blockCodeSize || settings.codeSize || '13px';
+      const inlineTheme = settings.inlineCodeTheme || settings.codeTheme || 'academic';
+      const inlineSize = settings.inlineCodeSize || '12px';
+
+      css += `\n.unemi-document-content pre, .unemi-document-content pre span {`;
+      css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
+      css += ` font-size: ${blockSize} !important;`;
+      css += ` }`;
+
+      css += `\n.unemi-document-content code:not(pre code) {`;
+      css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
+      css += ` font-size: ${inlineSize} !important;`;
+      css += ` }`;
+      
+      css += `\n.unemi-document-content pre {`;
+      css += ` padding: 12px 16px !important;`;
+      css += ` margin: 16px 0 !important;`;
+      css += ` border-radius: 6px !important;`;
+      css += ` overflow-x: auto !important;`;
+      css += ` line-height: 1.5 !important;`;
+      css += ` }`;
+
+      // Inline code styling
+      let inlineBg = '#f1f5f9';
+      let inlineColor = '#0f172a';
+      let inlineBorder = '#cbd5e1';
+      if (inlineTheme === 'dracula') {
+        inlineBg = '#282a36';
+        inlineColor = '#f8f8f2';
+        inlineBorder = '#44475a';
+      } else if (inlineTheme === 'monokai') {
+        inlineBg = '#272822';
+        inlineColor = '#f8f8f2';
+        inlineBorder = '#3e3d32';
+      } else if (inlineTheme === 'github-light') {
+        inlineBg = '#f6f8fa';
+        inlineColor = '#24292f';
+        inlineBorder = '#d0d7de';
+      } else if (inlineTheme === 'solarized-light') {
+        inlineBg = '#fdf6e3';
+        inlineColor = '#657b83';
+        inlineBorder = '#efe8d4';
+      } else if (inlineTheme === 'nord') {
+        inlineBg = '#2e3440';
+        inlineColor = '#d8dee9';
+        inlineBorder = '#3b4252';
+      } else {
+        // academic / default light
+        inlineBg = '#f8fafc';
+        inlineColor = '#0f172a';
+        inlineBorder = '#cbd5e1';
+      }
+
+      css += `\n.unemi-document-content code:not(pre code) {`;
+      css += ` background-color: ${inlineBg} !important;`;
+      css += ` color: ${inlineColor} !important;`;
+      css += ` padding: 2px 5px !important;`;
+      css += ` border-radius: 4px !important;`;
+      css += ` border: 1px solid ${inlineBorder} !important;`;
+      css += ` display: inline !important;`;
+      css += ` text-indent: 0 !important;`;
+      css += ` word-break: break-word !important;`;
+      css += ` box-decoration-break: clone !important;`;
+      css += ` -webkit-box-decoration-break: clone !important;`;
+      css += ` }`;
+      
+      if (blockTheme === 'dracula') {
+        css += `\n.unemi-document-content pre { background-color: #282a36 !important; border: 1px solid #44475a !important; color: #f8f8f2 !important; }`;
+        css += `\n.unemi-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
+        css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #6272a4 !important; font-style: italic !important; }`;
+        css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #ff79c6 !important; }`;
+        css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #f1fa8c !important; }`;
+        css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #50fa7b !important; }`;
+        css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #bd93f9 !important; }`;
+        css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #f8f8f2 !important; }`;
+      } else if (blockTheme === 'monokai') {
+        css += `\n.unemi-document-content pre { background-color: #272822 !important; border: 1px solid #3e3d32 !important; color: #f8f8f2 !important; }`;
+        css += `\n.unemi-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
+        css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #75715e !important; font-style: italic !important; }`;
+        css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #f92672 !important; }`;
+        css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #e6db74 !important; }`;
+        css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #a6e22e !important; }`;
+        css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #ae81ff !important; }`;
+        css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #f8f8f2 !important; }`;
+      } else if (blockTheme === 'github-light') {
+        css += `\n.unemi-document-content pre { background-color: #f6f8fa !important; border: 1px solid #d0d7de !important; color: #24292f !important; }`;
+        css += `\n.unemi-document-content pre code { color: #24292f !important; background-color: transparent !important; padding: 0 !important; }`;
+        css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #6e7781 !important; font-style: italic !important; }`;
+        css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #cf222e !important; font-weight: bold !important; }`;
+        css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #0a3069 !important; }`;
+        css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #8250df !important; }`;
+        css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #0550ae !important; }`;
+        css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #24292f !important; }`;
+      } else if (blockTheme === 'solarized-light') {
+        css += `\n.unemi-document-content pre { background-color: #fdf6e3 !important; border: 1px solid #efe8d4 !important; color: #657b83 !important; }`;
+        css += `\n.unemi-document-content pre code { color: #657b83 !important; background-color: transparent !important; padding: 0 !important; }`;
+        css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #93a1a1 !important; font-style: italic !important; }`;
+        css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #859900 !important; }`;
+        css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #2aa198 !important; }`;
+        css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #268bd2 !important; }`;
+        css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #d33682 !important; }`;
+        css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #586e75 !important; }`;
+      } else if (blockTheme === 'nord') {
+        css += `\n.unemi-document-content pre { background-color: #2e3440 !important; border: 1px solid #3b4252 !important; color: #d8dee9 !important; }`;
+        css += `\n.unemi-document-content pre code { color: #d8dee9 !important; background-color: transparent !important; padding: 0 !important; }`;
+        css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #4c566a !important; font-style: italic !important; }`;
+        css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #81a1c1 !important; }`;
+        css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #a3be8c !important; }`;
+        css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #88c0d0 !important; }`;
+        css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #b48ead !important; }`;
+        css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #eceff4 !important; }`;
+      } else {
+        // academic / default
+        css += `\n.unemi-document-content pre { background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; }`;
+        css += `\n.unemi-document-content pre code { color: #0f172a !important; background-color: transparent !important; padding: 0 !important; }`;
+        css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #64748b !important; font-style: italic !important; }`;
+        css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #0f172a !important; font-weight: bold !important; }`;
+        css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #0f172a !important; font-style: italic !important; }`;
+        css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #0f172a !important; }`;
+        css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #0f172a !important; }`;
+        css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #0f172a !important; }`;
+      }
+      
       return css;
     };
 
@@ -2688,9 +2825,7 @@ read -p "Presione [Enter] para salir..."`;
           <button
             onMouseDown={(e) => {
               e.stopPropagation(); // Prevent triggering startResizing drag on mousedown
-            }}
-            onClick={(e) => {
-              e.stopPropagation(); // Avoid triggering startResizing
+              e.preventDefault();
               setIsFullscreen(!isFullscreen);
             }}
             className="absolute left-full -translate-x-[1px] w-[26px] h-14 bg-slate-950 hover:bg-[#004080] border-t border-b border-r border-slate-850 hover:border-[#FF6600] border-l-0 text-slate-350 hover:text-white flex items-center justify-center cursor-pointer transition-all z-30 active:scale-95 rounded-r-lg shadow-lg"
@@ -2711,17 +2846,23 @@ read -p "Presione [Enter] para salir..."`;
             <div className="absolute inset-0 z-50 bg-transparent cursor-col-resize pointer-events-auto" />
           )}
           <DocumentPreview
-            cover={compiledCover}
-            settings={compiledSettings}
-            htmlContent={compiledHtmlContent}
+            cover={cover}
+            settings={settings}
+            htmlContent={htmlContent}
             setPageCount={setPageCount}
             onExportZIP={() => handleExport('project')}
             isFullscreen={isFullscreen}
             setIsFullscreen={setIsFullscreen}
-            uploadedFiles={compiledUploadedFiles}
-            htmlBlocks={compiledHtmlBlocks}
-            bibliography={compiledBibliography}
+            uploadedFiles={uploadedFiles}
+            htmlBlocks={htmlBlocks}
+            bibliography={bibliography}
             isCompiling={isCompiling}
+            compiledCover={compiledCover}
+            compiledSettings={compiledSettings}
+            compiledHtmlContent={compiledHtmlContent}
+            compiledUploadedFiles={compiledUploadedFiles}
+            compiledHtmlBlocks={compiledHtmlBlocks}
+            compiledBibliography={compiledBibliography}
           />
         </div>
       </div>

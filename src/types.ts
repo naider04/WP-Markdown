@@ -100,6 +100,14 @@ export interface PageSettings {
   // Campo de código JS personalizado para añadir nuevos scripts interactivos
   customAddedJs?: string;
 
+  // Personalización Gráfica de Código (Monospace)
+  codeSize?: string;
+  codeTheme?: string;
+  inlineCodeSize?: string;
+  inlineCodeTheme?: string;
+  blockCodeSize?: string;
+  blockCodeTheme?: string;
+
   // Bibliografía APA automática
   showBibliography?: boolean;
   showOnlyCitedBibliography?: boolean;

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { marked } from 'marked';
+import { markdownParser } from '../utils/markdownParser';
 import { CoverConfig, PageSettings, UploadedFile } from '../types';
 import {
   FileText,
@@ -221,6 +221,7 @@ export function ConfigDrawer({
   const [isTableStyleOpen, setIsTableStyleOpen] = useState<boolean>(false);
   const [isCustomCssStyleOpen, setIsCustomCssStyleOpen] = useState<boolean>(false);
   const [isTOCStyleOpen, setIsTOCStyleOpen] = useState<boolean>(false);
+  const [isCodeStyleOpen, setIsCodeStyleOpen] = useState<boolean>(false);
 
   // File renaming states
   const [editingFileId, setEditingFileId] = useState<string | null>(null);
@@ -326,7 +327,7 @@ Márgenes de Página (Bordes):
         try {
           const md = updated.overlayMarkdown || '';
           const tmpl = updated.overlayTemplate || '';
-          const compiledMarkdown = marked.parse(md) as string;
+          const compiledMarkdown = markdownParser.parse(md) as string;
           updated.overlayHtml = tmpl.replace('{{content}}', compiledMarkdown);
         } catch (e) {
           console.error('Error compiling markdown on cover change:', e);
@@ -1020,6 +1021,231 @@ Abril 2026 - Julio 2026
                         className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-[10px] leading-relaxed focus:border-[#FF6600]/80 focus:outline-none"
                         placeholder="/* Estilos CSS para el TOC de la hoja */"
                       />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Código (Monospace) */}
+              <div className="border border-slate-800 rounded bg-slate-950/25 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setIsCodeStyleOpen(!isCodeStyleOpen)}
+                  className="w-full p-2.5 bg-slate-950 hover:bg-slate-900/80 flex justify-between items-center text-left transition-all"
+                >
+                  <span className="font-extrabold uppercase text-[10px] tracking-wider text-slate-350 flex items-center gap-1.5">
+                    <span>💻</span> Código (Monospace)
+                  </span>
+                  <span>{isCodeStyleOpen ? '▲' : '▼'}</span>
+                </button>
+                {isCodeStyleOpen && (
+                  <div className="p-3 border-t border-slate-850 bg-slate-900/10 flex flex-col gap-4">
+                    {/* --- CÓDIGO EN BLOQUE --- */}
+                    <div className="border-b border-slate-850 pb-3 flex flex-col gap-2.5">
+                      <span className="text-[9.5px] text-orange-400 font-extrabold uppercase tracking-wide">📦 Código en Bloque (Multi-línea)</span>
+                      
+                      {/* Block Size */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9px] text-slate-400 font-bold uppercase">Tamaño de Fuente (ej. 13px, 0.85em)</label>
+                        <input
+                          type="text"
+                          value={settings.blockCodeSize || settings.codeSize || '13px'}
+                          onChange={(e) => handleSettingsChange('blockCodeSize', e.target.value)}
+                          className="w-full p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-xs focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                          placeholder="13px"
+                        />
+                      </div>
+
+                      {/* Block Theme */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9px] text-slate-400 font-bold uppercase">Tema de Código</label>
+                        <select
+                          value={settings.blockCodeTheme || settings.codeTheme || 'academic'}
+                          onChange={(e) => handleSettingsChange('blockCodeTheme', e.target.value)}
+                          className="w-full p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200 text-xs focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                        >
+                          <option value="academic">Academic (Default Light)</option>
+                          <option value="dracula">Dracula (Dark)</option>
+                          <option value="monokai">Monokai (Dark Retro)</option>
+                          <option value="github-light">GitHub Light</option>
+                          <option value="solarized-light">Solarized Light (Warm)</option>
+                          <option value="nord">Nord (Nordic Dark)</option>
+                        </select>
+                      </div>
+
+                      {/* Block Highlight Live Preview */}
+                      <div className="mt-1">
+                        <label className="text-[8px] text-slate-500 font-bold uppercase tracking-wider mb-1 block">Vista Previa del Bloque</label>
+                        {(() => {
+                          const previewTheme = settings.blockCodeTheme || settings.codeTheme || 'academic';
+                          const previewSize = settings.blockCodeSize || settings.codeSize || '13px';
+                          let previewBg = '#f8fafc';
+                          let previewFg = '#0f172a';
+                          let previewBorder = '#cbd5e1';
+                          let commentColor = '#64748b';
+                          let keywordColor = '#0f172a';
+                          let stringColor = '#0f172a';
+                          let isBoldKeyword = true;
+                          let isItalicString = true;
+
+                          if (previewTheme === 'dracula') {
+                            previewBg = '#282a36';
+                            previewFg = '#f8f8f2';
+                            previewBorder = '#44475a';
+                            commentColor = '#6272a4';
+                            keywordColor = '#ff79c6';
+                            stringColor = '#f1fa8c';
+                            isBoldKeyword = false;
+                            isItalicString = false;
+                          } else if (previewTheme === 'monokai') {
+                            previewBg = '#272822';
+                            previewFg = '#f8f8f2';
+                            previewBorder = '#3e3d32';
+                            commentColor = '#75715e';
+                            keywordColor = '#f92672';
+                            stringColor = '#e6db74';
+                            isBoldKeyword = false;
+                            isItalicString = false;
+                          } else if (previewTheme === 'github-light') {
+                            previewBg = '#f6f8fa';
+                            previewFg = '#24292f';
+                            previewBorder = '#d0d7de';
+                            commentColor = '#6e7781';
+                            keywordColor = '#cf222e';
+                            stringColor = '#0a3069';
+                            isBoldKeyword = true;
+                            isItalicString = false;
+                          } else if (previewTheme === 'solarized-light') {
+                            previewBg = '#fdf6e3';
+                            previewFg = '#657b83';
+                            previewBorder = '#efe8d4';
+                            commentColor = '#93a1a1';
+                            keywordColor = '#859900';
+                            stringColor = '#2aa198';
+                            isBoldKeyword = false;
+                            isItalicString = false;
+                          } else if (previewTheme === 'nord') {
+                            previewBg = '#2e3440';
+                            previewFg = '#d8dee9';
+                            previewBorder = '#3b4252';
+                            commentColor = '#4c566a';
+                            keywordColor = '#81a1c1';
+                            stringColor = '#a3be8c';
+                            isBoldKeyword = false;
+                            isItalicString = false;
+                          }
+
+                          return (
+                            <div 
+                              className="rounded p-2.5 font-mono text-[10px] border leading-normal transition-all duration-200"
+                              style={{ 
+                                backgroundColor: previewBg, 
+                                color: previewFg, 
+                                borderColor: previewBorder,
+                                fontSize: previewSize 
+                              }}
+                            >
+                              <span style={{ color: commentColor, fontStyle: 'italic' }}>{"// Comentario de ejemplo"}</span>
+                              <br />
+                              <span style={{ color: keywordColor, fontWeight: isBoldKeyword ? 'bold' : 'normal' }}>{"const "}</span>
+                              <span>{"mensaje = "}</span>
+                              <span style={{ color: stringColor, fontStyle: isItalicString ? 'italic' : 'normal' }}>{`"Hola UNEMI"`}</span>
+                              <span>{";"}</span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* --- CÓDIGO EN LÍNEA --- */}
+                    <div className="flex flex-col gap-2.5">
+                      <span className="text-[9.5px] text-teal-400 font-extrabold uppercase tracking-wide">🏷️ Código en Línea (En-texto)</span>
+                      
+                      {/* Inline Size */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9px] text-slate-400 font-bold uppercase">Tamaño de Fuente (ej. 12px, 0.8em)</label>
+                        <input
+                          type="text"
+                          value={settings.inlineCodeSize || '12px'}
+                          onChange={(e) => handleSettingsChange('inlineCodeSize', e.target.value)}
+                          className="w-full p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-xs focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                          placeholder="12px"
+                        />
+                      </div>
+
+                      {/* Inline Theme */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9px] text-slate-400 font-bold uppercase">Tema de Código en Línea</label>
+                        <select
+                          value={settings.inlineCodeTheme || settings.codeTheme || 'academic'}
+                          onChange={(e) => handleSettingsChange('inlineCodeTheme', e.target.value)}
+                          className="w-full p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200 text-xs focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                        >
+                          <option value="academic">Academic (Default Light)</option>
+                          <option value="dracula">Dracula (Dark)</option>
+                          <option value="monokai">Monokai (Dark Retro)</option>
+                          <option value="github-light">GitHub Light</option>
+                          <option value="solarized-light">Solarized Light (Warm)</option>
+                          <option value="nord">Nord (Nordic Dark)</option>
+                        </select>
+                      </div>
+
+                      {/* Inline Highlight Live Preview */}
+                      <div className="mt-1">
+                        <label className="text-[8px] text-slate-500 font-bold uppercase tracking-wider mb-1 block">Vista Previa del Código en Línea</label>
+                        {(() => {
+                          const previewTheme = settings.inlineCodeTheme || settings.codeTheme || 'academic';
+                          const previewSize = settings.inlineCodeSize || '12px';
+                          let inlineBg = '#f1f5f9';
+                          let inlineColor = '#0f172a';
+                          let inlineBorder = '#cbd5e1';
+
+                          if (previewTheme === 'dracula') {
+                            inlineBg = '#282a36';
+                            inlineColor = '#f8f8f2';
+                            inlineBorder = '#44475a';
+                          } else if (previewTheme === 'monokai') {
+                            inlineBg = '#272822';
+                            inlineColor = '#f8f8f2';
+                            inlineBorder = '#3e3d32';
+                          } else if (previewTheme === 'github-light') {
+                            inlineBg = '#f6f8fa';
+                            inlineColor = '#24292f';
+                            inlineBorder = '#d0d7de';
+                          } else if (previewTheme === 'solarized-light') {
+                            inlineBg = '#fdf6e3';
+                            inlineColor = '#657b83';
+                            inlineBorder = '#efe8d4';
+                          } else if (previewTheme === 'nord') {
+                            inlineBg = '#2e3440';
+                            inlineColor = '#d8dee9';
+                            inlineBorder = '#3b4252';
+                          } else {
+                            // academic / default light
+                            inlineBg = '#f8fafc';
+                            inlineColor = '#0f172a';
+                            inlineBorder = '#cbd5e1';
+                          }
+
+                          return (
+                            <div className="p-2 bg-slate-950/80 rounded border border-slate-850 text-slate-350 text-[11px] leading-relaxed">
+                              <span>{"El método "}</span>
+                              <span 
+                                className="font-mono px-1 rounded transition-all duration-200"
+                                style={{ 
+                                  backgroundColor: inlineBg, 
+                                  color: inlineColor, 
+                                  border: `1px solid ${inlineBorder}`,
+                                  fontSize: previewSize 
+                                }}
+                              >
+                                {"console.log()"}
+                              </span>
+                              <span>{" sirve para depurar."}</span>
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
                 )}
