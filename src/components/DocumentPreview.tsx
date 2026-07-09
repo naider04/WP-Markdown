@@ -3017,6 +3017,16 @@ export default function DocumentPreview({
         return clone.outerHTML;
       };
 
+      const getCodeSplitStyles = (part: 'first' | 'middle' | 'last'): string => {
+        if (part === 'first') {
+          return 'border-bottom: none !important; border-bottom-left-radius: 0px !important; border-bottom-right-radius: 0px !important; margin-bottom: 0px !important; padding-bottom: 4px !important;';
+        } else if (part === 'middle') {
+          return 'border-top: none !important; border-bottom: none !important; border-radius: 0px !important; margin-top: 0px !important; margin-bottom: 0px !important; padding-top: 4px !important; padding-bottom: 4px !important;';
+        } else { // 'last'
+          return 'border-top: none !important; border-top-left-radius: 0px !important; border-top-right-radius: 0px !important; margin-top: 0px !important; padding-top: 4px !important;';
+        }
+      };
+
       // Create a copy of child nodes info into a processing queue
       const queue: {
         html: string;
@@ -3025,6 +3035,8 @@ export default function DocumentPreview({
         styleAttr: string;
         isPageBreak: boolean;
         isTable: boolean;
+        isCodeSplit?: boolean;
+        codeSplitPart?: 'first' | 'middle' | 'last';
       }[] = childNodes.map(node => ({
         html: node.outerHTML,
         tagName: node.tagName,
@@ -3146,6 +3158,10 @@ export default function DocumentPreview({
           let bestPart1HTML = '';
           let bestPart2HTML = '';
           
+          const part2Style = item.styleAttr
+            ? `${item.styleAttr}; text-indent: 0px !important;`
+            : `text-indent: 0px !important;`;
+          
           while (low <= high) {
             const mid = Math.floor((low + high) / 2);
             const { part1, part2 } = getBalancedHTMLParts(tokens, mid);
@@ -3155,7 +3171,7 @@ export default function DocumentPreview({
             if (h <= maxHeight - accumulatedPageHeight) {
               bestSplitIndex = mid;
               bestPart1HTML = testHTML;
-              bestPart2HTML = `<p class="${item.className}" style="${item.styleAttr}">${part2}</p>`;
+              bestPart2HTML = `<p class="${item.className}" style="${part2Style}">${part2}</p>`;
               low = mid + 1;
             } else {
               high = mid - 1;
@@ -3167,7 +3183,7 @@ export default function DocumentPreview({
             bestSplitIndex = 1;
             const { part1, part2 } = getBalancedHTMLParts(tokens, 1);
             bestPart1HTML = `<p class="${item.className}" style="${item.styleAttr}">${part1}</p>`;
-            bestPart2HTML = `<p class="${item.className}" style="${item.styleAttr}">${part2}</p>`;
+            bestPart2HTML = `<p class="${item.className}" style="${part2Style}">${part2}</p>`;
           }
 
           if (bestSplitIndex > 0) {
@@ -3180,7 +3196,7 @@ export default function DocumentPreview({
                 html: bestPart2HTML,
                 tagName: item.tagName,
                 className: item.className,
-                styleAttr: item.styleAttr,
+                styleAttr: part2Style,
                 isPageBreak: false,
                 isTable: false
               });
@@ -3208,17 +3224,34 @@ export default function DocumentPreview({
           let bestPart1HTML = '';
           let bestPart2HTML = '';
           
+          const useSplitBorders = settings.splitBlockCodeBorders;
+          
           while (low <= high) {
             const mid = Math.floor((low + high) / 2);
             const part1Lines = lines.slice(0, mid).join('\n');
             const part2Lines = lines.slice(mid).join('\n');
-            const testHTML = `<pre class="${item.className}" style="${item.styleAttr}"><code class="${codeClass}" style="${codeStyle}">${part1Lines}</code></pre>`;
+            
+            let part1StyleAttr = item.styleAttr;
+            let part2StyleAttr = item.styleAttr;
+            
+            if (useSplitBorders) {
+              const part1Type = item.isCodeSplit ? 'middle' : 'first';
+              const part2Type = 'last';
+              
+              const part1StyleAppend = getCodeSplitStyles(part1Type);
+              const part2StyleAppend = getCodeSplitStyles(part2Type);
+              
+              part1StyleAttr = item.styleAttr ? `${item.styleAttr}; ${part1StyleAppend}` : part1StyleAppend;
+              part2StyleAttr = item.styleAttr ? `${item.styleAttr}; ${part2StyleAppend}` : part2StyleAppend;
+            }
+            
+            const testHTML = `<pre class="${item.className}" style="${part1StyleAttr}"><code class="${codeClass}" style="${codeStyle}">${part1Lines}</code></pre>`;
             const h = measureHTMLHeight(testHTML);
             
             if (h <= maxHeight - accumulatedPageHeight) {
               bestSplitLines = mid;
               bestPart1HTML = testHTML;
-              bestPart2HTML = `<pre class="${item.className}" style="${item.styleAttr}"><code class="${codeClass}" style="${codeStyle}">${part2Lines}</code></pre>`;
+              bestPart2HTML = `<pre class="${item.className}" style="${part2StyleAttr}"><code class="${codeClass}" style="${codeStyle}">${part2Lines}</code></pre>`;
               low = mid + 1;
             } else {
               high = mid - 1;
@@ -3230,8 +3263,23 @@ export default function DocumentPreview({
             bestSplitLines = 1;
             const part1Lines = lines.slice(0, 1).join('\n');
             const part2Lines = lines.slice(1).join('\n');
-            bestPart1HTML = `<pre class="${item.className}" style="${item.styleAttr}"><code class="${codeClass}" style="${codeStyle}">${part1Lines}</code></pre>`;
-            bestPart2HTML = `<pre class="${item.className}" style="${item.styleAttr}"><code class="${codeClass}" style="${codeStyle}">${part2Lines}</code></pre>`;
+            
+            let part1StyleAttr = item.styleAttr;
+            let part2StyleAttr = item.styleAttr;
+            
+            if (useSplitBorders) {
+              const part1Type = item.isCodeSplit ? 'middle' : 'first';
+              const part2Type = 'last';
+              
+              const part1StyleAppend = getCodeSplitStyles(part1Type);
+              const part2StyleAppend = getCodeSplitStyles(part2Type);
+              
+              part1StyleAttr = item.styleAttr ? `${item.styleAttr}; ${part1StyleAppend}` : part1StyleAppend;
+              part2StyleAttr = item.styleAttr ? `${item.styleAttr}; ${part2StyleAppend}` : part2StyleAppend;
+            }
+            
+            bestPart1HTML = `<pre class="${item.className}" style="${part1StyleAttr}"><code class="${codeClass}" style="${codeStyle}">${part1Lines}</code></pre>`;
+            bestPart2HTML = `<pre class="${item.className}" style="${part2StyleAttr}"><code class="${codeClass}" style="${codeStyle}">${part2Lines}</code></pre>`;
           }
 
           if (bestSplitLines > 0) {
@@ -3239,13 +3287,21 @@ export default function DocumentPreview({
             accumulatedPageHeight += measureHTMLHeight(bestPart1HTML);
             
             if (bestSplitLines < lines.length) {
+              let part2StyleAttr = item.styleAttr;
+              if (useSplitBorders) {
+                const part2StyleAppend = getCodeSplitStyles('last');
+                part2StyleAttr = item.styleAttr ? `${item.styleAttr}; ${part2StyleAppend}` : part2StyleAppend;
+              }
+              
               queue.splice(qIndex, 0, {
                 html: bestPart2HTML,
                 tagName: item.tagName,
                 className: item.className,
-                styleAttr: item.styleAttr,
+                styleAttr: part2StyleAttr,
                 isPageBreak: false,
-                isTable: false
+                isTable: false,
+                isCodeSplit: useSplitBorders ? true : undefined,
+                codeSplitPart: useSplitBorders ? 'last' : undefined
               });
             }
           } else {
@@ -3358,7 +3414,7 @@ export default function DocumentPreview({
     return () => {
       resizeObserver.disconnect();
     };
-  }, [resolvedHtmlContent, settings.pageSize, settings.orientation, settings.showTOC, setPageCount, isLetter, leftMargin, rightMargin, topMargin, bottomMargin, pageHeight]);
+  }, [resolvedHtmlContent, settings.pageSize, settings.orientation, settings.showTOC, setPageCount, isLetter, leftMargin, rightMargin, topMargin, bottomMargin, pageHeight, settings.splitBlockCodeBorders]);
 
   // Detector de Desbordes Gráfico: Encuentra elementos cuyo ancho o largo excede el espacio neto disponible de la página.
   useEffect(() => {

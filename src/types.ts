@@ -107,6 +107,7 @@ export interface PageSettings {
   inlineCodeTheme?: string;
   blockCodeSize?: string;
   blockCodeTheme?: string;
+  splitBlockCodeBorders?: boolean;
 
   // Bibliografía APA automática
   showBibliography?: boolean;

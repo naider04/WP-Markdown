@@ -518,15 +518,15 @@ Márgenes de Página (Bordes):
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">URL / Nombre de la Imagen de Fondo</label>
                 {/* Switch checkbox */}
-                <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                <label className="relative inline-flex items-center gap-1.5 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={!!cover.applyBgImageToAllPages}
                     onChange={(e) => handleCoverChange('applyBgImageToAllPages', e.target.checked)}
-                    className="sr-only peer"
+                    className="absolute opacity-0 w-0 h-0 pointer-events-none peer"
                   />
                   <div className="w-7 h-4 bg-slate-950 rounded-full peer peer-checked:bg-orange-600 relative transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-3 peer-checked:after:bg-slate-100" />
-                  <span className="text-[10px] font-bold text-slate-350 uppercase tracking-wide hover:text-orange-400 transition-colors">En todas las hojas</span>
+                  <span className="text-[10px] font-bold text-slate-350 uppercase tracking-wide hover:text-orange-400 transition-colors pl-8">En todas las hojas</span>
                 </label>
               </div>
               <input
@@ -1072,6 +1072,25 @@ Abril 2026 - Julio 2026
                           <option value="solarized-light">Solarized Light (Warm)</option>
                           <option value="nord">Nord (Nordic Dark)</option>
                         </select>
+                      </div>
+
+                      {/* Split Block Code Borders Toggle */}
+                      <div className="flex flex-col gap-1 mt-1 bg-slate-950/20 p-2 rounded border border-slate-850">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[9px] text-slate-400 font-bold uppercase">Bordes continuos al dividir</span>
+                          <label className="relative inline-flex items-center gap-1.5 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={!!settings.splitBlockCodeBorders}
+                              onChange={(e) => handleSettingsChange('splitBlockCodeBorders', e.target.checked)}
+                              className="absolute opacity-0 w-0 h-0 pointer-events-none peer"
+                            />
+                            <div className="w-7 h-4 bg-slate-950 rounded-full peer peer-checked:bg-orange-600 relative transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-3 peer-checked:after:bg-slate-100" />
+                          </label>
+                        </div>
+                        <p className="text-[8.5px] text-slate-500 leading-normal">
+                          Une visualmente los bloques de código que se dividen entre hojas (borde superior solo al inicio, sin bordes internos horizontales, borde inferior solo al final).
+                        </p>
                       </div>
 
                       {/* Block Highlight Live Preview */}
