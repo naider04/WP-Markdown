@@ -206,6 +206,31 @@ export function ConfigDrawer({
   const [successMsg, setSuccessMsg] = useState<string>('');
   const [showFormats, setShowFormats] = useState<boolean>(false);
 
+  const [localMarginTop, setLocalMarginTop] = useState<string>('');
+  const [localMarginBottom, setLocalMarginBottom] = useState<string>('');
+  const [localMarginLeft, setLocalMarginLeft] = useState<string>('');
+  const [localMarginRight, setLocalMarginRight] = useState<string>('');
+
+  useEffect(() => {
+    if (settings.marginTop !== undefined) setLocalMarginTop(String(settings.marginTop));
+    if (settings.marginBottom !== undefined) setLocalMarginBottom(String(settings.marginBottom));
+    if (settings.marginLeft !== undefined) setLocalMarginLeft(String(settings.marginLeft));
+    if (settings.marginRight !== undefined) setLocalMarginRight(String(settings.marginRight));
+  }, [settings.marginTop, settings.marginBottom, settings.marginLeft, settings.marginRight]);
+
+  const handleCommitMargin = (field: 'marginTop' | 'marginBottom' | 'marginLeft' | 'marginRight', valueStr: string) => {
+    const val = parseInt(valueStr, 10);
+    const finalVal = isNaN(val) ? 0 : val;
+    handleSettingsChange(field, finalVal);
+  };
+
+  const handleMarginKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, field: 'marginTop' | 'marginBottom' | 'marginLeft' | 'marginRight', valueStr: string) => {
+    if (e.key === 'Enter') {
+      handleCommitMargin(field, valueStr);
+      e.currentTarget.blur();
+    }
+  };
+
   const formats = [
     { label: 'Título H1', description: 'Sección Principal', snippet: '\n<h1>Título de Sección</h1>\n' },
     { label: 'Subtítulo H2', description: 'Sección Secundaria', snippet: '\n<h2>Subtítulo Secundario</h2>\n' },
@@ -847,8 +872,10 @@ Abril 2026 - Julio 2026
                         <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Superior (Top)</label>
                         <input
                           type="number"
-                          value={settings.marginTop !== undefined ? settings.marginTop : 96}
-                          onChange={(e) => handleSettingsChange('marginTop', parseInt(e.target.value) || 0)}
+                          value={localMarginTop}
+                          onChange={(e) => setLocalMarginTop(e.target.value)}
+                          onBlur={() => handleCommitMargin('marginTop', localMarginTop)}
+                          onKeyDown={(e) => handleMarginKeyDown(e, 'marginTop', localMarginTop)}
                           className="w-full p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200"
                         />
                       </div>
@@ -856,8 +883,10 @@ Abril 2026 - Julio 2026
                         <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Inferior (Bottom)</label>
                         <input
                           type="number"
-                          value={settings.marginBottom !== undefined ? settings.marginBottom : 96}
-                          onChange={(e) => handleSettingsChange('marginBottom', parseInt(e.target.value) || 0)}
+                          value={localMarginBottom}
+                          onChange={(e) => setLocalMarginBottom(e.target.value)}
+                          onBlur={() => handleCommitMargin('marginBottom', localMarginBottom)}
+                          onKeyDown={(e) => handleMarginKeyDown(e, 'marginBottom', localMarginBottom)}
                           className="w-full p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200"
                         />
                       </div>
@@ -865,8 +894,10 @@ Abril 2026 - Julio 2026
                         <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Izquierdo (Left)</label>
                         <input
                           type="number"
-                          value={settings.marginLeft !== undefined ? settings.marginLeft : 96}
-                          onChange={(e) => handleSettingsChange('marginLeft', parseInt(e.target.value) || 0)}
+                          value={localMarginLeft}
+                          onChange={(e) => setLocalMarginLeft(e.target.value)}
+                          onBlur={() => handleCommitMargin('marginLeft', localMarginLeft)}
+                          onKeyDown={(e) => handleMarginKeyDown(e, 'marginLeft', localMarginLeft)}
                           className="w-full p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200"
                         />
                       </div>
@@ -874,8 +905,10 @@ Abril 2026 - Julio 2026
                         <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Derecho (Right)</label>
                         <input
                           type="number"
-                          value={settings.marginRight !== undefined ? settings.marginRight : 96}
-                          onChange={(e) => handleSettingsChange('marginRight', parseInt(e.target.value) || 0)}
+                          value={localMarginRight}
+                          onChange={(e) => setLocalMarginRight(e.target.value)}
+                          onBlur={() => handleCommitMargin('marginRight', localMarginRight)}
+                          onKeyDown={(e) => handleMarginKeyDown(e, 'marginRight', localMarginRight)}
                           className="w-full p-1.5 bg-slate-950 border border-slate-800 rounded text-slate-200"
                         />
                       </div>

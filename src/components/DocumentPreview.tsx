@@ -1081,6 +1081,10 @@ export default function DocumentPreview({
         padding-left: ${leftMargin}px !important;
         padding-right: ${rightMargin}px !important;
       }
+      div[name^="document-page-"]:last-of-type {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
       #unemi-cover-page {
         box-shadow: none !important;
         border: none !important;
@@ -1090,6 +1094,10 @@ export default function DocumentPreview({
         break-inside: avoid !important;
         margin: 0 !important;
         padding: 0 !important;
+      }
+      .print-page-boundary {
+        margin: 0px !important;
+        padding: 0px !important;
       }
       @page {
         margin: 0 !important;
@@ -2321,6 +2329,10 @@ export default function DocumentPreview({
         padding-left: ${leftMargin}px !important;
         padding-right: ${rightMargin}px !important;
       }
+      div[name^="document-page-"]:last-of-type {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
       #unemi-cover-page {
         box-shadow: none !important;
         border: none !important;
@@ -2330,6 +2342,10 @@ export default function DocumentPreview({
         break-inside: avoid !important;
         margin: 0 !important;
         padding: 0 !important;
+      }
+      .print-page-boundary {
+        margin: 0px !important;
+        padding: 0px !important;
       }
       @page {
         margin: 0 !important;
@@ -3813,6 +3829,10 @@ export default function DocumentPreview({
                 : isPortrait ? '167.06mm 297mm' : '297mm 167.06mm'};
             margin: 0 !important;
           }
+          .print-page-boundary {
+            margin: 0px !important;
+            padding: 0px !important;
+          }
         }
         ${settings.blockStyleTitles || ''}
         ${settings.blockStyleHeader || ''}
@@ -4155,7 +4175,7 @@ export default function DocumentPreview({
         )}
 
         <div
-          className={`${previewMode === 'server' ? 'invisible absolute pointer-events-none h-0 w-0 overflow-hidden' : ''} flex flex-col gap-8 print:gap-0 transition-transform origin-top`}
+          className={`document-rendered-container ${previewMode === 'server' ? 'invisible absolute pointer-events-none h-0 w-0 overflow-hidden' : ''} flex flex-col gap-8 print:gap-0 transition-transform origin-top`}
           style={previewMode === 'server' ? {} : {
             transform: `scale(${zoom / 100})`,
             marginBottom: `${(zoom - 100) * 10}px`,

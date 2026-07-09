@@ -10,6 +10,7 @@ import SidebarEditor from './components/SidebarEditor';
 import DocumentPreview from './components/DocumentPreview';
 import { ConfigDrawer } from './components/ConfigDrawer';
 import { formatFontSize } from './utils/fontUtils';
+import { getAllUploadedFiles, saveUploadedFilesToDB, clearAllUploadedFilesDB } from './utils/indexedDB';
 import { BibliographyDrawer } from './components/BibliographyDrawer';
 import { MarginsDrawer } from './components/MarginsDrawer';
 import { parseBibtex, generateBibtexFromItems } from './utils/bibParser';
@@ -737,17 +738,8 @@ export default function App() {
   });
 
   // 7. List of uploaded files
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(() => {
-    const cached = localStorage.getItem('unemi_uploaded_files');
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch (e) {
-        console.error('Error parsing cached uploaded files:', e);
-      }
-    }
-    return [];
-  });
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [isDbLoaded, setIsDbLoaded] = useState<boolean>(false);
 
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [pageCount, setPageCount] = useState<number>(1);
@@ -857,9 +849,38 @@ export default function App() {
     localStorage.setItem('unemi_export_filename', exportFileName);
   }, [exportFileName]);
 
+  // Initialize and load files from IndexedDB or migrate from localStorage
   useEffect(() => {
-    localStorage.setItem('unemi_uploaded_files', JSON.stringify(uploadedFiles));
-  }, [uploadedFiles]);
+    async function loadFiles() {
+      const cached = localStorage.getItem('unemi_uploaded_files');
+      if (cached) {
+        try {
+          const files = JSON.parse(cached);
+          if (files && files.length > 0) {
+            setUploadedFiles(files);
+            await saveUploadedFilesToDB(files);
+          }
+          localStorage.removeItem('unemi_uploaded_files');
+        } catch (e) {
+          console.error('Error migrating files from localStorage:', e);
+        }
+      } else {
+        const files = await getAllUploadedFiles();
+        if (files && files.length > 0) {
+          setUploadedFiles(files);
+        }
+      }
+      setIsDbLoaded(true);
+    }
+    loadFiles();
+  }, []);
+
+  // Save files to IndexedDB
+  useEffect(() => {
+    if (isDbLoaded) {
+      saveUploadedFilesToDB(uploadedFiles);
+    }
+  }, [uploadedFiles, isDbLoaded]);
 
   // Core Function to Fetch /content.html content
   const fetchContentFile = async (silent = false) => {
@@ -966,7 +987,7 @@ export default function App() {
   };
 
   // Complete Reset of all settings and contents to start from 0
-  const handleResetAllToZero = () => {
+  const handleResetAllToZero = async () => {
     if (window.confirm('¿Está seguro de que desea eliminar TODOS los cambios (portada, margen, estilos, imágenes y contenido html) y empezar desde cero? Esta acción no se puede deshacer.')) {
       localStorage.removeItem('unemi_cover_config');
       localStorage.removeItem('unemi_page_settings');
@@ -976,6 +997,12 @@ export default function App() {
       localStorage.removeItem('unemi_sidebar_width');
       localStorage.removeItem('unemi_export_filename');
       localStorage.removeItem('unemi_uploaded_files');
+      
+      try {
+        await clearAllUploadedFilesDB();
+      } catch (e) {
+        console.error('Error clearing IndexedDB:', e);
+      }
       
       window.location.reload();
     }
@@ -1631,6 +1658,10 @@ export default function App() {
         padding-left: ${leftMargin}px !important;
         padding-right: ${rightMargin}px !important;
       }
+      div[name^="document-page-"]:last-of-type {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
       #unemi-cover-page {
         box-shadow: none !important;
         border: none !important;
@@ -1640,6 +1671,10 @@ export default function App() {
         break-inside: avoid !important;
         margin: 0 !important;
         padding: 0 !important; /* Full bleed cover */
+      }
+      .print-page-boundary {
+        margin: 0px !important;
+        padding: 0px !important;
       }
       @page {
         margin: 0 !important;
