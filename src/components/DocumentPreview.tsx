@@ -3657,11 +3657,13 @@ export default function DocumentPreview({
     css += `\n.unemi-document-content pre, .unemi-document-content pre span {`;
     css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
     css += ` font-size: ${blockSize} !important;`;
+    css += ` text-indent: 0px !important;`;
     css += ` }`;
 
     css += `\n.unemi-document-content code:not(pre code) {`;
     css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
     css += ` font-size: ${inlineSize} !important;`;
+    css += ` text-indent: 0px !important;`;
     css += ` }`;
     
     css += `\n.unemi-document-content pre {`;
@@ -3670,6 +3672,7 @@ export default function DocumentPreview({
     css += ` border-radius: 6px !important;`;
     css += ` overflow-x: auto !important;`;
     css += ` line-height: 1.5 !important;`;
+    css += ` text-indent: 0px !important;`;
     css += ` }`;
 
     // Inline code styling

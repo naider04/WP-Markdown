@@ -721,6 +721,7 @@ export default function App() {
   const [pageCount, setPageCount] = useState<number>(1);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string>('');
   const [isExportDropdownOpen, setIsExportDropdownOpen] = useState<boolean>(false);
+  const [isArchivoOpen, setIsArchivoOpen] = useState<boolean>(false);
 
   // 8. User Gemini API Key and API key connection modal state
   const [userApiKey, setUserApiKey] = useState<string>(() => {
@@ -778,12 +779,16 @@ export default function App() {
     };
   }, [cover, settings, htmlBlocks, bibliography, uploadedFiles, htmlContent, isCompiling]);
 
-  // Click outside detector for export dropdown
+  // Click outside detector for export & archivo dropdowns
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const container = document.getElementById('export-dropdown-container');
       if (container && !container.contains(e.target as Node)) {
         setIsExportDropdownOpen(false);
+      }
+      const archivoContainer = document.getElementById('archivo-dropdown-container');
+      if (archivoContainer && !archivoContainer.contains(e.target as Node)) {
+        setIsArchivoOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -1006,6 +1011,9 @@ export default function App() {
         return;
       }
 
+      // Automatically download the current open project as a backup before loading the new one
+      handleExport('project');
+
       const metaText = await metaFile.async("string");
       const metaData = JSON.parse(metaText);
 
@@ -1036,13 +1044,13 @@ export default function App() {
       setIsLocallyEdited(true);
 
       // Extract original file name (excluding extension) to pre-fill the name picker
-      const baseName = file.name.replace(/\.zip$/i, '').replace(/_proyecto_academico$/i, '');
+      const baseName = file.name.replace(/\.zip$/i, '').replace(/_proyecto_academico$/i, '').replace(/_proyecto$/i, '');
       setExportFileName(baseName);
 
-      alert("¡Proyecto importado y restaurado con éxito! Ahora puede continuar editándolo de forma local.");
+      alert("¡Proyecto importado con éxito! El proyecto que tenías abierto se descargó automáticamente como respaldo.");
     } catch (err) {
       console.error("Error al importar el archivo ZIP:", err);
-      alert("Error al procesar el archivo ZIP. Asegúrese de que no esté dañado.");
+      alert("Error al procesar el archivo ZIP. Asegúrese de que no esté dañado o no sea un ZIP de proyecto válido.");
     }
   };
 
@@ -1215,11 +1223,13 @@ export default function App() {
       css += `\n.unemi-document-content pre, .unemi-document-content pre span {`;
       css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
       css += ` font-size: ${blockSize} !important;`;
+      css += ` text-indent: 0px !important;`;
       css += ` }`;
 
       css += `\n.unemi-document-content code:not(pre code) {`;
       css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
       css += ` font-size: ${inlineSize} !important;`;
+      css += ` text-indent: 0px !important;`;
       css += ` }`;
       
       css += `\n.unemi-document-content pre {`;
@@ -1228,6 +1238,7 @@ export default function App() {
       css += ` border-radius: 6px !important;`;
       css += ` overflow-x: auto !important;`;
       css += ` line-height: 1.5 !important;`;
+      css += ` text-indent: 0px !important;`;
       css += ` }`;
 
       // Inline code styling
@@ -2537,11 +2548,115 @@ read -p "Presione [Enter] para salir..."`;
       {/* 1. Global Top Bar */}
       {!isFullscreen && (
         <div className="h-14 bg-slate-950 border-b border-slate-800 shrink-0 flex items-center justify-between px-4 z-40 select-none print:hidden gap-3">
-          {/* Left part: Title & branding & Filename input */}
+          {/* Left part: ARCHIVO & Filename input */}
           <div className="flex items-center gap-3.5 min-w-0">
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-[12.5px] font-black tracking-widest text-white leading-none">EDITOR ACADÉMICO</span>
+            {/* ARCHIVO Dropdown Menu */}
+            <div className="relative" id="archivo-dropdown-container">
+              <button
+                onClick={() => setIsArchivoOpen(!isArchivoOpen)}
+                className="py-1.5 px-3 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white font-extrabold text-[12px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              >
+                <span className="tracking-widest">ARCHIVO</span>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isArchivoOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isArchivoOpen && (
+                <div className="absolute left-0 mt-2 w-72 rounded-lg bg-slate-900 border border-slate-800 shadow-2xl z-[100] p-1.5 flex flex-col gap-1 select-none">
+                  <div className="px-2 py-1 text-[9px] font-black text-[#FF6600] uppercase tracking-wider border-b border-slate-800/60 pb-1.5 mb-1">
+                    Gestión de Proyecto
+                  </div>
+                  
+                  {/* Option 1: Importar Proyecto */}
+                  <button
+                    onClick={() => {
+                      document.getElementById('import-project-file-input')?.click();
+                      setIsArchivoOpen(false);
+                    }}
+                    className="w-full text-left p-2 hover:bg-slate-800/80 rounded transition-all flex flex-col gap-0.5 cursor-pointer"
+                  >
+                    <span className="text-[11px] font-extrabold text-slate-100 flex items-center gap-1.5">
+                      <Upload className="w-3.5 h-3.5 text-[#FF6600]" />
+                      Importar Proyecto (.zip)
+                    </span>
+                    <span className="text-[9.5px] text-slate-400 pl-5 leading-tight font-normal">
+                      Sube un proyecto previamente exportado. Tu proyecto actual se descargará automáticamente como respaldo.
+                    </span>
+                  </button>
+
+                  <div className="h-[1px] bg-slate-800 my-1"></div>
+
+                  <div className="px-2 py-1 text-[9px] font-black text-[#FF6600] uppercase tracking-wider pb-1.5">
+                    Exportar Trabajo / Descargas
+                  </div>
+
+                  {/* Option 2: Export Project .zip */}
+                  <button
+                    onClick={() => {
+                      handleExport('project');
+                      setIsArchivoOpen(false);
+                    }}
+                    className="w-full text-left p-2 hover:bg-slate-800/80 rounded transition-all flex flex-col gap-0.5 cursor-pointer"
+                  >
+                    <span className="text-[11px] font-extrabold text-slate-100 flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                      💼 Descargar Proyecto (.zip)
+                    </span>
+                    <span className="text-[9.5px] text-slate-400 pl-3 leading-tight font-normal">
+                      Incluye metadatos de respaldo (JSON) y fuentes para poder importar y seguir editando luego.
+                    </span>
+                  </button>
+
+                  {/* Option 3: Export HTML */}
+                  <button
+                    onClick={() => {
+                      handleExport('html');
+                      setIsArchivoOpen(false);
+                    }}
+                    className="w-full text-left p-2 hover:bg-slate-800/80 rounded transition-all flex flex-col gap-0.5 cursor-pointer"
+                  >
+                    <span className="text-[11px] font-extrabold text-slate-100 flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#004080]"></span>
+                      🌐 Descargar HTML Autónomo (.html)
+                    </span>
+                    <span className="text-[9.5px] text-slate-400 pl-3 leading-tight font-normal">
+                      Un solo archivo HTML portátil. Imágenes locales incrustadas en Base64 e imágenes URL enlazadas.
+                    </span>
+                  </button>
+
+                  {/* Option 4: Export PDF Generator */}
+                  <button
+                    onClick={() => {
+                      handleExport('pdf_generator');
+                      setIsArchivoOpen(false);
+                    }}
+                    className="w-full text-left p-2 hover:bg-slate-800/80 rounded transition-all flex flex-col gap-0.5 cursor-pointer"
+                  >
+                    <span className="text-[11px] font-extrabold text-slate-100 flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-orange-500"></span>
+                      📊 Descargar Generador de PDF (.zip)
+                    </span>
+                    <span className="text-[9.5px] text-slate-400 pl-3 leading-tight font-normal">
+                      Solo el documento HTML limpio, activos de imagen sueltos y scripts Puppeteer locales automatizados.
+                    </span>
+                  </button>
+                </div>
+              )}
             </div>
+
+            {/* Hidden Input File for Import */}
+            <input
+              id="import-project-file-input"
+              type="file"
+              accept=".zip"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  handleImportZIP(file);
+                }
+                e.target.value = ''; // Reset
+              }}
+              className="hidden"
+            />
             
             {/* Custom File Name Input */}
             <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded px-2.5 py-1 min-w-[210px] max-w-[260px]">
@@ -2592,8 +2707,8 @@ read -p "Presione [Enter] para salir..."`;
             </select>
           </div>
 
-          {/* Right part: Split export options dropdown replacing the old export button */}
-          <div className="flex items-center gap-1.5 shrink-0" id="export-dropdown-container">
+          {/* Right part: API Key Connection Button only (Export was moved to ARCHIVO) */}
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* API Key Connection Button */}
             <button
               onClick={() => setIsApiKeyModalOpen(true)}
@@ -2608,77 +2723,6 @@ read -p "Presione [Enter] para salir..."`;
               <span>{userApiKey ? 'API Key Conectada' : 'Conectar API Key'}</span>
               {userApiKey && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block"></span>}
             </button>
-
-            <div className="relative">
-              <button
-                onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
-                className="py-1.5 px-3 rounded bg-[#FF6600] hover:bg-[#ff8533] text-white active:scale-[95%] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm border border-[#FF6600]/25"
-                title="Opciones de descarga y exportación"
-              >
-                <FolderArchive className="w-4 h-4 text-white" />
-                <span>Exportar Trabajo</span>
-                <ChevronDown className={`w-3 h-3 transition-transform ${isExportDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {isExportDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-72 rounded-lg bg-slate-900 border border-slate-800 shadow-2xl z-[100] p-1.5 flex flex-col gap-1 select-none">
-                  <div className="px-2 py-1 text-[9px] font-black text-[#FF6600] uppercase tracking-wider border-b border-slate-800/60 pb-1.5 mb-1">
-                    Formatos de Descarga Disponibles
-                  </div>
-                  
-                  {/* Opción 1: Descargar Proyecto Completo */}
-                  <button
-                    onClick={() => {
-                      handleExport('project');
-                      setIsExportDropdownOpen(false);
-                    }}
-                    className="w-full text-left p-2 hover:bg-slate-800/80 rounded transition-all flex flex-col gap-0.5 cursor-pointer"
-                  >
-                    <span className="text-[11px] font-extrabold text-slate-100 flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                      💼 Descargar Proyecto (.zip)
-                    </span>
-                    <span className="text-[9.5px] text-slate-400 pl-3 leading-tight font-normal">
-                      Incluye metadatos de respaldo (JSON) y fuentes para poder importar y seguir editando luego.
-                    </span>
-                  </button>
-
-                  {/* Opción 2: Descargar HTML Independiente */}
-                  <button
-                    onClick={() => {
-                      handleExport('html');
-                      setIsExportDropdownOpen(false);
-                    }}
-                    className="w-full text-left p-2 hover:bg-slate-800/80 rounded transition-all flex flex-col gap-0.5 cursor-pointer"
-                  >
-                    <span className="text-[11px] font-extrabold text-slate-100 flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[#004080]"></span>
-                      🌐 Descargar HTML Autónomo (.html)
-                    </span>
-                    <span className="text-[9.5px] text-slate-400 pl-3 leading-tight font-normal">
-                      Un solo archivo HTML portátil. Imágenes locales incrustadas en Base64 e imágenes URL enlazadas.
-                    </span>
-                  </button>
-
-                  {/* Opción 3: Descargar Generador de PDF */}
-                  <button
-                    onClick={() => {
-                      handleExport('pdf_generator');
-                      setIsExportDropdownOpen(false);
-                    }}
-                    className="w-full text-left p-2 hover:bg-slate-800/80 rounded transition-all flex flex-col gap-0.5 cursor-pointer"
-                  >
-                    <span className="text-[11px] font-extrabold text-slate-100 flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 rounded-full bg-orange-500"></span>
-                      📊 Descargar Generador de PDF (.zip)
-                    </span>
-                    <span className="text-[9.5px] text-slate-400 pl-3 leading-tight font-normal">
-                      Solo el documento HTML limpio, activos de imagen sueltos y scripts Puppeteer locales automatizados.
-                    </span>
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       )}

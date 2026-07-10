@@ -420,3 +420,10 @@
     size: auto; /* Uses Letter or A4 based on print dialog */
   }
 }
+
+/* Ensure monospace and code blocks are never indented by default paragraph rules */
+.unemi-document-content pre,
+.unemi-document-content pre *,
+.unemi-document-content code {
+  text-indent: 0px !important;
+}
