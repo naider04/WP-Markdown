@@ -15,30 +15,6 @@ import { BibliographyDrawer } from './components/BibliographyDrawer';
 import { MarginsDrawer } from './components/MarginsDrawer';
 import { parseBibtex, generateBibtexFromItems } from './utils/bibParser';
 import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2, Layout, ChevronLeft, ChevronRight, Key, X } from 'lucide-react';
-
-const DEFAULT_HEADER_HTML = `<div class="flex justify-between items-end text-[10px] uppercase font-bold tracking-wider pb-1 px-0.5 w-full">
-  <div class="flex items-center gap-1.5 max-w-[320px]">
-    <img src="icon.png" style="height: 18px; width: auto; display: inline-block; vertical-align: middle;" alt="UNEMI" />
-    <span class="text-[8px] text-gray-400 normal-case font-medium truncate">Universidad Estatal de Milagro</span>
-  </div>
-  <div class="text-right text-gray-500 font-semibold">{page}</div>
-</div>
-<div class="h-[2px] w-full flex">
-  <div class="h-full w-[25%]" style="background-color: #FF6600;"></div>
-  <div class="h-full w-[75%]" style="background-color: #004080;"></div>
-</div>`;
-
-const DEFAULT_FOOTER_HTML = `<div class="h-[1px] w-full bg-gray-100 mb-2 footer-line"></div>
-<div class="flex justify-between items-center text-[10px] text-gray-400 px-0.5 w-full">
-  <div class="flex items-center gap-1.5 font-medium truncate max-w-[350px]">
-    <span class="w-1.5 h-1.5 rounded-full footer-dot" style="background-color: #FF6600;"></span>
-    <span>Universidad Estatal de Milagro</span>
-  </div>
-  <div class="text-[10px] tabular-nums shrink-0 unemi-page-num-indicator" style="color: #004080;">
-    Página {page} de {total}
-  </div>
-</div>`;
-
 const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) */
 .unemi-document-content h1 {
   font-family: "Times New Roman", Times, Georgia, serif;
@@ -501,6 +477,10 @@ export default function App() {
       try {
         const parsed = JSON.parse(cached);
         
+        // Delete old HTML fields that were used for header and footer overrides
+        delete parsed.headerHtml;
+        delete parsed.footerHtml;
+        
         // Force-migrate titles, header, and footer from any old non-APA7 styles remaining in the browser cache
         if (parsed.blockStyleTitles && (parsed.blockStyleTitles.includes('#004080') || parsed.blockStyleTitles.includes('Space Grotesk') || parsed.blockStyleTitles.includes('18px') || parsed.blockStyleTitles.includes('12px') || !parsed.blockStyleTitles.includes('.unemi-document-content p'))) {
           parsed.blockStyleTitles = DEFAULT_BLOCK_TITLES;
@@ -551,8 +531,6 @@ export default function App() {
           showBibliography: false,
           showOnlyCitedBibliography: false,
           bibliographyTitle: 'Referencias Bibliográficas',
-          headerHtml: DEFAULT_HEADER_HTML,
-          footerHtml: DEFAULT_FOOTER_HTML,
           ...parsed
         };
       } catch (e) {
@@ -591,8 +569,6 @@ export default function App() {
       showBibliography: false,
       showOnlyCitedBibliography: false,
       bibliographyTitle: 'Referencias Bibliográficas',
-      headerHtml: DEFAULT_HEADER_HTML,
-      footerHtml: DEFAULT_FOOTER_HTML,
     };
   });
 
@@ -1402,7 +1378,7 @@ export default function App() {
       position: relative !important;
       background-color: #ffffff !important;
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-      border: 1px solid #e2e8f0 !important;
+      border: none !important;
       padding-top: ${topMargin}px !important;
       padding-bottom: ${bottomMargin}px !important;
       padding-left: ${leftMargin}px !important;
@@ -1421,7 +1397,7 @@ export default function App() {
       position: relative !important;
       background-color: #ffffff !important;
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-      border: 1px solid #e2e8f0 !important;
+      border: none !important;
       padding: 0 !important; /* Cover is full bleed */
       box-sizing: border-box !important;
       display: flex !important;

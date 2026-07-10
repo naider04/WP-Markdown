@@ -105,17 +105,6 @@ export default function PageTemplate({
     return processed;
   };
 
-  // Substitute tags like {page} and {total} and resolve uploaded image base64s on the fly
-  const renderTemplateHTML = (htmlStr: string | undefined, defaultContent: React.ReactNode) => {
-    if (htmlStr === undefined) return defaultContent;
-    if (htmlStr.trim() === '') return null; // If empty, render nothing
-    
-    let processed = resolvePageVariables(htmlStr, pageNumber, totalPages);
-    processed = resolveUploadedImages(processed);
-    
-    return <div dangerouslySetInnerHTML={{ __html: processed }} className="w-full h-full flex flex-col justify-end" />;
-  };
-
   return (
     <div
       name={`document-page-${pageNumber}`}
@@ -196,35 +185,30 @@ export default function PageTemplate({
             right: `${rightMargin}px`
           }}
         >
-          {renderTemplateHTML(
-            settings.headerHtml,
-            <>
-              <div className="flex justify-between items-end text-[10px] uppercase font-bold tracking-wider pb-1 px-0.5">
-                <div className="flex flex-col text-left max-w-[320px]">
-                  <span style={{ color: '#004080' }}>
-                    {coverConfig.institution === 'Universidad Estatal de Milagro' ? 'UNEMI' : coverConfig.institution}
-                  </span>
-                  <span className="text-[8px] text-gray-400 normal-case font-medium truncate">
-                    {coverConfig.facultad || ''}
-                  </span>
-                </div>
-                <div className="text-right text-gray-500 max-w-[240px] truncate animate-fade-in normal-case font-semibold">
-                  {settings.headerText || "Reporte Académico"}
-                </div>
-              </div>
-              {/* UNEMI Split Header Line */}
-              <div className="h-[2px] w-full flex">
-                <div className="h-full w-[25%] header-bar-orange" style={{ backgroundColor: '#FF6600' }} />
-                <div className="h-full w-[75%] header-bar-blue" style={{ backgroundColor: '#004080' }} />
-              </div>
-            </>
-          )}
+          <div className="flex justify-between items-end text-[10px] uppercase font-bold tracking-wider pb-1 px-0.5">
+            <div className="flex flex-col text-left max-w-[320px]">
+              <span style={{ color: '#004080' }}>
+                {coverConfig.institution === 'Universidad Estatal de Milagro' ? 'UNEMI' : coverConfig.institution}
+              </span>
+              <span className="text-[8px] text-gray-400 normal-case font-medium truncate">
+                {coverConfig.facultad || ''}
+              </span>
+            </div>
+            <div className="text-right text-gray-500 max-w-[240px] truncate animate-fade-in normal-case font-semibold">
+              {settings.headerText || "Reporte Académico"}
+            </div>
+          </div>
+          {/* UNEMI Split Header Line */}
+          <div className="h-[2px] w-full flex">
+            <div className="h-full w-[25%] header-bar-orange" style={{ backgroundColor: '#FF6600' }} />
+            <div className="h-full w-[75%] header-bar-blue" style={{ backgroundColor: '#004080' }} />
+          </div>
         </div>
       )}
 
       {/* 3. CONTENT CONTAINER: Bounded strictly within the padded area */}
       <div className="flex-1 w-full h-full flex flex-col overflow-hidden text-justify relative z-10">
-        <div className="unemi-document-content w-full h-full select-text leading-relaxed text-[12px] text-black">
+        <div className="unemi-document-content w-full h-full select-text leading-relaxed text-[16px] text-black">
           {children}
         </div>
       </div>
@@ -240,24 +224,19 @@ export default function PageTemplate({
             right: `${rightMargin}px`
           }}
         >
-          {renderTemplateHTML(
-            settings.footerHtml,
-            <>
-              {/* Subtle top rule for footer */}
-              <div className="h-[1px] w-full bg-gray-100 mb-2 footer-line" />
-              <div className="flex justify-between items-center text-[10px] text-gray-400 px-0.5">
-                <div className="flex items-center gap-1.5 font-medium truncate max-w-[350px]">
-                  <span className="w-1.5 h-1.5 rounded-full footer-dot" style={{ backgroundColor: '#FF6600' }} />
-                  <span>{settings.footerText || "Universidad Estatal de Milagro"}</span>
-                </div>
-                <div className="text-[10px] tabular-nums shrink-0 unemi-page-num-indicator" style={{ color: '#004080' }}>
-                  {(settings.pageNumTemplate || 'Página {page} de {total}')
-                    .replace('{page}', String(pageNumber))
-                    .replace('{total}', String(totalPages))}
-                </div>
-              </div>
-            </>
-          )}
+          {/* Subtle top rule for footer */}
+          <div className="h-[1px] w-full bg-gray-100 mb-2 footer-line" />
+          <div className="flex justify-between items-center text-[10px] text-gray-400 px-0.5">
+            <div className="flex items-center gap-1.5 font-medium truncate max-w-[350px]">
+              <span className="w-1.5 h-1.5 rounded-full footer-dot" style={{ backgroundColor: '#FF6600' }} />
+              <span>{settings.footerText || "Universidad Estatal de Milagro"}</span>
+            </div>
+            <div className="text-[10px] tabular-nums shrink-0 unemi-page-num-indicator" style={{ color: '#004080' }}>
+              {(settings.pageNumTemplate || 'Página {page} de {total}')
+                .replace('{page}', String(pageNumber))
+                .replace('{total}', String(totalPages))}
+            </div>
+          </div>
         </div>
       )}
     </div>

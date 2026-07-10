@@ -427,6 +427,9 @@ export default function DocumentPreview({
 
   const hiddenMeasureRef = useRef<HTMLDivElement>(null);
   const savedScrollTopRef = useRef<number>(0);
+  const lastWidthRef = useRef<number>(0);
+  const lastHeightRef = useRef<number>(0);
+  const lastSyncHtmlRef = useRef<string>('');
   const [isScrollSyncing, setIsScrollSyncing] = useState<boolean>(false);
 
   const handleIframeLoad = (e: React.SyntheticEvent<HTMLIFrameElement>) => {
@@ -823,7 +826,7 @@ export default function DocumentPreview({
       position: relative !important;
       background-color: #ffffff !important;
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-      border: 1px solid #e2e8f0 !important;
+      border: none !important;
       padding-top: ${topMargin}px !important;
       padding-bottom: ${bottomMargin}px !important;
       padding-left: ${leftMargin}px !important;
@@ -842,7 +845,7 @@ export default function DocumentPreview({
       position: relative !important;
       background-color: #ffffff !important;
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-      border: 1px solid #e2e8f0 !important;
+      border: none !important;
       padding: 0 !important;
       box-sizing: border-box !important;
       display: flex !important;
@@ -2070,7 +2073,7 @@ export default function DocumentPreview({
       position: relative !important;
       background-color: #ffffff !important;
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-      border: 1px solid #e2e8f0 !important;
+      border: none !important;
       padding-top: ${topMargin}px !important;
       padding-bottom: ${bottomMargin}px !important;
       padding-left: ${leftMargin}px !important;
@@ -2089,7 +2092,7 @@ export default function DocumentPreview({
       position: relative !important;
       background-color: #ffffff !important;
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-      border: 1px solid #e2e8f0 !important;
+      border: none !important;
       padding: 0 !important;
       box-sizing: border-box !important;
       display: flex !important;
@@ -2726,6 +2729,12 @@ export default function DocumentPreview({
           .replace(/srcset="\/\//g, 'srcset="https://')
           .replace(/href="\/\//g, 'href="https://');
 
+        // Avoid continuous reloads if the HTML is identical to the last synchronized HTML
+        if (lastSyncHtmlRef.current === processedHTML) {
+          setIsSyncingServer(false);
+          return;
+        }
+
         const response = await fetch('/api/save-preview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2735,6 +2744,7 @@ export default function DocumentPreview({
         if (response.ok) {
           const data = await response.json();
           if (data.id) {
+            lastSyncHtmlRef.current = processedHTML;
             setServerPreviewId(data.id);
           }
         }
@@ -2893,8 +2903,6 @@ export default function DocumentPreview({
   useEffect(() => {
     const handlePagination = () => {
       if (!hiddenMeasureRef.current) return;
-      
-      setRecalculating(true);
       
       // Select raw rendered children in our hidden container
       const childNodes = Array.from(hiddenMeasureRef.current.children) as HTMLElement[];
@@ -3411,26 +3419,12 @@ export default function DocumentPreview({
       setDynamicHeadings(detectedHeadings);
       setPageCount(pagesList.length + 1 + (settings.showTOC ? 1 : 0)); // Content + Cover + TOC (if enabled)
       
-      // Short delay for visual indication
-      setTimeout(() => setRecalculating(false), 200);
+      setRecalculating(false);
     };
 
     // Run pagination
     handlePagination();
-
-    // Re-run on layout layout shifts
-    const resizeObserver = new ResizeObserver(() => {
-      handlePagination();
-    });
-
-    if (hiddenMeasureRef.current) {
-      resizeObserver.observe(hiddenMeasureRef.current);
-    }
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [resolvedHtmlContent, settings.pageSize, settings.orientation, settings.showTOC, setPageCount, isLetter, leftMargin, rightMargin, topMargin, bottomMargin, pageHeight, settings.splitBlockCodeBorders]);
+  }, [resolvedHtmlContent, settings.pageSize, settings.orientation, settings.showTOC, setPageCount, isLetter, leftMargin, rightMargin, topMargin, bottomMargin, pageHeight, settings.splitBlockCodeBorders, previewMode]);
 
   // Detector de Desbordes Gráfico: Encuentra elementos cuyo ancho o largo excede el espacio neto disponible de la página.
   useEffect(() => {

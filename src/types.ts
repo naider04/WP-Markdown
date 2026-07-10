@@ -113,8 +113,6 @@ export interface PageSettings {
   showBibliography?: boolean;
   showOnlyCitedBibliography?: boolean;
   bibliographyTitle?: string;
-  headerHtml?: string;
-  footerHtml?: string;
   marginElements?: MarginElement[];
 }
 

@@ -214,22 +214,48 @@ export function ConfigDrawer({
   const [successMsg, setSuccessMsg] = useState<string>('');
   const [showFormats, setShowFormats] = useState<boolean>(false);
   const [isInsertingAI, setIsInsertingAI] = useState<string | null>(null);
-  const [aiExplanation, setAiExplanation] = useState<{ imageName: string; text: string } | null>(null);
+  const [aiExplanations, setAiExplanations] = useState<Array<{ imageName: string; text: string }> | null>(null);
+  const [selectedImagesForAI, setSelectedImagesForAI] = useState<UploadedFile[]>([]);
 
-  const handleInsertWithAI = async (item: UploadedFile) => {
-    if (!htmlBlocks || htmlBlocks.length === 0) {
-      alert("No hay bloques de texto (Markdown) disponibles para insertar esta imagen.");
-      return;
-    }
-
+  const handleToggleAISingleSelection = (item: UploadedFile) => {
     if (!item.description || item.description.trim() === '') {
-      alert("Por favor, ingresa una descripción para la imagen antes de intentar insertarla con IA. Esto le permite al modelo saber qué ilustra la figura y determinar su posición correcta en el documento.");
+      alert("Por favor, ingresa una descripción para la imagen antes de intentar seleccionarla para insertar con IA. Esto le permite al modelo saber qué ilustra la figura y determinar su posición correcta en el documento.");
       setIsEditingDescId(item.id);
       setEditingDescText('');
       return;
     }
-    
-    setIsInsertingAI(item.id);
+
+    setSelectedImagesForAI(prev => {
+      const exists = prev.some(img => img.id === item.id);
+      if (exists) {
+        return prev.filter(img => img.id !== item.id);
+      } else {
+        return [...prev, item];
+      }
+    });
+  };
+
+  const handleInsertAllSelectedWithAI = async () => {
+    if (!htmlBlocks || htmlBlocks.length === 0) {
+      alert("No hay bloques de texto (Markdown) disponibles para insertar estas imágenes.");
+      return;
+    }
+
+    if (selectedImagesForAI.length === 0) {
+      alert("Por favor, selecciona al menos una imagen para insertar.");
+      return;
+    }
+
+    // Verify all selected images have descriptions
+    const missingDesc = selectedImagesForAI.find(item => !item.description || item.description.trim() === '');
+    if (missingDesc) {
+      alert(`La imagen "${missingDesc.name}" no tiene descripción. Por favor ingresa una descripción para todas las imágenes seleccionadas antes de insertar.`);
+      setIsEditingDescId(missingDesc.id);
+      setEditingDescText('');
+      return;
+    }
+
+    setIsInsertingAI("all_selected");
     try {
       const response = await fetch("/api/gemini/insert-image", {
         method: "POST",
@@ -239,8 +265,10 @@ export function ConfigDrawer({
         },
         body: JSON.stringify({
           htmlBlocks: htmlBlocks.map(b => ({ id: b.id, name: b.name, code: b.code })),
-          imageName: item.name,
-          imageDescription: item.description || "",
+          images: selectedImagesForAI.map(img => ({
+            name: img.name,
+            description: img.description || ""
+          }))
         }),
       });
 
@@ -250,27 +278,24 @@ export function ConfigDrawer({
       }
 
       const result = await response.json();
-      const { selectedBlockId, modifiedCode, explanation } = result;
+      const { modifiedBlocks, explanations } = result;
 
-      // Update the specific block's code in App state
-      if (setHtmlBlocks) {
-        setHtmlBlocks((prev: HTMLBlock[]) => prev.map(b => {
-          if (b.id === selectedBlockId) {
-            return { ...b, code: modifiedCode };
-          }
-          return b;
-        }));
+      // Update the whole list of blocks in App state
+      if (setHtmlBlocks && modifiedBlocks) {
+        setHtmlBlocks(modifiedBlocks);
       }
 
-      // Show explanation modal/toast
-      setAiExplanation({
-        imageName: item.name,
-        text: explanation
-      });
-      triggerSuccessMsg("¡Imagen insertada con IA!");
+      // Show explanation modal with all justifications (only if we have any, but we disabled it now)
+      if (explanations && explanations.length > 0) {
+        setAiExplanations(explanations);
+      }
+      
+      // Clear the selection list
+      setSelectedImagesForAI([]);
+      triggerSuccessMsg("¡Imágenes insertadas con IA!");
     } catch (err: any) {
       console.error(err);
-      alert(err.message || "Ocurrió un error al procesar la inserción de la imagen con IA.");
+      alert(err.message || "Ocurrió un error al procesar la inserción de las imágenes con IA.");
     } finally {
       setIsInsertingAI(null);
     }
@@ -1495,6 +1520,7 @@ Abril 2026 - Julio 2026
                 <div className="flex flex-col gap-2 max-h-[380px] overflow-y-auto custom-scrollbar pr-0.5 select-text">
                   {uploadedFiles.map((item) => {
                     const isEditing = editingFileId === item.id;
+                    const isSelectedForAI = selectedImagesForAI.some(f => f.id === item.id);
                     return (
                       <div 
                         key={item.id}
@@ -1510,67 +1536,70 @@ Abril 2026 - Julio 2026
                           />
                         </div>
 
-                        {/* File Details / Rename Input */}
-                        <div className="flex-1 min-w-0 flex flex-col gap-1">
-                          {isEditing ? (
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="text"
-                                value={editingFileName}
-                                onChange={(e) => setEditingFileName(e.target.value)}
-                                className="flex-1 bg-slate-900 border border-orange-500 rounded px-1.5 py-0.5 text-[11px] text-white font-mono focus:outline-none focus:ring-1 focus:ring-orange-500"
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleSaveRename(item.id);
-                                  if (e.key === 'Escape') setEditingFileId(null);
-                                }}
-                                autoFocus
-                              />
-                              <button
-                                onClick={() => handleSaveRename(item.id)}
-                                className="p-1 rounded bg-[#004080] text-white hover:bg-[#003060] border border-slate-800 transition-all cursor-pointer flex items-center justify-center shrink-0"
-                                title="Guardar nombre"
-                              >
-                                <Check className="w-3 h-3" />
-                              </button>
-                              <button
-                                onClick={() => setEditingFileId(null)}
-                                className="p-1 rounded bg-slate-950 text-slate-400 hover:text-white border border-slate-800 transition-all cursor-pointer flex items-center justify-center shrink-0"
-                                title="Cancelar"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1 group/item">
-                              <span className="font-bold text-[11px] text-slate-300 truncate" title={item.name}>
-                                {item.name}
-                              </span>
-                              <button
-                                onClick={() => {
-                                  setEditingFileId(item.id);
-                                  setEditingFileName(item.name);
-                                }}
-                                className="p-0.5 rounded text-slate-500 hover:text-orange-400 hover:bg-slate-950/40 opacity-40 group-hover/item:opacity-100 transition-all cursor-pointer shrink-0"
-                                title="Renombrar imagen"
-                              >
-                                <Edit2 className="w-2.5 h-2.5" />
-                              </button>
-                            </div>
-                          )}
+                        {/* File Details / Rename Input with Side-by-Side Name and Description */}
+                        <div className="flex-1 min-w-0 grid grid-cols-2 gap-3 items-start">
+                          {/* Column 1: Name and Size */}
+                          <div className="min-w-0 flex flex-col gap-1">
+                            {isEditing ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={editingFileName}
+                                  onChange={(e) => setEditingFileName(e.target.value)}
+                                  className="flex-1 bg-slate-900 border border-orange-500 rounded px-1.5 py-0.5 text-[11px] text-white font-mono focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveRename(item.id);
+                                    if (e.key === 'Escape') setEditingFileId(null);
+                                  }}
+                                  autoFocus
+                                />
+                                <button
+                                  onClick={() => handleSaveRename(item.id)}
+                                  className="p-1 rounded bg-[#004080] text-white hover:bg-[#003060] border border-slate-800 transition-all cursor-pointer flex items-center justify-center shrink-0"
+                                  title="Guardar nombre"
+                                >
+                                  <Check className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => setEditingFileId(null)}
+                                  className="p-1 rounded bg-slate-950 text-slate-400 hover:text-white border border-slate-800 transition-all cursor-pointer flex items-center justify-center shrink-0"
+                                  title="Cancelar"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 group/item">
+                                <span className="font-bold text-[11px] text-slate-300 truncate block" title={item.name}>
+                                  {item.name}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setEditingFileId(item.id);
+                                    setEditingFileName(item.name);
+                                  }}
+                                  className="p-0.5 rounded text-slate-500 hover:text-orange-400 hover:bg-slate-950/40 opacity-40 group-hover/item:opacity-100 transition-all cursor-pointer shrink-0"
+                                  title="Renombrar imagen"
+                                >
+                                  <Edit2 className="w-2.5 h-2.5" />
+                                </button>
+                              </div>
+                            )}
 
-                          <div className="flex items-center gap-1.5 text-[9.5px] text-slate-500 font-mono">
-                            <span>{(item.size / 1024).toFixed(1)} KB</span>
+                            <div className="flex items-center gap-1.5 text-[9.5px] text-slate-500 font-mono mt-0.5">
+                              <span>{(item.size / 1024).toFixed(1)} KB</span>
+                            </div>
                           </div>
 
-                          {/* Editable Image Description Field */}
-                          <div className="mt-1.5 border-t border-slate-900 pt-1 flex flex-col gap-0.5">
-                            <span className="text-[8px] text-orange-400 uppercase font-black tracking-wider">Descripción:</span>
+                          {/* Column 2: Editable Image Description Field (to the right of Name) */}
+                          <div className="min-w-0 border-l border-slate-800 pl-2 flex flex-col gap-0.5">
+                            <span className="text-[8px] text-orange-400 uppercase font-black tracking-wider block">Descripción:</span>
                             {isEditingDescId === item.id ? (
                               <div className="flex gap-1 items-start mt-0.5">
                                 <textarea
                                   value={editingDescText}
                                   onChange={(e) => setEditingDescText(e.target.value)}
-                                  placeholder="Escribe la descripción de la imagen..."
+                                  placeholder="Escribe la descripción..."
                                   rows={2}
                                   className="flex-1 bg-slate-900 border border-orange-500 rounded px-1.5 py-1 text-[10px] text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 leading-normal"
                                   onKeyDown={(e) => {
@@ -1606,10 +1635,10 @@ Abril 2026 - Julio 2026
                                     setIsEditingDescId(item.id);
                                     setEditingDescText(item.description || '');
                                   }}
-                                  className="text-[10px] text-slate-400 hover:text-slate-200 cursor-pointer break-words line-clamp-3 leading-normal flex-1 pr-4"
+                                  className="text-[10px] text-slate-400 hover:text-slate-200 cursor-pointer break-words line-clamp-3 leading-normal flex-1"
                                   title="Haz clic para editar la descripción"
                                 >
-                                  {item.description ? item.description : <span className="text-slate-600 italic">(Haz clic para añadir descripción)</span>}
+                                  {item.description ? item.description : <span className="text-slate-600 italic">(Añadir desc.)</span>}
                                 </span>
                                 <button
                                   onClick={() => {
@@ -1626,8 +1655,8 @@ Abril 2026 - Julio 2026
                           </div>
                         </div>
 
-                        {/* Quick actions buttons */}
-                        <div className="flex flex-col gap-1 shrink-0">
+                        {/* Quick actions buttons (2x2 Grid) */}
+                        <div className="grid grid-cols-2 gap-1 shrink-0">
                           <button
                             onClick={() => handleCopySnippet(item.name)}
                             className="p-1 rounded bg-slate-950 hover:bg-[#004080] border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center"
@@ -1643,23 +1672,21 @@ Abril 2026 - Julio 2026
                             <Plus className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleInsertWithAI(item)}
-                            disabled={isInsertingAI !== null}
+                            onClick={() => handleToggleAISingleSelection(item)}
                             className={`p-1 rounded border transition-all cursor-pointer flex items-center justify-center ${
-                              isInsertingAI === item.id
-                                ? 'bg-orange-600 border-orange-500 text-white animate-pulse'
-                                : 'bg-slate-950 hover:bg-orange-900/50 hover:border-orange-500/50 border-slate-800 text-slate-450 hover:text-orange-400'
+                              isSelectedForAI
+                                ? 'bg-orange-500 text-slate-950 border-orange-400 hover:bg-orange-400'
+                                : 'bg-slate-950 hover:bg-orange-900/50 hover:border-orange-500/50 border-slate-800 text-slate-400 hover:text-orange-400'
                             }`}
-                            title="Insertar imagen con IA (Analiza el texto de tus bloques para situarla de forma óptima)"
+                            title="Añadir/quitar de la lista de inserción con IA"
                           >
-                            {isInsertingAI === item.id ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Sparkles className="w-3.5 h-3.5" />
-                            )}
+                            <Sparkles className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleDeleteFile(item.id)}
+                            onClick={() => {
+                              setSelectedImagesForAI(prev => prev.filter(f => f.id !== item.id));
+                              handleDeleteFile(item.id);
+                            }}
                             className="p-1 rounded bg-slate-950 hover:bg-red-950/80 hover:border-red-500 border border-slate-800 text-slate-400 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center"
                             title="Borrar imagen"
                           >
@@ -1712,38 +1739,106 @@ Abril 2026 - Julio 2026
         </div>
       )}
 
+      {/* Selected Images Floating Popup List */}
+      {selectedImagesForAI.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-[9999] bg-slate-900 border-2 border-orange-500 rounded-xl shadow-2xl p-4 w-[280px] sm:w-[320px] flex flex-col gap-3 animate-slide-up text-slate-200">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div className="flex items-center gap-1.5 text-orange-500">
+              <Sparkles className="w-4 h-4 animate-pulse" />
+              <h4 className="font-extrabold text-[11px] uppercase tracking-wider text-slate-100">
+                Insertar con IA ({selectedImagesForAI.length})
+              </h4>
+            </div>
+            <button 
+              onClick={() => setSelectedImagesForAI([])}
+              className="text-slate-500 hover:text-white transition-colors cursor-pointer"
+              title="Cancelar selección"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Selected files list */}
+          <div className="flex flex-col gap-1.5 max-h-[150px] overflow-y-auto custom-scrollbar pr-0.5">
+            {selectedImagesForAI.map((file) => (
+              <div key={file.id} className="flex items-center justify-between gap-2 p-1.5 rounded bg-slate-950/60 border border-slate-850 text-xs">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <div className="w-6 h-6 rounded bg-slate-900 border border-slate-800 shrink-0 overflow-hidden flex items-center justify-center">
+                    <img src={file.dataUrl} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                  </div>
+                  <span className="truncate font-medium text-[10.5px] text-slate-300 block">{file.name}</span>
+                </div>
+                <button 
+                  onClick={() => setSelectedImagesForAI(prev => prev.filter(f => f.id !== file.id))}
+                  className="text-slate-500 hover:text-red-400 p-0.5 transition-colors cursor-pointer shrink-0"
+                  title="Quitar de la lista"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Primary Insert Button */}
+          <button
+            onClick={handleInsertAllSelectedWithAI}
+            disabled={isInsertingAI !== null}
+            className="w-full py-2 bg-orange-600 hover:bg-orange-500 disabled:bg-orange-950/40 text-white font-extrabold text-xs rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg active:scale-95"
+          >
+            {isInsertingAI ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Insertando con IA...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>Insertar {selectedImagesForAI.length} Imagen(es)</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* AI Explanation Modal */}
-      {aiExplanation && (
+      {aiExplanations && aiExplanations.length > 0 && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] select-text">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2 text-orange-500">
                 <Sparkles className="w-5 h-5 animate-pulse" />
                 <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-100">
-                  Inserción con IA
+                  Inserción de Imágenes con IA
                 </h3>
               </div>
               <button 
-                onClick={() => setAiExplanation(null)}
+                onClick={() => setAiExplanations(null)}
                 className="text-slate-500 hover:text-white cursor-pointer transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             
-            <div className="text-xs text-slate-350 leading-relaxed flex flex-col gap-2">
+            <div className="text-xs text-slate-350 leading-relaxed flex flex-col gap-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
               <p className="font-bold text-slate-200">
-                Se insertó la figura <code className="text-orange-400 font-mono text-[11px] bg-slate-950 px-1 py-0.5 rounded">{aiExplanation.imageName}</code> con formato APA 7 de forma inteligente.
+                Se han insertado las figuras de forma inteligente en el documento.
               </p>
-              <div className="bg-slate-950/60 p-3.5 border border-slate-850 rounded-lg font-normal text-slate-300">
-                <span className="font-black text-[9px] text-[#FF6600] uppercase block mb-1 tracking-wider">Análisis y Justificación de la IA:</span>
-                <p className="whitespace-pre-line leading-relaxed">{aiExplanation.text}</p>
-              </div>
+              {aiExplanations.map((exp, idx) => (
+                <div key={idx} className="bg-slate-950/60 p-3.5 border border-slate-850 rounded-lg font-normal text-slate-300 flex flex-col gap-1">
+                  <span className="font-mono text-xs text-orange-400 font-bold bg-slate-900/80 px-2 py-1 rounded border border-slate-800 self-start">
+                    {exp.imageName}
+                  </span>
+                  <div className="mt-2">
+                    <span className="font-black text-[9px] text-[#FF6600] uppercase block mb-1 tracking-wider">Análisis y Justificación de la IA:</span>
+                    <p className="whitespace-pre-line leading-relaxed">{exp.text}</p>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div className="flex justify-end mt-1">
+            <div className="flex justify-end mt-1 border-t border-slate-800 pt-3">
               <button
-                onClick={() => setAiExplanation(null)}
+                onClick={() => setAiExplanations(null)}
                 className="px-4 py-2 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white font-bold text-xs rounded transition-all cursor-pointer shadow-md"
               >
                 Entendido
