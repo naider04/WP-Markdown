@@ -3096,7 +3096,10 @@ export default function DocumentPreview({
           parserDiv.innerHTML = item.html;
           const hElements = Array.from(parserDiv.querySelectorAll('h1, h2, h3'));
           if (isHeading) {
-            hElements.unshift(parserDiv.firstElementChild as HTMLElement);
+            const rootEl = parserDiv.firstElementChild as HTMLElement;
+            if (rootEl && !hElements.includes(rootEl)) {
+              hElements.unshift(rootEl);
+            }
           }
           hElements.forEach((h) => {
             const text = h.textContent?.trim() || '';
