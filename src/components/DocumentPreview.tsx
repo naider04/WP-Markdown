@@ -632,14 +632,16 @@ export default function DocumentPreview({
         const rawInlineSize = settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px';
         const inlineSize = formatFontSize(rawInlineSize, '12px');
 
-        css += `\n.unemi-document-content pre, .unemi-document-content pre span {`;
+        css += `\n.unemi-document-content pre, .unemi-document-content pre * {`;
         css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
         css += ` font-size: ${blockSize} !important;`;
+        css += ` text-indent: 0px !important;`;
         css += ` }`;
 
         css += `\n.unemi-document-content code:not(pre code) {`;
         css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
         css += ` font-size: ${inlineSize} !important;`;
+        css += ` text-indent: 0px !important;`;
         css += ` }`;
         
         css += `\n.unemi-document-content pre {`;
@@ -648,6 +650,7 @@ export default function DocumentPreview({
         css += ` border-radius: 6px !important;`;
         css += ` overflow-x: auto !important;`;
         css += ` line-height: 1.5 !important;`;
+        css += ` text-indent: 0px !important;`;
         css += ` }`;
 
         // Inline code styling
@@ -1900,14 +1903,16 @@ export default function DocumentPreview({
           const rawInlineSize = settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px';
           const inlineSize = formatFontSize(rawInlineSize, '12px');
 
-          css += `\n.unemi-document-content pre, .unemi-document-content pre span {`;
+          css += `\n.unemi-document-content pre, .unemi-document-content pre * {`;
           css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
           css += ` font-size: ${blockSize} !important;`;
+          css += ` text-indent: 0px !important;`;
           css += ` }`;
 
           css += `\n.unemi-document-content code:not(pre code) {`;
           css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
           css += ` font-size: ${inlineSize} !important;`;
+          css += ` text-indent: 0px !important;`;
           css += ` }`;
           
           css += `\n.unemi-document-content pre {`;
@@ -1916,6 +1921,7 @@ export default function DocumentPreview({
           css += ` border-radius: 6px !important;`;
           css += ` overflow-x: auto !important;`;
           css += ` line-height: 1.5 !important;`;
+          css += ` text-indent: 0px !important;`;
           css += ` }`;
 
           // Inline code styling
@@ -3185,6 +3191,10 @@ export default function DocumentPreview({
           let bestPart1HTML = '';
           let bestPart2HTML = '';
           
+          const isJustified = (item.styleAttr?.toLowerCase().includes('text-align: justify') || 
+                               item.styleAttr?.toLowerCase().includes('text-align:justify') || 
+                               settings.pAlign === 'justify');
+          
           const part2Style = item.styleAttr
             ? `${item.styleAttr}; text-indent: 0px !important;`
             : `text-indent: 0px !important;`;
@@ -3192,7 +3202,10 @@ export default function DocumentPreview({
           while (low <= high) {
             const mid = Math.floor((low + high) / 2);
             const { part1, part2 } = getBalancedHTMLParts(tokens, mid);
-            const testHTML = `<p class="${item.className}" style="${item.styleAttr}">${part1}</p>`;
+            const part1Style = isJustified
+              ? (item.styleAttr ? `${item.styleAttr}; text-align-last: justify !important;` : `text-align-last: justify !important;`)
+              : item.styleAttr;
+            const testHTML = `<p class="${item.className}" style="${part1Style || ''}">${part1}</p>`;
             const h = measureHTMLHeight(testHTML);
             
             if (h <= maxHeight - accumulatedPageHeight) {
@@ -3209,7 +3222,10 @@ export default function DocumentPreview({
             // Force at least 1 token if we are already on a fresh page to avoid infinite loops
             bestSplitIndex = 1;
             const { part1, part2 } = getBalancedHTMLParts(tokens, 1);
-            bestPart1HTML = `<p class="${item.className}" style="${item.styleAttr}">${part1}</p>`;
+            const part1Style = isJustified
+              ? (item.styleAttr ? `${item.styleAttr}; text-align-last: justify !important;` : `text-align-last: justify !important;`)
+              : item.styleAttr;
+            bestPart1HTML = `<p class="${item.className}" style="${part1Style || ''}">${part1}</p>`;
             bestPart2HTML = `<p class="${item.className}" style="${part2Style}">${part2}</p>`;
           }
 
@@ -3657,7 +3673,7 @@ export default function DocumentPreview({
     const rawInlineSize = settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px';
     const inlineSize = formatFontSize(rawInlineSize, '12px');
 
-    css += `\n.unemi-document-content pre, .unemi-document-content pre span {`;
+    css += `\n.unemi-document-content pre, .unemi-document-content pre * {`;
     css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
     css += ` font-size: ${blockSize} !important;`;
     css += ` text-indent: 0px !important;`;

@@ -1220,7 +1220,7 @@ export default function App() {
       const rawInlineSize = settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px';
       const inlineSize = formatFontSize(rawInlineSize, '12px');
 
-      css += `\n.unemi-document-content pre, .unemi-document-content pre span {`;
+      css += `\n.unemi-document-content pre, .unemi-document-content pre * {`;
       css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
       css += ` font-size: ${blockSize} !important;`;
       css += ` text-indent: 0px !important;`;
