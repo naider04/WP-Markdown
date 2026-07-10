@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { markdownParser } from '../utils/markdownParser';
-import { CoverConfig, PageSettings, UploadedFile } from '../types';
+import { CoverConfig, PageSettings, UploadedFile, HTMLBlock } from '../types';
 import { formatFontSize } from '../utils/fontUtils';
 import {
   FileText,
@@ -36,7 +36,9 @@ import {
   Minimize2,
   Settings,
   Edit2,
-  Check
+  Check,
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 
 interface ConfigDrawerProps {
@@ -51,6 +53,9 @@ interface ConfigDrawerProps {
   setUploadedFiles: React.Dispatch<React.SetStateAction<UploadedFile[]>>;
   onInsertHTML: (snippet: string) => void;
   isEmbedded?: boolean;
+  htmlBlocks?: HTMLBlock[];
+  setHtmlBlocks?: React.Dispatch<React.SetStateAction<HTMLBlock[]>>;
+  userApiKey?: string;
 }
 
 const DEFAULT_TABLE_CSS = `/* Academic Table Style */
@@ -202,9 +207,74 @@ export function ConfigDrawer({
   setUploadedFiles,
   onInsertHTML,
   isEmbedded = false,
+  htmlBlocks = [],
+  setHtmlBlocks,
+  userApiKey,
 }: ConfigDrawerProps) {
   const [successMsg, setSuccessMsg] = useState<string>('');
   const [showFormats, setShowFormats] = useState<boolean>(false);
+  const [isInsertingAI, setIsInsertingAI] = useState<string | null>(null);
+  const [aiExplanation, setAiExplanation] = useState<{ imageName: string; text: string } | null>(null);
+
+  const handleInsertWithAI = async (item: UploadedFile) => {
+    if (!htmlBlocks || htmlBlocks.length === 0) {
+      alert("No hay bloques de texto (Markdown) disponibles para insertar esta imagen.");
+      return;
+    }
+
+    if (!item.description || item.description.trim() === '') {
+      alert("Por favor, ingresa una descripción para la imagen antes de intentar insertarla con IA. Esto le permite al modelo saber qué ilustra la figura y determinar su posición correcta en el documento.");
+      setIsEditingDescId(item.id);
+      setEditingDescText('');
+      return;
+    }
+    
+    setIsInsertingAI(item.id);
+    try {
+      const response = await fetch("/api/gemini/insert-image", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-api-key": userApiKey || "",
+        },
+        body: JSON.stringify({
+          htmlBlocks: htmlBlocks.map(b => ({ id: b.id, name: b.name, code: b.code })),
+          imageName: item.name,
+          imageDescription: item.description || "",
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Error al procesar con IA");
+      }
+
+      const result = await response.json();
+      const { selectedBlockId, modifiedCode, explanation } = result;
+
+      // Update the specific block's code in App state
+      if (setHtmlBlocks) {
+        setHtmlBlocks((prev: HTMLBlock[]) => prev.map(b => {
+          if (b.id === selectedBlockId) {
+            return { ...b, code: modifiedCode };
+          }
+          return b;
+        }));
+      }
+
+      // Show explanation modal/toast
+      setAiExplanation({
+        imageName: item.name,
+        text: explanation
+      });
+      triggerSuccessMsg("¡Imagen insertada con IA!");
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Ocurrió un error al procesar la inserción de la imagen con IA.");
+    } finally {
+      setIsInsertingAI(null);
+    }
+  };
 
   const [localMarginTop, setLocalMarginTop] = useState<string>('');
   const [localMarginBottom, setLocalMarginBottom] = useState<string>('');
@@ -1563,21 +1633,37 @@ Abril 2026 - Julio 2026
                             className="p-1 rounded bg-slate-950 hover:bg-[#004080] border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center"
                             title="Copiar formato de figura"
                           >
-                            <Copy className="w-3 h-3" />
+                            <Copy className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleInsertImgTag(item.name)}
                             className="p-1 rounded bg-slate-950 hover:bg-[#004080] border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center font-bold"
                             title="Insertar en último editor"
                           >
-                            <Plus className="w-3 h-3" />
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleInsertWithAI(item)}
+                            disabled={isInsertingAI !== null}
+                            className={`p-1 rounded border transition-all cursor-pointer flex items-center justify-center ${
+                              isInsertingAI === item.id
+                                ? 'bg-orange-600 border-orange-500 text-white animate-pulse'
+                                : 'bg-slate-950 hover:bg-orange-900/50 hover:border-orange-500/50 border-slate-800 text-slate-450 hover:text-orange-400'
+                            }`}
+                            title="Insertar imagen con IA (Analiza el texto de tus bloques para situarla de forma óptima)"
+                          >
+                            {isInsertingAI === item.id ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Sparkles className="w-3.5 h-3.5" />
+                            )}
                           </button>
                           <button
                             onClick={() => handleDeleteFile(item.id)}
                             className="p-1 rounded bg-slate-950 hover:bg-red-950/80 hover:border-red-500 border border-slate-800 text-slate-400 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center"
                             title="Borrar imagen"
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -1623,6 +1709,47 @@ Abril 2026 - Julio 2026
         <div className="fixed bottom-4 right-4 bg-orange-600 text-white px-3 py-1.5 rounded-md shadow-2xl text-xs font-bold z-50 flex items-center gap-1.5">
           <CheckCircle className="w-3.5 h-3.5" />
           {successMsg}
+        </div>
+      )}
+
+      {/* AI Explanation Modal */}
+      {aiExplanation && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] select-text">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-orange-500">
+                <Sparkles className="w-5 h-5 animate-pulse" />
+                <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-100">
+                  Inserción con IA
+                </h3>
+              </div>
+              <button 
+                onClick={() => setAiExplanation(null)}
+                className="text-slate-500 hover:text-white cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="text-xs text-slate-350 leading-relaxed flex flex-col gap-2">
+              <p className="font-bold text-slate-200">
+                Se insertó la figura <code className="text-orange-400 font-mono text-[11px] bg-slate-950 px-1 py-0.5 rounded">{aiExplanation.imageName}</code> con formato APA 7 de forma inteligente.
+              </p>
+              <div className="bg-slate-950/60 p-3.5 border border-slate-850 rounded-lg font-normal text-slate-300">
+                <span className="font-black text-[9px] text-[#FF6600] uppercase block mb-1 tracking-wider">Análisis y Justificación de la IA:</span>
+                <p className="whitespace-pre-line leading-relaxed">{aiExplanation.text}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-1">
+              <button
+                onClick={() => setAiExplanation(null)}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-500 active:scale-95 text-white font-bold text-xs rounded transition-all cursor-pointer shadow-md"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

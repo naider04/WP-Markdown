@@ -14,7 +14,7 @@ import { getAllUploadedFiles, saveUploadedFilesToDB, clearAllUploadedFilesDB } f
 import { BibliographyDrawer } from './components/BibliographyDrawer';
 import { MarginsDrawer } from './components/MarginsDrawer';
 import { parseBibtex, generateBibtexFromItems } from './utils/bibParser';
-import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2, Layout, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2, Layout, ChevronLeft, ChevronRight, Key, X } from 'lucide-react';
 
 const DEFAULT_HEADER_HTML = `<div class="flex justify-between items-end text-[10px] uppercase font-bold tracking-wider pb-1 px-0.5 w-full">
   <div class="flex items-center gap-1.5 max-w-[320px]">
@@ -745,6 +745,16 @@ export default function App() {
   const [pageCount, setPageCount] = useState<number>(1);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string>('');
   const [isExportDropdownOpen, setIsExportDropdownOpen] = useState<boolean>(false);
+
+  // 8. User Gemini API Key and API key connection modal state
+  const [userApiKey, setUserApiKey] = useState<string>(() => {
+    return localStorage.getItem('user_gemini_api_key') || '';
+  });
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    localStorage.setItem('user_gemini_api_key', userApiKey);
+  }, [userApiKey]);
   
   const lastFetchedContentRef = useRef<string>('');
   const isResizingRef = useRef<boolean>(false);
@@ -2608,6 +2618,21 @@ read -p "Presione [Enter] para salir..."`;
 
           {/* Right part: Split export options dropdown replacing the old export button */}
           <div className="flex items-center gap-1.5 shrink-0" id="export-dropdown-container">
+            {/* API Key Connection Button */}
+            <button
+              onClick={() => setIsApiKeyModalOpen(true)}
+              className={`py-1.5 px-3 rounded text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm border ${
+                userApiKey 
+                  ? 'bg-emerald-950/50 hover:bg-emerald-900/40 border-emerald-500/30 text-emerald-400' 
+                  : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-300'
+              }`}
+              title="Configurar tu API Key de Gemini"
+            >
+              <Key className="w-3.5 h-3.5" />
+              <span>{userApiKey ? 'API Key Conectada' : 'Conectar API Key'}</span>
+              {userApiKey && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block"></span>}
+            </button>
+
             <div className="relative">
               <button
                 onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
@@ -2849,6 +2874,9 @@ read -p "Presione [Enter] para salir..."`;
                   setUploadedFiles={setUploadedFiles}
                   onInsertHTML={handleInsertHTML}
                   isEmbedded={true}
+                  htmlBlocks={htmlBlocks}
+                  setHtmlBlocks={setHtmlBlocks}
+                  userApiKey={userApiKey}
                 />
               )}
             </div>
@@ -2906,6 +2934,88 @@ read -p "Presione [Enter] para salir..."`;
           />
         </div>
       </div>
+
+      {/* API Key Setup Modal */}
+      {isApiKeyModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] select-text">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4 animate-fade-in text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-[#FF6600]">
+                <Key className="w-5 h-5" />
+                <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-100">
+                  Configurar API Key de Gemini
+                </h3>
+              </div>
+              <button 
+                onClick={() => setIsApiKeyModalOpen(false)}
+                className="text-slate-500 hover:text-white cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <p className="text-[11.5px] text-slate-400 leading-relaxed font-normal">
+                Para utilizar funciones avanzadas de Inteligencia Artificial (como <strong className="text-slate-200">Insertar con IA</strong>), conecta tu propia API Key de Gemini. Tu clave se almacena de forma segura únicamente en la memoria local de tu navegador (<code className="text-orange-400 font-mono text-[10px] bg-slate-950 px-1 py-0.5 rounded">localStorage</code>) y se transmite de forma segura a través de nuestros endpoints del backend.
+              </p>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Tu API Key de Gemini:</label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    placeholder={userApiKey ? "••••••••••••••••••••••••••••••••••••" : "AIzaSy..."}
+                    value={userApiKey}
+                    onChange={(e) => setUserApiKey(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-orange-500 placeholder-slate-600"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-950/60 p-2.5 rounded border border-slate-850/60 text-[10.5px] leading-normal text-slate-400">
+                <span className="font-bold text-slate-300 block mb-0.5">¿No tienes una clave API?</span>
+                Puedes obtener una clave gratuita en segundos ingresando a <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" className="text-[#FF6600] font-bold hover:underline">Google AI Studio</a>.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-800 pt-4 mt-1">
+              <div>
+                {userApiKey && (
+                  <button
+                    onClick={() => {
+                      setUserApiKey('');
+                      setIsApiKeyModalOpen(false);
+                    }}
+                    className="px-3 py-1.5 bg-red-950/50 hover:bg-red-900/50 border border-red-900 text-red-400 font-bold text-[10.5px] rounded transition-all cursor-pointer"
+                  >
+                    Desconectar Clave
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsApiKeyModalOpen(false)}
+                  className="px-3.5 py-1.5 bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-400 font-bold text-[10.5px] rounded transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (userApiKey.trim() === '') {
+                      alert('Por favor ingresa una API Key válida.');
+                      return;
+                    }
+                    setIsApiKeyModalOpen(false);
+                  }}
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10.5px] rounded transition-all cursor-pointer shadow-md"
+                >
+                  Guardar Clave
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
