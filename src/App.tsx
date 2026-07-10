@@ -224,6 +224,60 @@ const DEFAULT_BLOCK_TABLE = `/* Estilos de Tablas Académicas APA 7 */
   background-color: rgba(0, 0, 0, 0.02) !important;
 }`;
 
+const DEFAULT_MARGIN_ELEMENTS = [
+  {
+    id: 'unemi-logo-margin',
+    name: 'Logo UNEMI',
+    code: '<img src="icon.png">',
+    top: '37',
+    right: '42',
+    pagesPattern: '!first',
+    width: '120'
+  },
+  {
+    id: 'unemi-page-number-margin',
+    name: 'Número de página',
+    code: `<span style="font-family: 'Times New Roman'; font-size: 16px;">
+    {page}
+</span>`,
+    top: '48',
+    left: '96',
+    pagesPattern: '!first'
+  },
+  {
+    id: 'unemi-line-margin',
+    name: 'Linea',
+    code: `<div
+  class="w-full"
+  style="height: 1px; background: #C0C0C0; print-color-adjust: exact; -webkit-print-color-adjust: exact;"
+></div>`,
+    top: '95',
+    left: '0',
+    width: '100%',
+    pagesPattern: '!first'
+  },
+  {
+    id: 'unemi-cover-margin',
+    name: 'Cover page',
+    code: '<img src="cover.png">',
+    top: '0',
+    right: '0',
+    width: '100%',
+    height: '100%',
+    pagesPattern: '1'
+  },
+  {
+    id: 'unemi-footer-margin',
+    name: 'Final footer',
+    code: '<img src="footer-unemi.png">',
+    bottom: '0',
+    left: '0',
+    width: '100%',
+    height: 'auto',
+    pagesPattern: 'last'
+  }
+];
+
 const DEFAULT_OVERLAY_HTML = `<style>
 body{
     margin:0;
@@ -531,6 +585,7 @@ export default function App() {
           showBibliography: false,
           showOnlyCitedBibliography: false,
           bibliographyTitle: 'Referencias Bibliográficas',
+          marginElements: parsed.marginElements || DEFAULT_MARGIN_ELEMENTS,
           ...parsed
         };
       } catch (e) {
@@ -569,6 +624,7 @@ export default function App() {
       showBibliography: false,
       showOnlyCitedBibliography: false,
       bibliographyTitle: 'Referencias Bibliográficas',
+      marginElements: DEFAULT_MARGIN_ELEMENTS,
     };
   });
 
@@ -1719,23 +1775,35 @@ export default function App() {
 </head>
 <body>
   <!-- Floating Academic Toolbar (Omitted when printing) -->
-  <div id="unemi-academic-toolbar" class="fixed top-4 right-4 z-50 print:hidden flex items-center gap-3 bg-[#004080] text-white px-4 py-2 border-2 border-[#FF6600]/80 rounded-xl shadow-2xl">
-    <span class="font-bold text-xs uppercase tracking-wider text-slate-100 flex items-center gap-1.5">
-      <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-      EDITOR DOC VIEW
-    </span>
-    <div class="h-4 w-[1px] bg-white/20"></div>
-    <button id="unemi-start-presentation" class="bg-[#FF6600] hover:bg-[#ff8533] text-white font-bold text-xs px-3 py-1.5 rounded-lg border border-[#FF6600] cursor-pointer active:scale-95 transition-all flex items-center gap-1">
-      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon>
+  <div id="unemi-academic-toolbar" class="fixed top-4 right-4 z-50 print:hidden flex items-center gap-2 bg-slate-900/95 text-slate-300 px-2.5 py-1.5 border border-slate-800 rounded-lg shadow-xl backdrop-blur-sm select-none">
+    <!-- Zoom Out -->
+    <button id="unemi-zoom-out" title="Reducir" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <line x1="5" y1="12" x2="19" y2="12"></line>
       </svg>
-      Iniciar Presentación
     </button>
-    <button onclick="window.print()" class="bg-slate-800 text-white font-semibold text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-1 cursor-pointer">
-      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-2-5H8v8h8v-8z"></path>
+    <!-- Zoom indicator/reset -->
+    <span id="unemi-zoom-indicator" title="Restablecer zoom" class="text-[11px] font-mono font-medium min-w-[36px] text-center cursor-pointer hover:text-white">100%</span>
+    <!-- Zoom In -->
+    <button id="unemi-zoom-in" title="Aumentar" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
       </svg>
-      Imprimir
+    </button>
+    <div class="h-3 w-[1px] bg-slate-800"></div>
+    <!-- Play presentation -->
+    <button id="unemi-start-presentation" title="Iniciar Presentación" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer text-orange-400 flex items-center justify-center">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="6 4 20 12 6 20 6 4" fill="currentColor"></polygon>
+      </svg>
+    </button>
+    <div class="h-3 w-[1px] bg-slate-800"></div>
+    <!-- Print -->
+    <button onclick="window.print()" title="Imprimir" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-2-5H8v8h8v-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
     </button>
   </div>
 

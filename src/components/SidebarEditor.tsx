@@ -12,7 +12,9 @@ import {
   Code,
   Trash2,
   AlertTriangle,
-  AlertCircle
+  AlertCircle,
+  Copy,
+  Check
 } from 'lucide-react';
 import { validateContent } from '../utils/validation';
 
@@ -85,6 +87,19 @@ export function SidebarEditor({
   // Drag and drop state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // Copy state
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyAllMarkdown = () => {
+    const allMarkdown = htmlBlocks.map(block => block.code).join('\n\n');
+    navigator.clipboard.writeText(allMarkdown).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+    });
+  };
 
   // State to handle block delete confirmation modal
   const [blockToDelete, setBlockToDelete] = useState<HTMLBlock | null>(null);
@@ -259,7 +274,6 @@ export function SidebarEditor({
             title={selectedBlock ? "Eliminar bloque seleccionado" : "Seleccione un bloque para eliminar"}
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>Eliminar</span>
           </button>
 
           {/* Nuevo Bloque button */}
@@ -269,7 +283,6 @@ export function SidebarEditor({
             title="Agregar un nuevo fragmento de contenido"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Nuevo Bloque</span>
           </button>
         </div>
       </div>
@@ -440,6 +453,26 @@ export function SidebarEditor({
             </div>
           );
         })}
+
+        {htmlBlocks.length > 0 && (
+          <button
+            onClick={handleCopyAllMarkdown}
+            className="mt-4 w-full h-9 px-4 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-200 hover:text-white border border-slate-700 hover:border-orange-500 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md select-none shrink-0"
+            title="Copiar todo el markdown de todos los bloques al portapapeles"
+          >
+            {copied ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span className="text-emerald-400">¡Todo Copiado!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4 text-orange-500" />
+                <span>Copiar Todo el Contenido</span>
+              </>
+            )}
+          </button>
+        )}
 
       </div>
 

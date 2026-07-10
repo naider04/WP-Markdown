@@ -403,6 +403,39 @@ function compileAndProcessMarkdown(
   return resultHtml;
 }
 
+const toolbarHTML_Preview = `<!-- Floating Academic Toolbar (Omitted when printing) -->
+  <div id="unemi-academic-toolbar" class="fixed top-4 right-4 z-50 print:hidden flex items-center gap-2 bg-slate-900/95 text-slate-300 px-2.5 py-1.5 border border-slate-800 rounded-lg shadow-xl backdrop-blur-sm select-none">
+    <!-- Zoom Out -->
+    <button id="unemi-zoom-out" title="Reducir" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    </button>
+    <!-- Zoom indicator/reset -->
+    <span id="unemi-zoom-indicator" title="Restablecer zoom" class="text-[11px] font-mono font-medium min-w-[36px] text-center cursor-pointer hover:text-white">100%</span>
+    <!-- Zoom In -->
+    <button id="unemi-zoom-in" title="Aumentar" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    </button>
+    <div class="h-3 w-[1px] bg-slate-800"></div>
+    <!-- Play presentation -->
+    <button id="unemi-start-presentation" title="Iniciar Presentación" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer text-orange-400 flex items-center justify-center">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="6 4 20 12 6 20 6 4" fill="currentColor"></polygon>
+      </svg>
+    </button>
+    <div class="h-3 w-[1px] bg-slate-800"></div>
+    <!-- Print -->
+    <button onclick="window.print()" title="Imprimir" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-2-5H8v8h8v-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    </button>
+  </div>`;
+
 export default function DocumentPreview({
   cover: liveCover,
   settings: liveSettings,
@@ -784,8 +817,8 @@ export default function DocumentPreview({
         return css;
       };
 
-      const cleanHTML = `<!DOCTYPE html>
-<html lang="es">
+      const cleanHTML_PreviewMode = `<!DOCTYPE html>
+<html lang="es" data-unemi-preview="v1">
 <head>
   <!-- PREVIEW_MODE_V1 -->
   <meta charset="UTF-8">
@@ -800,13 +833,15 @@ export default function DocumentPreview({
   <!-- PrismJS tomorrow dark theme for code blocks -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
  
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
-    
+  <style id="unemi-preview-style-v1">` + `
+    /* PREVIEW_MODE_V1_STYLE_START */` + `
+    /* PREVIEW_MODE_V1_CSS_BODY */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');` + `
+    /* PREVIEW_MODE_V1_BOX_SIZING */
     * {
       box-sizing: border-box;
-    }
-    
+    }` + `
+    /* PREVIEW_MODE_V1_BODY_HTML */
     body, html {
       margin: 0;
       padding: 0;
@@ -814,8 +849,8 @@ export default function DocumentPreview({
       font-family: "Inter", system-ui, -apple-system, sans-serif;
       text-rendering: optimizeLegibility;
       -webkit-font-smoothing: antialiased;
-    }
-    
+    }` + `
+    /* PREVIEW_MODE_V1_RENDERED_CONTAINER */
     .document-rendered-container {
       display: flex;
       flex-direction: column;
@@ -1148,26 +1183,7 @@ export default function DocumentPreview({
   </style>
 </head>
 <body>
-  <!-- Floating Academic Toolbar (Omitted when printing) -->
-  <div id="unemi-academic-toolbar" class="fixed top-4 right-4 z-50 print:hidden flex items-center gap-3 bg-[#004080] text-white px-4 py-2 border-2 border-[#FF6600]/80 rounded-xl shadow-2xl">
-    <span class="font-bold text-xs uppercase tracking-wider text-slate-100 flex items-center gap-1.5">
-      <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-      Vista Previa
-    </span>
-    <div class="h-4 w-[1px] bg-white/20"></div>
-    <button id="unemi-start-presentation" class="bg-[#FF6600] hover:bg-[#ff8533] text-white font-bold text-xs px-3 py-1.5 rounded-lg border border-[#FF6600] cursor-pointer active:scale-95 transition-all flex items-center gap-1">
-      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon>
-      </svg>
-      Iniciar Presentación
-    </button>
-    <button onclick="window.print()" class="bg-slate-800 text-white font-semibold text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-1 cursor-pointer">
-      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 14px; height: 14px;">
-        <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-2-5H8v8h8v-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-      </svg>
-      Imprimir
-    </button>
-  </div>
+  ${toolbarHTML_Preview}
 
   <div class="document-rendered-container">
     ${pagesHTML}
@@ -1479,7 +1495,7 @@ export default function DocumentPreview({
 </body>
 </html>`;
 
-      let processedHTML = cleanHTML
+      let processedHTML = cleanHTML_PreviewMode
         .replace(/src="\/\//g, 'src="https://')
         .replace(/srcset="\/\//g, 'srcset="https://')
         .replace(/href="\/\//g, 'href="https://');
@@ -2036,7 +2052,7 @@ export default function DocumentPreview({
           return css;
         };
 
-        const cleanHTML = `<!DOCTYPE html>
+        const cleanHTML_SyncedMode = `<!DOCTYPE html>
   <!-- SYNCED_MODE_V2 -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2050,7 +2066,8 @@ export default function DocumentPreview({
   <!-- PrismJS tomorrow dark theme for code blocks -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
  
-  <style>
+  <style id="unemi-preview-style-v2">` + `
+    /* SYNCED_MODE_V2_STYLE_START */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
     
     * {
@@ -2399,26 +2416,7 @@ export default function DocumentPreview({
   </style>
 </head>
 <body>
-  <!-- Floating Academic Toolbar (Omitted when printing) -->
-  <div id="unemi-academic-toolbar" class="fixed top-4 right-4 z-50 print:hidden flex items-center gap-3 bg-[#004080] text-white px-4 py-2 border-2 border-[#FF6600]/80 rounded-xl shadow-2xl">
-    <span class="font-bold text-xs uppercase tracking-wider text-slate-100 flex items-center gap-1.5">
-      <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-      Vista Previa
-    </span>
-    <div class="h-4 w-[1px] bg-white/20"></div>
-    <button id="unemi-start-presentation" class="bg-[#FF6600] hover:bg-[#ff8533] text-white font-bold text-xs px-3 py-1.5 rounded-lg border border-[#FF6600] cursor-pointer active:scale-95 transition-all flex items-center gap-1">
-      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon>
-      </svg>
-      Iniciar Presentación
-    </button>
-    <button onclick="window.print()" class="bg-slate-800 text-white font-semibold text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-1 cursor-pointer">
-      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 14px; height: 14px;">
-        <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-2-5H8v8h8v-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-      </svg>
-      Imprimir
-    </button>
-  </div>
+  ${toolbarHTML_Preview}
 
   <div class="document-rendered-container">
     ${pagesHTML}
@@ -2730,7 +2728,7 @@ export default function DocumentPreview({
 </body>
 </html>`;
 
-        let processedHTML = cleanHTML
+        let processedHTML = cleanHTML_SyncedMode
           .replace(/src="\/\//g, 'src="https://')
           .replace(/srcset="\/\//g, 'srcset="https://')
           .replace(/href="\/\//g, 'href="https://');

@@ -629,40 +629,6 @@ Márgenes de Página (Bordes):
         {/* TAB 1: COVERPORTADA CONTROLS */}
         {activeType === 'cover' && (
           <div className="flex flex-col gap-4 text-xs">
-            <span className="font-bold uppercase tracking-wider text-slate-400 pb-1 border-b border-slate-800 flex items-center gap-1.5">
-              <Image className="w-4 h-4 text-orange-500" />
-              Imagen de Fondo de Portada
-            </span>
-
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">URL / Nombre de la Imagen de Fondo</label>
-                {/* Switch checkbox */}
-                <label className="relative inline-flex items-center gap-1.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={!!cover.applyBgImageToAllPages}
-                    onChange={(e) => handleCoverChange('applyBgImageToAllPages', e.target.checked)}
-                    className="absolute opacity-0 w-0 h-0 pointer-events-none peer"
-                  />
-                  <div className="w-7 h-4 bg-slate-950 rounded-full peer peer-checked:bg-orange-600 relative transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-3 peer-checked:after:bg-slate-100" />
-                  <span className="text-[10px] font-bold text-slate-350 uppercase tracking-wide hover:text-orange-400 transition-colors pl-8">En todas las hojas</span>
-                </label>
-              </div>
-              <input
-                type="text"
-                value={cover.backgroundImage || ''}
-                onChange={(e) => handleCoverChange('backgroundImage', e.target.value)}
-                className="p-2 bg-slate-950 border border-slate-800 rounded focus:outline-none focus:ring-1 focus:ring-orange-500 text-slate-200 font-mono text-xs"
-                placeholder="Ej: /cover.png"
-              />
-              {cover.applyBgImageToAllPages && cover.backgroundImage && (
-                <span className="text-[9.5px] text-orange-400/90 leading-normal bg-orange-950/20 p-1.5 rounded border border-orange-900/30">
-                  💡 <strong>Información:</strong> La imagen de fondo se repetirá en todas las hojas. Se han ocultado automáticamente los encabezados y pies de página.
-                </span>
-              )}
-            </div>
-
             {/* Markdown content of cover */}
             <div className="flex flex-col gap-2 mt-2">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
