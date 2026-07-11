@@ -116,18 +116,18 @@
 }
 
 /* Lists styling - APA 7 clean margins & standard bullets */
-.unemi-document-content ul,
+.unemi-document-content ul:not(.toc-list),
 .unemi-document-content ol {
   padding-left: 24px !important;
   margin-bottom: 12px;
   text-indent: 0px !important;
 }
 
-.unemi-document-content ul {
+.unemi-document-content ul:not(.toc-list) {
   list-style-type: disc;
 }
 
-.unemi-document-content ul li {
+.unemi-document-content ul:not(.toc-list) li {
   font-size: 16px;
   line-height: 1.8;
   color: #000000;
@@ -137,7 +137,7 @@
   padding-left: 0px !important;
 }
 
-.unemi-document-content ul li::before {
+.unemi-document-content ul:not(.toc-list) li::before {
   content: none !important; /* Remove orange bullet squares */
 }
 
@@ -155,9 +155,12 @@
 }
 
 /* Evitar que párrafos internos de listas hereden indentación de texto o hagan saltos de línea */
-.unemi-document-content li p,
-.unemi-document-content li span,
-.unemi-document-content li div {
+.unemi-document-content ul:not(.toc-list) li p,
+.unemi-document-content ul:not(.toc-list) li span,
+.unemi-document-content ul:not(.toc-list) li div,
+.unemi-document-content ol li p,
+.unemi-document-content ol li span,
+.unemi-document-content ol li div {
   text-indent: 0px !important;
   margin: 0 !important;
   display: inline !important;

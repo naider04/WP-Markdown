@@ -225,7 +225,7 @@ const DEFAULT_BLOCK_TABLE = `/* Estilos de Tablas Académicas APA 7 */
 }`;
 
 const DEFAULT_BLOCK_LISTS = `/* Estilo de Listas Académicas */
-.unemi-document-content ul,
+.unemi-document-content ul:not(.toc-list),
 .unemi-document-content ol {
   padding-left: 24px !important;
   margin-top: 0px !important;
@@ -233,7 +233,7 @@ const DEFAULT_BLOCK_LISTS = `/* Estilo de Listas Académicas */
   text-indent: 0px !important;
 }
 
-.unemi-document-content ul {
+.unemi-document-content ul:not(.toc-list) {
   list-style-type: disc !important;
 }
 
@@ -241,7 +241,7 @@ const DEFAULT_BLOCK_LISTS = `/* Estilo de Listas Académicas */
   list-style-type: decimal !important;
 }
 
-.unemi-document-content ul li,
+.unemi-document-content ul:not(.toc-list) li,
 .unemi-document-content ol li {
   text-indent: 0px !important;
   margin-bottom: 6px !important;
@@ -250,9 +250,12 @@ const DEFAULT_BLOCK_LISTS = `/* Estilo de Listas Académicas */
 }
 
 /* Evitar que párrafos internos de listas hereden indentación de texto */
-.unemi-document-content li p,
-.unemi-document-content li span,
-.unemi-document-content li div {
+.unemi-document-content ul:not(.toc-list) li p,
+.unemi-document-content ul:not(.toc-list) li span,
+.unemi-document-content ul:not(.toc-list) li div,
+.unemi-document-content ol li p,
+.unemi-document-content ol li span,
+.unemi-document-content ol li div {
   text-indent: 0px !important;
   margin: 0 !important;
   display: inline !important;
