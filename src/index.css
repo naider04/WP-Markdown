@@ -116,10 +116,15 @@
 }
 
 /* Lists styling - APA 7 clean margins & standard bullets */
+.unemi-document-content ul,
+.unemi-document-content ol {
+  padding-left: 24px !important;
+  margin-bottom: 12px;
+  text-indent: 0px !important;
+}
+
 .unemi-document-content ul {
   list-style-type: disc;
-  padding-left: 0.5in;
-  margin-bottom: 12px;
 }
 
 .unemi-document-content ul li {
@@ -128,6 +133,8 @@
   color: #000000;
   margin-bottom: 6px;
   position: relative;
+  text-indent: 0px !important;
+  padding-left: 0px !important;
 }
 
 .unemi-document-content ul li::before {
@@ -136,8 +143,6 @@
 
 .unemi-document-content ol {
   list-style-type: decimal;
-  padding-left: 0.5in;
-  margin-bottom: 12px;
 }
 
 .unemi-document-content ol li {
@@ -145,6 +150,17 @@
   line-height: 1.8;
   color: #000000;
   margin-bottom: 6px;
+  text-indent: 0px !important;
+  padding-left: 0px !important;
+}
+
+/* Evitar que párrafos internos de listas hereden indentación de texto o hagan saltos de línea */
+.unemi-document-content li p,
+.unemi-document-content li span,
+.unemi-document-content li div {
+  text-indent: 0px !important;
+  margin: 0 !important;
+  display: inline !important;
 }
 
 /* Custom list-style color for ordered lists - neutral for APA */

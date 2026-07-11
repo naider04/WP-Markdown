@@ -1151,6 +1151,7 @@ export default function DocumentPreview({
     ${sanitizeCSS(settings.blockStyleFooter || '')}
     ${sanitizeCSS(settings.blockStylePageNum || '')}
     ${sanitizeCSS(settings.blockStyleTOC || '')}
+    ${sanitizeCSS(settings.blockStyleLists || '')}
     ${sanitizeCSS(settings.tableCustomCss || '')}
     ${getGraphicalCSS()}
     ${sanitizeCSS(settings.customAddedCss || '')}
@@ -2384,6 +2385,7 @@ export default function DocumentPreview({
     ${sanitizeCSS(settings.blockStyleFooter || '')}
     ${sanitizeCSS(settings.blockStylePageNum || '')}
     ${sanitizeCSS(settings.blockStyleTOC || '')}
+    ${sanitizeCSS(settings.blockStyleLists || '')}
     ${sanitizeCSS(settings.tableCustomCss || '')}
     ${getGraphicalCSS()}
     ${sanitizeCSS(settings.customAddedCss || '')}
@@ -3853,6 +3855,7 @@ export default function DocumentPreview({
         ${settings.blockStyleFooter || ''}
         ${settings.blockStylePageNum || ''}
         ${settings.blockStyleTOC || ''}
+        ${settings.blockStyleLists || ''}
         ${settings.tableCustomCss || ''}
         ${getGraphicalAndCustomCSS()}
         ${settings.autoNumberHeadings ? `

@@ -224,6 +224,40 @@ const DEFAULT_BLOCK_TABLE = `/* Estilos de Tablas Académicas APA 7 */
   background-color: rgba(0, 0, 0, 0.02) !important;
 }`;
 
+const DEFAULT_BLOCK_LISTS = `/* Estilo de Listas Académicas */
+.unemi-document-content ul,
+.unemi-document-content ol {
+  padding-left: 24px !important;
+  margin-top: 0px !important;
+  margin-bottom: 12px !important;
+  text-indent: 0px !important;
+}
+
+.unemi-document-content ul {
+  list-style-type: disc !important;
+}
+
+.unemi-document-content ol {
+  list-style-type: decimal !important;
+}
+
+.unemi-document-content ul li,
+.unemi-document-content ol li {
+  text-indent: 0px !important;
+  margin-bottom: 6px !important;
+  padding-left: 0px !important;
+  position: relative !important;
+}
+
+/* Evitar que párrafos internos de listas hereden indentación de texto */
+.unemi-document-content li p,
+.unemi-document-content li span,
+.unemi-document-content li div {
+  text-indent: 0px !important;
+  margin: 0 !important;
+  display: inline !important;
+}`;
+
 const DEFAULT_MARGIN_ELEMENTS = [
   {
     id: 'unemi-logo-margin',
@@ -566,6 +600,7 @@ export default function App() {
           blockStyleFooter: DEFAULT_BLOCK_FOOTER,
           blockStylePageNum: DEFAULT_BLOCK_PAGENUM,
           blockStyleTOC: DEFAULT_BLOCK_TOC,
+          blockStyleLists: DEFAULT_BLOCK_LISTS,
           tableCustomCss: DEFAULT_BLOCK_TABLE,
           pageNumTemplate: 'Página {page} de {total}',
           autoNumberHeadings: true,
@@ -605,6 +640,7 @@ export default function App() {
       blockStyleFooter: DEFAULT_BLOCK_FOOTER,
       blockStylePageNum: DEFAULT_BLOCK_PAGENUM,
       blockStyleTOC: DEFAULT_BLOCK_TOC,
+      blockStyleLists: DEFAULT_BLOCK_LISTS,
       tableCustomCss: DEFAULT_BLOCK_TABLE,
       pageNumTemplate: 'Página {page} de {total}',
       autoNumberHeadings: true,
@@ -1741,6 +1777,7 @@ export default function App() {
     ${sanitizeCSS(settings.blockStyleFooter || '')}
     ${sanitizeCSS(settings.blockStylePageNum || '')}
     ${sanitizeCSS(settings.blockStyleTOC || '')}
+    ${sanitizeCSS(settings.blockStyleLists || DEFAULT_BLOCK_LISTS)}
     ${sanitizeCSS(settings.tableCustomCss || '')}
     ${getGraphicalCSS()}
     ${sanitizeCSS(settings.customAddedCss || '')}

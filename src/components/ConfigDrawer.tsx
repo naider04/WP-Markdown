@@ -342,6 +342,7 @@ export function ConfigDrawer({
   const [isTableStyleOpen, setIsTableStyleOpen] = useState<boolean>(false);
   const [isCustomCssStyleOpen, setIsCustomCssStyleOpen] = useState<boolean>(false);
   const [isTOCStyleOpen, setIsTOCStyleOpen] = useState<boolean>(false);
+  const [isListsStyleOpen, setIsListsStyleOpen] = useState<boolean>(false);
   const [isCodeStyleOpen, setIsCodeStyleOpen] = useState<boolean>(false);
 
   // File renaming states
@@ -363,6 +364,7 @@ export function ConfigDrawer({
     const blockStyleFooter = settings.blockStyleFooter || '';
     const blockStylePageNum = settings.blockStylePageNum || '';
     const blockStyleTOC = settings.blockStyleTOC || '';
+    const blockStyleLists = settings.blockStyleLists || '';
     const tableCustomCss = settings.tableCustomCss || '';
     const customAddedCss = settings.customAddedCss || '';
 
@@ -373,6 +375,7 @@ export function ConfigDrawer({
       blockStyleFooter && `/* --- PIE DE PÁGINA (FOOTER) --- */\n${blockStyleFooter}`,
       blockStylePageNum && `/* --- NUMERACIÓN DE PÁGINAS --- */\n${blockStylePageNum}`,
       blockStyleTOC && `/* --- TABLA DE CONTENIDOS (TOC) --- */\n${blockStyleTOC}`,
+      blockStyleLists && `/* --- ESTILO DE LISTAS --- */\n${blockStyleLists}`,
       tableCustomCss && `/* --- FORMATO DE TABLAS --- */\n${tableCustomCss}`,
       customAddedCss && `/* --- OTROS ESTILOS PERSONALIZADOS --- */\n${customAddedCss}`,
     ].filter(Boolean).join('\n\n');
@@ -1116,6 +1119,48 @@ Abril 2026 - Julio 2026
                         className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-[10px] leading-relaxed focus:border-[#FF6600]/80 focus:outline-none"
                         placeholder="/* Estilos CSS para el TOC de la hoja */"
                       />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Estilo de Listas */}
+              <div className="border border-slate-800 rounded bg-slate-950/25 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setIsListsStyleOpen(!isListsStyleOpen)}
+                  className="w-full p-2.5 bg-slate-950 hover:bg-slate-900/80 flex justify-between items-center text-left transition-all"
+                >
+                  <span className="font-extrabold uppercase text-[10px] tracking-wider text-slate-350 flex items-center gap-1.5">
+                    <span>📌</span> Lista y Viñetas (ul, ol)
+                  </span>
+                  <span>{isListsStyleOpen ? '▲' : '▼'}</span>
+                </button>
+                {isListsStyleOpen && (
+                  <div className="p-3 border-t border-slate-850 bg-slate-900/10 flex flex-col gap-3.5">
+                    {/* CSS Editor for blockStyleLists */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider flex items-center justify-between">
+                        <span>Editor CSS de Listas</span>
+                        <span className="text-[7.5px] text-slate-500 font-mono normal-case">Estilos APA 7 activos</span>
+                      </label>
+                      <textarea
+                        value={settings.blockStyleLists || ''}
+                        onChange={(e) => handleSettingsChange('blockStyleLists', e.target.value)}
+                        rows={10}
+                        className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-[10px] leading-relaxed focus:border-[#FF6600]/80 focus:outline-none"
+                        placeholder="/* Estilos CSS para listas académicas (ul, ol, li) */"
+                      />
+                    </div>
+
+                    {/* Guías rápidas de Listas */}
+                    <div className="p-2.5 bg-slate-950 border border-slate-850 rounded flex flex-col gap-1">
+                      <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wide">💡 Consejos Rápidos para Listas</span>
+                      <ul className="text-[10px] text-slate-400 list-disc list-inside space-y-1">
+                        <li>Usa <code className="text-[#FF6600] font-mono text-[9px]">padding-left: 24px</code> para cambiar el espacio de la viñeta.</li>
+                        <li>Las viñetas se alinean por defecto para eliminar separaciones excesivas.</li>
+                        <li>Para listas con números, usa <code className="text-[#FF6600] font-mono text-[9px]">list-style-type: decimal</code>.</li>
+                      </ul>
                     </div>
                   </div>
                 )}
