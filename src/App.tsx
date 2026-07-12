@@ -23,6 +23,7 @@ const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) 
   color: #000000;
   text-transform: none;
   text-align: center; /* APA 7 Level 1: Centered */
+  text-indent: 0px !important;
   margin-top: 24px;
   margin-bottom: 12px;
   border-bottom: none;
@@ -37,6 +38,7 @@ const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) 
   font-weight: bold;
   color: #000000;
   text-align: left; /* APA 7 Level 2: Flush left */
+  text-indent: 0px !important;
   margin-top: 18px;
   margin-bottom: 8px;
 }
@@ -47,6 +49,7 @@ const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) 
   font-style: italic; /* APA 7 Level 3: Flush left, bold italic */
   color: #000000;
   text-align: left;
+  text-indent: 0px !important;
   margin-top: 14px;
   margin-bottom: 6px;
 }
@@ -73,7 +76,7 @@ const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) 
 }
 
 /* Estilo de Párrafos y Contenido General */
-.unemi-document-content p, .unemi-document-content {
+.unemi-document-content p {
   font-family: "Times New Roman", Times, Georgia, serif;
   font-size: 16px;
   line-height: 1.8;
@@ -590,6 +593,11 @@ export default function App() {
           showOnlyCitedBibliography: false,
           bibliographyTitle: 'Referencias Bibliográficas',
           marginElements: parsed.marginElements || DEFAULT_MARGIN_ELEMENTS,
+          h1LineBreak: parsed.h1LineBreak !== undefined ? parsed.h1LineBreak : true,
+          h2LineBreak: parsed.h2LineBreak !== undefined ? parsed.h2LineBreak : true,
+          h3LineBreak: parsed.h3LineBreak !== undefined ? parsed.h3LineBreak : true,
+          h4LineBreak: parsed.h4LineBreak !== undefined ? parsed.h4LineBreak : false,
+          h5LineBreak: parsed.h5LineBreak !== undefined ? parsed.h5LineBreak : false,
           ...parsed
         };
       } catch (e) {
@@ -613,6 +621,11 @@ export default function App() {
       tableCustomCss: DEFAULT_BLOCK_TABLE,
       pageNumTemplate: 'Página {page} de {total}',
       autoNumberHeadings: true,
+      h1LineBreak: true,
+      h2LineBreak: true,
+      h3LineBreak: true,
+      h4LineBreak: false,
+      h5LineBreak: false,
       marginTop: 96,
       marginBottom: 96,
       marginLeft: 96,
@@ -1541,6 +1554,7 @@ export default function App() {
       color: #000000 !important;
       text-transform: none !important;
       text-align: center !important;
+      text-indent: 0px !important;
       margin-top: 24px !important;
       margin-bottom: 12px !important;
       padding-bottom: 0 !important;
@@ -1559,6 +1573,7 @@ export default function App() {
       font-weight: bold !important;
       color: #000000 !important;
       text-align: left !important;
+      text-indent: 0px !important;
       margin-top: 18px !important;
       margin-bottom: 8px !important;
     }
@@ -1570,6 +1585,7 @@ export default function App() {
       font-style: italic !important;
       color: #000000 !important;
       text-align: left !important;
+      text-indent: 0px !important;
       margin-top: 12px !important;
       margin-bottom: 6px !important;
     }

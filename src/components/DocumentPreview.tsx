@@ -917,6 +917,39 @@ export default function DocumentPreview({
       background-color: #fafafa !important;
     }
 
+    /* APA 7 Run-in (inline) Headings */
+    .unemi-document-content .apa-runin {
+      display: inline !important;
+      font-family: "Times New Roman", Times, Georgia, serif !important;
+      font-size: 16px !important;
+      color: #000000 !important;
+      line-height: 1.8 !important;
+    }
+
+    .unemi-document-content .apa-runin.apa-level1 {
+      font-weight: bold !important;
+    }
+
+    .unemi-document-content .apa-runin.apa-level2 {
+      font-weight: bold !important;
+    }
+
+    .unemi-document-content .apa-runin.apa-level3 {
+      font-weight: bold !important;
+      font-style: italic !important;
+    }
+
+    .unemi-document-content .apa-runin.apa-level4 {
+      font-weight: bold !important;
+      padding-left: 0px !important;
+    }
+
+    .unemi-document-content .apa-runin.apa-level5 {
+      font-weight: bold !important;
+      font-style: italic !important;
+      padding-left: 0px !important;
+    }
+
     div[name^="document-page-"] {
       position: relative !important;
       background-color: #ffffff !important;
@@ -969,6 +1002,7 @@ export default function DocumentPreview({
       color: #000000 !important;
       text-transform: none !important;
       text-align: center !important;
+      text-indent: 0px !important;
       margin-top: 24px !important;
       margin-bottom: 12px !important;
       padding-bottom: 0 !important;
@@ -987,6 +1021,7 @@ export default function DocumentPreview({
       font-weight: bold !important;
       color: #000000 !important;
       text-align: left !important;
+      text-indent: 0px !important;
       margin-top: 18px !important;
       margin-bottom: 8px !important;
     }
@@ -998,6 +1033,7 @@ export default function DocumentPreview({
       font-style: italic !important;
       color: #000000 !important;
       text-align: left !important;
+      text-indent: 0px !important;
       margin-top: 12px !important;
       margin-bottom: 6px !important;
     }
@@ -1702,6 +1738,11 @@ export default function DocumentPreview({
   };
 
   const resolvedHtmlContent = React.useMemo(() => {
+    // Set settings globally so the markdownParser can read it
+    if (typeof window !== 'undefined') {
+      (window as any).currentUnemiSettings = settings;
+    }
+
     const figureMap = new Map<string, number>();
     const tableMap = new Map<string, number>();
     const figureCounterRef = { val: 1 };
@@ -1731,6 +1772,11 @@ export default function DocumentPreview({
         tableCounterRef
       );
     }
+
+    // Merge run-in headings with the following paragraph
+    selectHtml = selectHtml.replace(/<span class="apa-runin apa-level(\d+)">([\s\S]*?)<\/span>\s*<p>([\s\S]*?)<\/p>/gi, (match, level, title, paragraph) => {
+      return `<p><span class="apa-runin apa-level${level}">${title}</span> ${paragraph}</p>`;
+    });
 
     // 1b. Replace cross-references like @fig-id or @tbl-id
     const refRegex = /@(fig-[a-zA-Z0-9_-]+|tbl-[a-zA-Z0-9_-]+)/g;
@@ -1819,13 +1865,28 @@ export default function DocumentPreview({
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = selectHtml;
       const headingsForManualTOC: { text: string; level: number }[] = [];
-      const hElements = Array.from(tempDiv.querySelectorAll('h1, h2, h3'));
+      const hElements = Array.from(tempDiv.querySelectorAll('h1, h2, h3, h4, h5, .apa-runin'));
       hElements.forEach((h) => {
-        const text = h.textContent?.trim() || '';
+        let text = h.textContent?.trim() || '';
         if (text) {
+          let level = 1;
+          if (h.tagName.startsWith('H') && h.tagName.length === 2) {
+            level = parseInt(h.tagName.substring(1), 10);
+          } else if (h.classList.contains('apa-runin')) {
+            const levelClass = Array.from(h.classList).find(c => c.startsWith('apa-level'));
+            if (levelClass) {
+              level = parseInt(levelClass.replace('apa-level', ''), 10);
+            }
+          }
+
+          // Strip trailing period for TOC
+          if (h.classList.contains('apa-runin') && text.endsWith('.')) {
+            text = text.slice(0, -1).trim();
+          }
+
           headingsForManualTOC.push({
             text,
-            level: parseInt(h.tagName.substring(1), 10)
+            level
           });
         }
       });
@@ -1893,7 +1954,7 @@ export default function DocumentPreview({
     }
 
     return renderMathInHtml(selectHtml);
-  }, [htmlContent, htmlBlocks, uploadedFiles, bibliography, settings.showBibliography, settings.bibliographyTitle, settings.showOnlyCitedBibliography, settings.tocTitle]);
+  }, [htmlContent, htmlBlocks, uploadedFiles, bibliography, settings.showBibliography, settings.bibliographyTitle, settings.showOnlyCitedBibliography, settings.tocTitle, settings.h1LineBreak, settings.h2LineBreak, settings.h3LineBreak, settings.h4LineBreak, settings.h5LineBreak]);
 
   const resolvedCover = React.useMemo(() => {
     let selectCover = { ...cover };
@@ -2219,6 +2280,39 @@ export default function DocumentPreview({
     
     * {
       box-sizing: border-box;
+    }
+
+    /* APA 7 Run-in (inline) Headings */
+    .unemi-document-content .apa-runin {
+      display: inline !important;
+      font-family: "Times New Roman", Times, Georgia, serif !important;
+      font-size: 16px !important;
+      color: #000000 !important;
+      line-height: 1.8 !important;
+    }
+
+    .unemi-document-content .apa-runin.apa-level1 {
+      font-weight: bold !important;
+    }
+
+    .unemi-document-content .apa-runin.apa-level2 {
+      font-weight: bold !important;
+    }
+
+    .unemi-document-content .apa-runin.apa-level3 {
+      font-weight: bold !important;
+      font-style: italic !important;
+    }
+
+    .unemi-document-content .apa-runin.apa-level4 {
+      font-weight: bold !important;
+      padding-left: 0px !important;
+    }
+
+    .unemi-document-content .apa-runin.apa-level5 {
+      font-weight: bold !important;
+      font-style: italic !important;
+      padding-left: 0px !important;
     }
     
     body, html {
@@ -3070,7 +3164,7 @@ export default function DocumentPreview({
       const totalHeight = pageHeight;
       const maxHeight = totalHeight - topMargin - bottomMargin - 5;
 
-      const detectedHeadings: HeadingItem[] = [];
+      let detectedHeadings: HeadingItem[] = [];
 
       // Create a temporary measurement container with the exact same styles
       const tempMeasureContainer = document.createElement('div');
@@ -3231,7 +3325,7 @@ export default function DocumentPreview({
         const item = queue[qIndex];
         qIndex++;
 
-        const isHeading = ['H1', 'H2', 'H3'].includes(item.tagName);
+        const isHeading = ['H1', 'H2', 'H3', 'H4', 'H5'].includes(item.tagName);
         const elementHeight = measureHTMLHeight(item.html);
 
         if (item.isPageBreak) {
@@ -3580,6 +3674,43 @@ export default function DocumentPreview({
           }
         }
       }
+
+      // Reconstruct detectedHeadings page-by-page from final paginated pages list
+      detectedHeadings = [];
+      pagesList.forEach((pageBlocks, pageRelativeIndex) => {
+        pageBlocks.forEach((blockHtml) => {
+          const parserDiv = document.createElement('div');
+          parserDiv.innerHTML = blockHtml;
+          const hElements = Array.from(parserDiv.querySelectorAll('h1, h2, h3, h4, h5, .apa-runin'));
+          
+          hElements.forEach((h) => {
+            let text = h.textContent?.trim() || '';
+            if (text) {
+              let level = 1;
+              if (h.tagName.startsWith('H') && h.tagName.length === 2) {
+                level = parseInt(h.tagName.substring(1), 10);
+              } else if (h.classList.contains('apa-runin')) {
+                const levelClass = Array.from(h.classList).find(c => c.startsWith('apa-level'));
+                if (levelClass) {
+                  level = parseInt(levelClass.replace('apa-level', ''), 10);
+                }
+              }
+
+              // Strip trailing period for TOC
+              if (h.classList.contains('apa-runin') && text.endsWith('.')) {
+                text = text.slice(0, -1).trim();
+              }
+
+              detectedHeadings.push({
+                text,
+                level,
+                page: pageRelativeIndex + (settings.showTOC ? 3 : 2), // placeholder page number, will be adjusted when finalTOCPages.length is known
+                pageRelative: pageRelativeIndex
+              });
+            }
+          });
+        });
+      });
 
       // 3. Paginate Table of Contents (TOC) if enabled
       let finalTOCPages: HeadingItem[][] = [];

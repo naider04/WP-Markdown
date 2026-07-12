@@ -52,7 +52,7 @@ export const markdownParser = new Marked({
   breaks: true,
 });
 
-// Configure custom renderer for code syntax highlighting
+// Configure custom renderer for code syntax highlighting and APA headings
 markdownParser.use({
   renderer: {
     code(token: any): string {
@@ -60,6 +60,42 @@ markdownParser.use({
       const text = token.text || '';
       const highlighted = highlightCode(text, lang);
       return `<pre class="language-${lang}"><code class="language-${lang}">${highlighted}</code></pre>`;
+    },
+    heading(token: any): string {
+      const level = token.depth;
+      let text = token.text || '';
+      
+      // Access current UNEMI settings globally
+      const settings = (typeof window !== 'undefined' && (window as any).currentUnemiSettings) || {};
+      const defaultLineBreak = level <= 3;
+      const configKey = `h${level}LineBreak`;
+      const lineBreak = settings[configKey] !== undefined ? !!settings[configKey] : defaultLineBreak;
+      
+      if (lineBreak) {
+        return `<h${level} class="apa-heading apa-level${level}">${text}</h${level}>`;
+      } else {
+        // Run-in heading
+        if (text && !/[.!?:]\s*$/.test(text)) {
+          text += '.';
+        }
+        
+        let innerHTML = text;
+        if (level === 1) {
+          innerHTML = `<strong>${text}</strong>`;
+        } else if (level === 2) {
+          innerHTML = `<strong>${text}</strong>`;
+        } else if (level === 3) {
+          innerHTML = `<strong><em>${text}</em></strong>`;
+        } else if (level === 4) {
+          innerHTML = `<strong>${text}</strong>`;
+        } else if (level === 5) {
+          innerHTML = `<strong><em>${text}</em></strong>`;
+        } else {
+          innerHTML = `<strong>${text}</strong>`;
+        }
+        
+        return `<span class="apa-runin apa-level${level}">${innerHTML}</span>`;
+      }
     }
   }
 });

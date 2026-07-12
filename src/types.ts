@@ -49,6 +49,13 @@ export interface PageSettings {
   pageNumTemplate?: string;
   autoNumberHeadings?: boolean;
   
+  // Toggles de salto de línea (APA 7 - Niveles de título)
+  h1LineBreak?: boolean;
+  h2LineBreak?: boolean;
+  h3LineBreak?: boolean;
+  h4LineBreak?: boolean;
+  h5LineBreak?: boolean;
+  
   // Margenes editables (en pixeles)
   marginTop?: number;
   marginBottom?: number;

@@ -44,6 +44,7 @@
   text-transform: none;
   text-align: center; /* APA 7 Level 1 */
   letter-spacing: -0.01em;
+  text-indent: 0px !important;
   margin-top: 24px;
   margin-bottom: 12px;
   padding-bottom: 0;
@@ -67,6 +68,7 @@
   font-weight: bold;
   color: #000000;
   text-align: left; /* APA 7 Level 2 */
+  text-indent: 0px !important;
   margin-top: 18px;
   margin-bottom: 8px;
   letter-spacing: -0.01em;
@@ -79,6 +81,7 @@
   font-style: italic; /* APA 7 Level 3 */
   color: #000000;
   text-align: left;
+  text-indent: 0px !important;
   margin-top: 12px;
   margin-bottom: 6px;
 }
@@ -104,6 +107,39 @@
   text-indent: 0.5in;
   margin-top: 10px;
   margin-bottom: 4px;
+}
+
+/* APA 7 Run-in (inline) Headings */
+.unemi-document-content .apa-runin {
+  display: inline !important;
+  font-family: "Times New Roman", Times, Georgia, serif !important;
+  font-size: 16px !important;
+  color: #000000 !important;
+  line-height: 1.8 !important;
+}
+
+.unemi-document-content .apa-runin.apa-level1 {
+  font-weight: bold !important;
+}
+
+.unemi-document-content .apa-runin.apa-level2 {
+  font-weight: bold !important;
+}
+
+.unemi-document-content .apa-runin.apa-level3 {
+  font-weight: bold !important;
+  font-style: italic !important;
+}
+
+.unemi-document-content .apa-runin.apa-level4 {
+  font-weight: bold !important;
+  padding-left: 0px !important;
+}
+
+.unemi-document-content .apa-runin.apa-level5 {
+  font-weight: bold !important;
+  font-style: italic !important;
+  padding-left: 0px !important;
 }
 
 .unemi-document-content p {

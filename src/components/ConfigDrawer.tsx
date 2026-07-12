@@ -258,6 +258,7 @@ export function ConfigDrawer({
   userApiKey,
 }: ConfigDrawerProps) {
   const [successMsg, setSuccessMsg] = useState<string>('');
+  const [copiedAPA7, setCopiedAPA7] = useState<boolean>(false);
   const [showFormats, setShowFormats] = useState<boolean>(false);
   const [isInsertingAI, setIsInsertingAI] = useState<string | null>(null);
   const [aiExplanations, setAiExplanations] = useState<Array<{ imageName: string; text: string }> | null>(null);
@@ -594,6 +595,76 @@ Márgenes de Página (Bordes):
         console.error('Error al copiar las dimensiones:', err);
         alert('Error al copiar al portapapeles.');
       });
+  };
+
+  const handleCopyAPA7Styles = () => {
+    const apa7CSS = `/* === CONFIGURACIÓN DE ESTILOS FORMATO APA 7 (NORMAS APA 7ma EDICIÓN) === */
+
+/* Nivel 1: Centrado, Negrita, Caso de Título (Párrafo nuevo) */
+.unemi-document-content h1 {
+  font-family: "Times New Roman", Times, Georgia, serif !important;
+  font-size: 16px !important;
+  font-weight: bold !important;
+  text-align: center !important;
+  margin-top: 24px !important;
+  margin-bottom: 12px !important;
+  line-height: 1.8 !important;
+}
+
+/* Nivel 2: Alineado a la izquierda, Negrita, Caso de Título (Párrafo nuevo) */
+.unemi-document-content h2 {
+  font-family: "Times New Roman", Times, Georgia, serif !important;
+  font-size: 16px !important;
+  font-weight: bold !important;
+  text-align: left !important;
+  margin-top: 18px !important;
+  margin-bottom: 8px !important;
+  line-height: 1.8 !important;
+}
+
+/* Nivel 3: Alineado a la izquierda, Negrita, Cursiva, Caso de Título (Párrafo nuevo) */
+.unemi-document-content h3 {
+  font-family: "Times New Roman", Times, Georgia, serif !important;
+  font-size: 16px !important;
+  font-weight: bold !important;
+  font-style: italic !important;
+  text-align: left !important;
+  margin-top: 12px !important;
+  margin-bottom: 6px !important;
+  line-height: 1.8 !important;
+}
+
+/* Nivel 4: Con sangría (0.5 in), Negrita, punto final (En la misma línea / Run-in) */
+.unemi-document-content .apa-runin.apa-level4 {
+  font-weight: bold !important;
+  font-style: normal !important;
+  padding-left: 0.5in !important;
+}
+
+/* Nivel 5: Con sangría (0.5 in), Negrita, Cursiva, punto final (En la misma línea / Run-in) */
+.unemi-document-content .apa-runin.apa-level5 {
+  font-weight: bold !important;
+  font-style: italic !important;
+  padding-left: 0.5in !important;
+}
+
+/* Párrafo APA 7 general */
+.unemi-document-content p {
+  font-family: "Times New Roman", Times, Georgia, serif !important;
+  font-size: 16px !important;
+  line-height: 1.8 !important;
+  color: #000000 !important;
+  text-align: left !important;
+  margin-bottom: 12px !important;
+}`;
+
+    navigator.clipboard.writeText(apa7CSS).then(() => {
+      setCopiedAPA7(true);
+      setTimeout(() => setCopiedAPA7(false), 2500);
+    }).catch((err) => {
+      console.error('Error al copiar estilos APA 7:', err);
+      alert('Error al copiar al portapapeles.');
+    });
   };
 
   if (!isOpen || !activeType) return null;
@@ -1154,6 +1225,62 @@ Abril 2026 - Julio 2026
                 </button>
                 {isTextEditorOpen && (
                   <div className="p-3 border-t border-slate-850 bg-slate-900/10 flex flex-col gap-3">
+                    {/* Botones de Salto de Línea para Títulos (APA 7 Run-in) */}
+                    <div className="flex flex-col gap-2 p-2.5 bg-slate-950 border border-slate-850 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[9px] text-[#FF6600] font-bold uppercase tracking-wider flex items-center gap-1">
+                          🔄 Salto de Línea (APA 7 Run-in)
+                        </span>
+                        
+                        <button
+                          type="button"
+                          onClick={handleCopyAPA7Styles}
+                          className="flex items-center gap-1 px-1.5 py-0.5 bg-orange-600/10 hover:bg-orange-600/20 text-orange-400 hover:text-orange-300 border border-orange-600/20 hover:border-orange-600/40 rounded text-[9px] font-bold transition-all uppercase cursor-pointer"
+                        >
+                          {copiedAPA7 ? (
+                            <>
+                              <Check className="w-2.5 h-2.5 text-green-400 animate-pulse" />
+                              <span>Copiado!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-2.5 h-2.5 text-orange-400" />
+                              <span>Copy APA 7 format</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      
+                      <p className="text-[8px] text-slate-400 leading-normal">
+                        Marca para salto de línea (Línea Nueva) o desmarca para texto inline (Run-in, por defecto en H4 y H5 en APA 7).
+                      </p>
+                      
+                      <div className="grid grid-cols-5 gap-1.5 mt-1">
+                        {([1, 2, 3, 4, 5] as const).map((level) => {
+                          const configKey = `h${level}LineBreak` as const;
+                          const isChecked = settings[configKey] !== undefined ? !!settings[configKey] : level <= 3;
+                          return (
+                            <label
+                              key={level}
+                              className={`flex items-center gap-1 justify-center px-1 py-1 bg-slate-900 border rounded cursor-pointer select-none transition-all ${
+                                isChecked
+                                  ? 'border-orange-600/40 bg-orange-600/5 text-orange-400'
+                                  : 'border-slate-800 hover:bg-slate-850 text-slate-400'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleSettingsChange(configKey, !isChecked)}
+                                className="w-3 h-3 accent-orange-600 rounded cursor-pointer"
+                              />
+                              <span className="text-[9.5px] font-bold">H{level}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Editor CSS de Títulos y Párrafos</span>
                     <textarea
                       value={settings.blockStyleTitles || ''}
