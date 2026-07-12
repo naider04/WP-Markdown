@@ -39,6 +39,47 @@ interface HeadingItem {
   level: number;
 }
 
+const BASE_TOC_CSS = `
+/* Table of Contents base layout styles */
+.toc-container {
+  margin: 0;
+  padding: 0;
+}
+.toc-header {
+  margin-top: 0;
+  margin-bottom: 24px;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+}
+.toc-list {
+  list-style-type: none;
+  padding-left: 0;
+  margin: 0;
+}
+.toc-item {
+  display: flex;
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+.toc-item::before {
+  content: none;
+}
+.toc-title {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.toc-dots {
+  flex-grow: 1;
+  border-bottom: 1px dotted black;
+  margin: 0 8px;
+}
+.toc-page {
+  font-weight: bold;
+  flex-shrink: 0;
+}
+`;
+
 // Functional Block IFrame component with standard sandboxing
 function FunctionalIframe({ code, blockId }: { code: string; blockId: string }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -814,7 +855,7 @@ export default function DocumentPreview({
         }
         `;
 
-        return css;
+        return css + BASE_TOC_CSS;
       };
 
       const cleanHTML_PreviewMode = `<!DOCTYPE html>
@@ -2050,7 +2091,7 @@ export default function DocumentPreview({
           }
           `;
 
-          return css;
+          return css + BASE_TOC_CSS;
         };
 
         const cleanHTML_SyncedMode = `<!DOCTYPE html>
@@ -3828,7 +3869,7 @@ export default function DocumentPreview({
     }
     `;
 
-    return css;
+    return css + BASE_TOC_CSS;
   };
 
   return (
@@ -3854,6 +3895,7 @@ export default function DocumentPreview({
         ${settings.blockStyleHeader || ''}
         ${settings.blockStyleFooter || ''}
         ${settings.blockStylePageNum || ''}
+        ${BASE_TOC_CSS}
         ${settings.blockStyleTOC || ''}
         ${settings.blockStyleLists || ''}
         ${settings.tableCustomCss || ''}
