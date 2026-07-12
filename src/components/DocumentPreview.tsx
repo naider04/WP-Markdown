@@ -857,7 +857,7 @@ export default function DocumentPreview({
         }
         `;
 
-        return css + BASE_TOC_CSS;
+        return css;
       };
 
       const cleanHTML_PreviewMode = `<!DOCTYPE html>
@@ -877,6 +877,7 @@ export default function DocumentPreview({
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
  
   <style id="unemi-preview-style-v1">` + `
+    /* UNIQUE_PREVIEW_V1 */
     /* PREVIEW_MODE_V1_STYLE_START */` + `
     /* PREVIEW_MODE_V1_CSS_BODY */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');` + `
@@ -1017,19 +1018,19 @@ export default function DocumentPreview({
       line-height: 1.8 !important;
     }
 
-    .unemi-document-content ul {
+    .unemi-document-content ul:not(.toc-list) {
       list-style-type: disc !important;
       padding-left: 0.5in !important;
       margin-bottom: 12px !important;
     }
 
-    .unemi-document-content ul li {
+    .unemi-document-content ul:not(.toc-list) li:not(.toc-item) {
       position: relative !important;
       margin-bottom: 6px !important;
       line-height: 1.8 !important;
     }
 
-    .unemi-document-content ul li::before {
+    .unemi-document-content ul:not(.toc-list) li:not(.toc-item)::before {
       display: none !important;
       content: none !important;
     }
@@ -1189,6 +1190,11 @@ export default function DocumentPreview({
       }
     }
     
+    /* BASE TOC STYLING PRE-INJECTED BEFORE USER'S CUSTOM TOC CSS */
+    ${BASE_TOC_CSS}
+    
+    /* BLOQUES DE ESTILOS PERSONALIZADOS POR EL USUARIO */
+    ${getGraphicalCSS()}
     ${sanitizeCSS(settings.blockStyleTitles || '')}
     ${sanitizeCSS(settings.blockStyleHeader || '')}
     ${sanitizeCSS(settings.blockStyleFooter || '')}
@@ -1196,7 +1202,6 @@ export default function DocumentPreview({
     ${sanitizeCSS(settings.blockStyleTOC || '')}
     ${sanitizeCSS(settings.blockStyleLists || '')}
     ${sanitizeCSS(settings.tableCustomCss || '')}
-    ${getGraphicalCSS()}
     ${sanitizeCSS(settings.customAddedCss || '')}
     
     ${settings.autoNumberHeadings ? `
@@ -2093,7 +2098,7 @@ export default function DocumentPreview({
           }
           `;
 
-          return css + BASE_TOC_CSS;
+          return css;
         };
 
         const cleanHTML_SyncedMode = `<!DOCTYPE html>
@@ -2111,6 +2116,7 @@ export default function DocumentPreview({
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
  
   <style id="unemi-preview-style-v2">` + `
+    /* UNIQUE_SYNCED_V2 */
     /* SYNCED_MODE_V2_STYLE_START */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
     
@@ -2250,19 +2256,19 @@ export default function DocumentPreview({
       line-height: 1.8 !important;
     }
 
-    .unemi-document-content ul {
+    .unemi-document-content ul:not(.toc-list) {
       list-style-type: disc !important;
       padding-left: 0.5in !important;
       margin-bottom: 12px !important;
     }
 
-    .unemi-document-content ul li {
+    .unemi-document-content ul:not(.toc-list) li:not(.toc-item) {
       position: relative !important;
       margin-bottom: 6px !important;
       line-height: 1.8 !important;
     }
 
-    .unemi-document-content ul li::before {
+    .unemi-document-content ul:not(.toc-list) li:not(.toc-item)::before {
       display: none !important;
       content: none !important;
     }
@@ -2423,6 +2429,11 @@ export default function DocumentPreview({
       }
     }
     
+    /* BASE TOC STYLING PRE-INJECTED BEFORE USER'S CUSTOM TOC CSS */
+    ${BASE_TOC_CSS}
+    
+    /* BLOQUES DE ESTILOS PERSONALIZADOS POR EL USUARIO */
+    ${getGraphicalCSS()}
     ${sanitizeCSS(settings.blockStyleTitles || '')}
     ${sanitizeCSS(settings.blockStyleHeader || '')}
     ${sanitizeCSS(settings.blockStyleFooter || '')}
@@ -2430,7 +2441,6 @@ export default function DocumentPreview({
     ${sanitizeCSS(settings.blockStyleTOC || '')}
     ${sanitizeCSS(settings.blockStyleLists || '')}
     ${sanitizeCSS(settings.tableCustomCss || '')}
-    ${getGraphicalCSS()}
     ${sanitizeCSS(settings.customAddedCss || '')}
     
     ${settings.autoNumberHeadings ? `
@@ -3943,7 +3953,7 @@ export default function DocumentPreview({
     }
     `;
 
-    return css + BASE_TOC_CSS;
+    return css;
   };
 
   return (
@@ -3965,15 +3975,15 @@ export default function DocumentPreview({
             padding: 0px !important;
           }
         }
+        ${BASE_TOC_CSS}
+        ${getGraphicalAndCustomCSS()}
         ${settings.blockStyleTitles || ''}
         ${settings.blockStyleHeader || ''}
         ${settings.blockStyleFooter || ''}
         ${settings.blockStylePageNum || ''}
-        ${BASE_TOC_CSS}
         ${settings.blockStyleTOC || ''}
         ${settings.blockStyleLists || ''}
         ${settings.tableCustomCss || ''}
-        ${getGraphicalAndCustomCSS()}
         ${settings.autoNumberHeadings ? `
         /* Numeración automática de títulos */
         body, .document-rendered-container {

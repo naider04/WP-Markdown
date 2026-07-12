@@ -551,22 +551,9 @@ export default function App() {
         delete parsed.headerHtml;
         delete parsed.footerHtml;
         
-        // Force-migrate titles, header, and footer from any old non-APA7 styles remaining in the browser cache
-        if (parsed.blockStyleTitles && (parsed.blockStyleTitles.includes('#004080') || parsed.blockStyleTitles.includes('Space Grotesk') || parsed.blockStyleTitles.includes('18px') || parsed.blockStyleTitles.includes('12px') || !parsed.blockStyleTitles.includes('.unemi-document-content p'))) {
-          parsed.blockStyleTitles = DEFAULT_BLOCK_TITLES;
-        }
-        if (parsed.blockStyleHeader && parsed.blockStyleHeader.includes('#004080')) {
-          parsed.blockStyleHeader = DEFAULT_BLOCK_HEADER;
-        }
-        if (parsed.blockStyleFooter && parsed.blockStyleFooter.includes('#FF6600') || parsed.blockStyleFooter && parsed.blockStyleFooter.includes('#004080')) {
-          parsed.blockStyleFooter = DEFAULT_BLOCK_FOOTER;
-        }
-        if (parsed.blockStylePageNum && parsed.blockStylePageNum.includes('#004080')) {
-          parsed.blockStylePageNum = DEFAULT_BLOCK_PAGENUM;
-        }
-        if (parsed.blockStyleTOC && (parsed.blockStyleTOC.includes('#f8fafc') || parsed.blockStyleTOC.includes('border-radius') || parsed.blockStyleTOC.includes('18px 0') || parsed.blockStyleTOC.includes('#666666') || parsed.blockStyleTOC.includes('border-bottom: 1px dotted') || parsed.blockStyleTOC.includes('APA 7') || parsed.blockStyleTOC.includes('.toc-list li'))) {
-          parsed.blockStyleTOC = DEFAULT_BLOCK_TOC;
-        }
+        // Force-migrate block styles only if they are exactly matching old non-APA7 defaults to avoid overriding user customizations.
+        // We have removed aggressive substring-based migrations (like using .includes() for common CSS rules/properties)
+        // because they were overriding valid user customizations on page reload (e.g. keeping custom dot-borders or typography sizes).
         
         // Fill defaults if block styles are missing from cache
         return {
@@ -1156,6 +1143,47 @@ export default function App() {
 
   // HIGH-FIDELITY SELF-CONTAINED ZIP EXPORTER
   const handleExport = (type: 'project' | 'html' | 'pdf_generator' = 'project') => {
+    const BASE_TOC_CSS = `
+/* Table of Contents base layout styles */
+.toc-container {
+  margin: 0;
+  padding: 0;
+}
+.toc-header {
+  margin-top: 0;
+  margin-bottom: 24px;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+}
+.toc-list {
+  list-style-type: none !important;
+  padding-left: 0 !important;
+  margin: 0 !important;
+}
+.toc-item {
+  display: flex !important;
+  align-items: flex-end !important;
+  margin-bottom: 12px !important;
+}
+.toc-item::before {
+  content: none !important;
+}
+.toc-title {
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+}
+.toc-dots {
+  flex-grow: 1 !important;
+  border-bottom: 1px dotted black !important;
+  margin: 0 8px !important;
+}
+.toc-page {
+  font-weight: bold !important;
+  flex-shrink: 0 !important;
+}
+`;
+
     const coverElement = document.getElementById('unemi-cover-page');
     const pageElements = document.querySelectorAll('[name^="document-page-"]');
 
@@ -1575,20 +1603,20 @@ export default function App() {
       line-height: 1.8 !important;
     }
 
-    .unemi-document-content ul {
+    .unemi-document-content ul:not(.toc-list) {
       list-style-type: disc !important;
       padding-left: 0.5in !important;
       margin-bottom: 12px !important;
     }
 
-    .unemi-document-content ul li {
+    .unemi-document-content ul:not(.toc-list) li:not(.toc-item) {
       position: relative !important;
       margin-bottom: 6px !important;
       line-height: 1.8 !important;
       font-size: 12px !important;
     }
 
-    .unemi-document-content ul li::before {
+    .unemi-document-content ul:not(.toc-list) li:not(.toc-item)::before {
       display: none !important;
       content: none !important;
     }
@@ -1753,7 +1781,11 @@ export default function App() {
       }
     }
     
+    /* BASE TOC STYLING PRE-INJECTED BEFORE USER'S CUSTOM TOC CSS */
+    ${BASE_TOC_CSS}
+    
     /* BLOQUES DE ESTILOS PERSONALIZADOS POR EL USUARIO (SANEADOS CONTRA ETIQUETAS ANIDADAS) */
+    ${getGraphicalCSS()}
     ${sanitizeCSS(settings.blockStyleTitles || '')}
     ${sanitizeCSS(settings.blockStyleHeader || '')}
     ${sanitizeCSS(settings.blockStyleFooter || '')}
@@ -1761,7 +1793,6 @@ export default function App() {
     ${sanitizeCSS(settings.blockStyleTOC || '')}
     ${sanitizeCSS(settings.blockStyleLists || DEFAULT_BLOCK_LISTS)}
     ${sanitizeCSS(settings.tableCustomCss || '')}
-    ${getGraphicalCSS()}
     ${sanitizeCSS(settings.customAddedCss || '')}
     
     ${settings.autoNumberHeadings ? `
