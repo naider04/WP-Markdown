@@ -37,6 +37,7 @@ interface HeadingItem {
   text: string;
   page: number;
   level: number;
+  pageRelative?: number;
 }
 
 const BASE_TOC_CSS = `
@@ -544,6 +545,7 @@ export default function DocumentPreview({
   };
 
   const [paginatedPages, setPaginatedPages] = useState<string[][]>([]);
+  const [paginatedTOCPages, setPaginatedTOCPages] = useState<HeadingItem[][]>([]);
   const [zoom, setZoom] = useState<number>(100);
   const [recalculating, setRecalculating] = useState<boolean>(false);
   const [dynamicHeadings, setDynamicHeadings] = useState<HeadingItem[]>([]);
@@ -2959,7 +2961,7 @@ export default function DocumentPreview({
 
       // Vertical threshold boundary in pixels, reserving safety margin:
       const totalHeight = pageHeight;
-      const maxHeight = totalHeight - topMargin - bottomMargin - 54;
+      const maxHeight = totalHeight - topMargin - bottomMargin - 5;
 
       const detectedHeadings: HeadingItem[] = [];
 
@@ -3154,7 +3156,8 @@ export default function DocumentPreview({
               detectedHeadings.push({
                 text,
                 level: parseInt(h.tagName.substring(1), 10),
-                page: currentPageIndex + (settings.showTOC ? 3 : 2)
+                page: currentPageIndex + (settings.showTOC ? 3 : 2),
+                pageRelative: currentPageIndex
               });
             }
           });
@@ -3471,20 +3474,91 @@ export default function DocumentPreview({
         }
       }
 
+      // 3. Paginate Table of Contents (TOC) if enabled
+      let finalTOCPages: HeadingItem[][] = [];
+      if (settings.showTOC) {
+        const measureTOCPart = (headerText: string, items: HeadingItem[]): number => {
+          let html = `<div class="toc-container select-text">`;
+          if (headerText) {
+            html += `<div class="toc-header">${headerText}</div>`;
+          }
+          html += `<ul class="toc-list">`;
+          items.forEach(h => {
+            const levelClass = `toc-level-${h.level}`;
+            html += `
+              <li class="toc-item ${levelClass}">
+                <span class="toc-title">${h.text}</span>
+                <span class="toc-dots"></span>
+                <span class="toc-page">999</span>
+              </li>
+            `;
+          });
+          html += `</ul></div>`;
+          
+          tempMeasureContainer.innerHTML = html;
+          return tempMeasureContainer.getBoundingClientRect().height;
+        };
+
+        let currentPendingHeadings: HeadingItem[] = [];
+        let currentTOCPageIdx = 0;
+
+        for (let i = 0; i < detectedHeadings.length; i++) {
+          const candidateList = [...currentPendingHeadings, detectedHeadings[i]];
+          const headerText = currentTOCPageIdx === 0 
+            ? (settings.tocTitle || "Tabla de Contenidos") 
+            : "";
+          
+          const hHeight = measureTOCPart(headerText, candidateList);
+          if (hHeight <= maxHeight) {
+            currentPendingHeadings.push(detectedHeadings[i]);
+          } else {
+            if (currentPendingHeadings.length > 0) {
+              finalTOCPages.push(currentPendingHeadings);
+              currentPendingHeadings = [detectedHeadings[i]];
+              currentTOCPageIdx++;
+            } else {
+              // Force at least one item per page to avoid infinite loops
+              finalTOCPages.push([detectedHeadings[i]]);
+              currentPendingHeadings = [];
+              currentTOCPageIdx++;
+            }
+          }
+        }
+        if (currentPendingHeadings.length > 0 || detectedHeadings.length === 0) {
+          finalTOCPages.push(currentPendingHeadings);
+        }
+      } else {
+        finalTOCPages = [];
+      }
+
+      // Assign the absolute page numbers based on the final TOC pages count
+      finalTOCPages.forEach((tocPage) => {
+        tocPage.forEach((heading) => {
+          const relPage = heading.pageRelative !== undefined ? heading.pageRelative : 0;
+          heading.page = relPage + 2 + finalTOCPages.length;
+        });
+      });
+
+      detectedHeadings.forEach((heading) => {
+        const relPage = heading.pageRelative !== undefined ? heading.pageRelative : 0;
+        heading.page = relPage + 2 + (settings.showTOC ? finalTOCPages.length : 0);
+      });
+
       // Cleanup our temporary workspace
       document.body.removeChild(tempMeasureContainer);
 
       // Update states
       setPaginatedPages(pagesList);
+      setPaginatedTOCPages(finalTOCPages);
       setDynamicHeadings(detectedHeadings);
-      setPageCount(pagesList.length + 1 + (settings.showTOC ? 1 : 0)); // Content + Cover + TOC (if enabled)
+      setPageCount(pagesList.length + 1 + (settings.showTOC ? finalTOCPages.length : 0)); // Content + Cover + TOC (if enabled)
       
       setRecalculating(false);
     };
 
     // Run pagination
     handlePagination();
-  }, [resolvedHtmlContent, settings.pageSize, settings.orientation, settings.showTOC, setPageCount, isLetter, leftMargin, rightMargin, topMargin, bottomMargin, pageHeight, settings.splitBlockCodeBorders, previewMode]);
+  }, [resolvedHtmlContent, settings.pageSize, settings.orientation, settings.showTOC, settings.tocTitle, settings.blockStyleTOC, setPageCount, isLetter, leftMargin, rightMargin, topMargin, bottomMargin, pageHeight, settings.splitBlockCodeBorders, previewMode]);
 
   // Detector de Desbordes Gráfico: Encuentra elementos cuyo ancho o largo excede el espacio neto disponible de la página.
   useEffect(() => {
@@ -3513,7 +3587,7 @@ export default function DocumentPreview({
         // Get parent visible width & height strictly from physical page margins
         const parentW = contentWidth;
         // height of page body (printable Height)
-        const parentH = pageHeight - topMargin - bottomMargin - 54;
+        const parentH = pageHeight - topMargin - bottomMargin - 5;
 
         // 1. Check page cumulative height overflow
         const bodyScrollH = body.scrollHeight;
@@ -4246,48 +4320,60 @@ export default function DocumentPreview({
             pageSize={settings.pageSize} 
             orientation={settings.orientation} 
             marginElements={settings.marginElements}
-            totalPages={paginatedPages.length + 1 + (settings.showTOC ? 1 : 0)}
+            totalPages={paginatedPages.length + 1 + (settings.showTOC ? paginatedTOCPages.length : 0)}
             uploadedFiles={uploadedFiles}
           />
 
-          {/* PAGE 2: TABLE OF CONTENTS (Optional academic page, strictly out of content.html) */}
-          {settings.showTOC && (
-            <PageTemplate
-              pageNumber={2}
-              totalPages={paginatedPages.length + 2}
-              pageSize={settings.pageSize}
-              settings={settings}
-              showGuides={settings.showGuides}
-              coverConfig={resolvedCover}
-              uploadedFiles={uploadedFiles}
-            >
-              <div className="toc-container select-text">
-                <div className="toc-header">
-                  {settings.tocTitle || "Tabla de Contenidos"}
-                </div>
-                <ul className="toc-list">
-                  {dynamicHeadings.map((heading, hIdx) => {
-                    const levelClass = `toc-level-${heading.level}`;
-                    return (
-                      <li 
-                        key={hIdx} 
-                        className={`toc-item ${levelClass}`}
-                      >
-                        <span className="toc-title">{heading.text}</span>
-                        <span className="toc-dots" />
-                        <span className="toc-page">{heading.page}</span>
-                      </li>
-                    );
-                  })}
-                  {dynamicHeadings.length === 0 && (
-                    <li className="text-gray-400 italic text-center w-full py-4 flex justify-center items-center">
-                      (Inserte títulos H1 o H2 en el editor de contenido para generar el índice automático)
-                    </li>
+          {/* PAGE 2+: TABLE OF CONTENTS (Optional academic pages, strictly out of content.html) */}
+          {settings.showTOC && paginatedTOCPages.map((tocPageHeadings, tIdx) => {
+            const pageNum = 2 + tIdx;
+            const totalPages = paginatedPages.length + 1 + paginatedTOCPages.length;
+            const isFirst = tIdx === 0;
+
+            return (
+              <PageTemplate
+                key={`toc-page-${tIdx}`}
+                pageNumber={pageNum}
+                totalPages={totalPages}
+                pageSize={settings.pageSize}
+                settings={settings}
+                showGuides={settings.showGuides}
+                coverConfig={resolvedCover}
+                uploadedFiles={uploadedFiles}
+              >
+                <div className="toc-container select-text">
+                  {isFirst && (
+                    <div className="toc-header">
+                      {settings.tocTitle || "Tabla de Contenidos"}
+                    </div>
                   )}
-                </ul>
-              </div>
-            </PageTemplate>
-          )}
+                  <ul className="toc-list">
+                    {tocPageHeadings.map((heading, hIdx) => {
+                      const levelClass = `toc-level-${heading.level}`;
+                      // Absolute page calculations
+                      const absolutePage = (heading.pageRelative !== undefined ? heading.pageRelative : 0) + 2 + paginatedTOCPages.length;
+
+                      return (
+                        <li 
+                          key={hIdx} 
+                          className={`toc-item ${levelClass}`}
+                        >
+                          <span className="toc-title">{heading.text}</span>
+                          <span className="toc-dots" />
+                          <span className="toc-page">{absolutePage}</span>
+                        </li>
+                      );
+                    })}
+                    {tocPageHeadings.length === 0 && (
+                      <li className="text-gray-400 italic text-center w-full py-4 flex justify-center items-center">
+                        (Inserte títulos H1 o H2 en el editor de contenido para generar el índice automático)
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </PageTemplate>
+            );
+          })}
 
           {/* PAGES 3+ (or 2+): Dynamic pagination sheets */}
           {paginatedPages.length > 0 ? (
@@ -4297,8 +4383,8 @@ export default function DocumentPreview({
               return (
                 <PageTemplate
                   key={index}
-                  pageNumber={index + 2 + (settings.showTOC ? 1 : 0)} // Content pages start at Page 2 or Page 3
-                  totalPages={paginatedPages.length + 1 + (settings.showTOC ? 1 : 0)}
+                  pageNumber={index + 2 + (settings.showTOC ? paginatedTOCPages.length : 0)} // Content pages start at Page 2 or Page 2 + paginatedTOCPages.length
+                  totalPages={paginatedPages.length + 1 + (settings.showTOC ? paginatedTOCPages.length : 0)}
                   pageSize={settings.pageSize}
                   settings={settings}
                   showGuides={settings.showGuides}
@@ -4315,8 +4401,8 @@ export default function DocumentPreview({
           ) : (
             /* Blank Fallback content page in case there is no body content */
             <PageTemplate
-              pageNumber={settings.showTOC ? 3 : 2}
-              totalPages={settings.showTOC ? 3 : 2}
+              pageNumber={settings.showTOC ? 2 + paginatedTOCPages.length : 2}
+              totalPages={settings.showTOC ? 2 + paginatedTOCPages.length : 2}
               pageSize={settings.pageSize}
               settings={settings}
               showGuides={settings.showGuides}

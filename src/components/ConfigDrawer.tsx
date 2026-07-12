@@ -408,36 +408,70 @@ export function ConfigDrawer({
     const list: HeadingItem[] = [];
     if (!htmlBlocks) return list;
     htmlBlocks.forEach((block) => {
+      // Compile block content to HTML
+      let htmlContent = "";
+      if (block.isMarkdown) {
+        try {
+          htmlContent = String(markdownParser.parse(block.code));
+        } catch (e) {
+          htmlContent = "";
+        }
+      } else {
+        htmlContent = block.code;
+      }
+
+      // Create a temporary element to query headings
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = htmlContent;
+      const headingElements = Array.from(tempDiv.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+
       const lines = block.code.split('\n');
-      lines.forEach((line, lineIndex) => {
-        // 1. Check Markdown
-        if (block.isMarkdown) {
-          const mdMatch = line.match(/^\s*(#{1,6})\s+(.+)$/);
-          if (mdMatch) {
-            list.push({
-              blockId: block.id,
-              blockName: block.name,
-              lineIndex,
-              type: 'markdown',
-              level: mdMatch[1].length,
-              cleanText: mdMatch[2].replace(/<\/?[^>]+(>|$)/g, "").trim(),
-              originalLine: line,
-            });
-            return;
+      let searchStartIndex = 0;
+
+      headingElements.forEach((el) => {
+        const level = parseInt(el.tagName.substring(1), 10);
+        const cleanText = el.textContent?.trim() || "";
+        if (!cleanText) return;
+
+        // Find the matching line in block.code
+        let foundLineIndex = -1;
+        for (let i = searchStartIndex; i < lines.length; i++) {
+          const line = lines[i];
+          if (block.isMarkdown) {
+            const mdMatch = line.match(/^\s*(#{1,6})\s+(.+)$/);
+            if (mdMatch) {
+              const hashes = mdMatch[1];
+              const textContent = mdMatch[2].replace(/<\/?[^>]+(>|$)/g, "").trim();
+              if (hashes.length === level && (textContent.includes(cleanText) || cleanText.includes(textContent))) {
+                foundLineIndex = i;
+                break;
+              }
+            }
+          } else {
+            const htmlMatch = line.match(/<h([1-6])(\s[^>]*)?>([\s\S]*?)<\/h\1>/i);
+            if (htmlMatch) {
+              const hLevel = parseInt(htmlMatch[1], 10);
+              const textContent = htmlMatch[3].replace(/<\/?[^>]+(>|$)/g, "").trim();
+              if (hLevel === level && (textContent.includes(cleanText) || cleanText.includes(textContent))) {
+                foundLineIndex = i;
+                break;
+              }
+            }
           }
         }
-        // 2. Check HTML
-        const htmlMatch = line.match(/<h([1-6])(\s[^>]*)?>([\s\S]*?)<\/h\1>/i);
-        if (htmlMatch) {
+
+        if (foundLineIndex !== -1) {
           list.push({
             blockId: block.id,
             blockName: block.name,
-            lineIndex,
-            type: 'html',
-            level: parseInt(htmlMatch[1], 10),
-            cleanText: htmlMatch[3].replace(/<\/?[^>]+(>|$)/g, "").trim(),
-            originalLine: line,
+            lineIndex: foundLineIndex,
+            type: block.isMarkdown ? 'markdown' : 'html',
+            level,
+            cleanText,
+            originalLine: lines[foundLineIndex],
           });
+          // Update search index so next duplicate headings match sequential lines correctly
+          searchStartIndex = foundLineIndex + 1;
         }
       });
     });
