@@ -31,6 +31,9 @@ import {
   Copy,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  List,
   X,
   Maximize2,
   Minimize2,
@@ -43,7 +46,7 @@ import {
 
 interface ConfigDrawerProps {
   isOpen: boolean;
-  activeType: 'cover' | 'settings' | 'uploads' | null;
+  activeType: 'cover' | 'settings' | 'uploads' | 'toc' | null;
   onClose: () => void;
   cover: CoverConfig;
   setCover: React.Dispatch<React.SetStateAction<CoverConfig>>;
@@ -228,6 +231,16 @@ function readDescription(uint8: Uint8Array): string | null {
   return null;
 }
 
+interface HeadingItem {
+  blockId: string;
+  blockName: string;
+  lineIndex: number;
+  type: 'markdown' | 'html';
+  level: number;
+  cleanText: string;
+  originalLine: string;
+}
+
 export function ConfigDrawer({
   isOpen,
   activeType,
@@ -389,6 +402,80 @@ export function ConfigDrawer({
   const triggerSuccessMsg = (msg: string) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(''), 2500);
+  };
+
+  const getHeadings = (): HeadingItem[] => {
+    const list: HeadingItem[] = [];
+    if (!htmlBlocks) return list;
+    htmlBlocks.forEach((block) => {
+      const lines = block.code.split('\n');
+      lines.forEach((line, lineIndex) => {
+        // 1. Check Markdown
+        if (block.isMarkdown) {
+          const mdMatch = line.match(/^\s*(#{1,6})\s+(.+)$/);
+          if (mdMatch) {
+            list.push({
+              blockId: block.id,
+              blockName: block.name,
+              lineIndex,
+              type: 'markdown',
+              level: mdMatch[1].length,
+              cleanText: mdMatch[2].replace(/<\/?[^>]+(>|$)/g, "").trim(),
+              originalLine: line,
+            });
+            return;
+          }
+        }
+        // 2. Check HTML
+        const htmlMatch = line.match(/<h([1-6])(\s[^>]*)?>([\s\S]*?)<\/h\1>/i);
+        if (htmlMatch) {
+          list.push({
+            blockId: block.id,
+            blockName: block.name,
+            lineIndex,
+            type: 'html',
+            level: parseInt(htmlMatch[1], 10),
+            cleanText: htmlMatch[3].replace(/<\/?[^>]+(>|$)/g, "").trim(),
+            originalLine: line,
+          });
+        }
+      });
+    });
+    return list;
+  };
+
+  const handleUpdateHeadingLevel = (heading: HeadingItem, direction: 'left' | 'right') => {
+    if (!setHtmlBlocks || !htmlBlocks) return;
+    const newLevel = direction === 'left' ? heading.level - 1 : heading.level + 1;
+    if (newLevel < 1 || newLevel > 6) return;
+
+    const updatedBlocks = htmlBlocks.map((block) => {
+      if (block.id !== heading.blockId) return block;
+
+      const lines = block.code.split('\n');
+      const targetLine = lines[heading.lineIndex];
+
+      let newLine = targetLine;
+      if (heading.type === 'markdown') {
+        newLine = targetLine.replace(/^(\s*)(#{1,6})\s+(.+)$/, (m, leadingSpaces, hashes, inner) => {
+          return `${leadingSpaces}${'#'.repeat(newLevel)} ${inner}`;
+        });
+      } else {
+        newLine = targetLine.replace(/<h([1-6])(\s[^>]*)?>([\s\S]*?)<\/h\1>/i, (m, currentLvl, attrs, inner) => {
+          const finalAttrs = attrs || '';
+          return `<h${newLevel}${finalAttrs}>${inner}</h${newLevel}>`;
+        });
+      }
+
+      lines[heading.lineIndex] = newLine;
+      return {
+        ...block,
+        code: lines.join('\n'),
+      };
+    });
+
+    setHtmlBlocks(updatedBlocks);
+    triggerSuccessMsg(`Nivel de título actualizado a H${newLevel}`);
   };
 
   const handleCopyAllCSS = () => {
@@ -647,6 +734,12 @@ Márgenes de Página (Bordes):
             <>
               <Image className="w-4 h-4 text-orange-500 shrink-0" />
               <span className="text-[11px] font-extrabold text-slate-100 uppercase tracking-wider truncate">Archivos / Uploads</span>
+            </>
+          )}
+          {activeType === 'toc' && (
+            <>
+              <List className="w-4 h-4 text-orange-500 shrink-0" />
+              <span className="text-[11px] font-extrabold text-slate-100 uppercase tracking-wider truncate">Tabla de Contenidos</span>
             </>
           )}
         </div>
@@ -1035,21 +1128,6 @@ Abril 2026 - Julio 2026
                       className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-[10.5px]"
                       placeholder="/* .unemi-document-content h1 {} */"
                     />
-
-                    {/* Headings autonumbering toggle */}
-                    <div className="flex items-center justify-between p-2 bg-slate-950 rounded border border-slate-800 mt-1">
-                      <span className="text-[9.5px] font-bold text-slate-350 uppercase">Auto-Numerar Títulos (H1, H2, H3)</span>
-                      <button
-                        onClick={() => handleSettingsChange('autoNumberHeadings', !settings.autoNumberHeadings)}
-                        className={`text-xs px-2.5 py-1 rounded border font-bold transition-all cursor-pointer ${
-                          settings.autoNumberHeadings 
-                            ? 'bg-[#004080] border-[#FF6600] text-white' 
-                            : 'bg-slate-900 border-slate-800 text-slate-500'
-                        }`}
-                      >
-                        {settings.autoNumberHeadings ? 'SÍ (1. 2. 2.1)' : 'NO'}
-                      </button>
-                    </div>
                   </div>
                 )}
               </div>
@@ -1092,95 +1170,6 @@ Abril 2026 - Julio 2026
                       <p className="text-slate-500 text-[9px] italic">
                         * Nota: Haz clic dentro del recuadro naranja de arriba para seleccionarlo y copiarlo fácilmente, luego pégalo en el editor de arriba.
                       </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Table of Contents (TOC) style */}
-              <div className="border border-slate-800 rounded bg-slate-950/25 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setIsTOCStyleOpen(!isTOCStyleOpen)}
-                  className="w-full p-2.5 bg-slate-950 hover:bg-slate-900/80 flex justify-between items-center text-left transition-all"
-                >
-                  <span className="font-extrabold uppercase text-[10px] tracking-wider text-slate-350">
-                    📋 Tabla de Contenidos (TOC)
-                  </span>
-                  <span>{isTOCStyleOpen ? '▲' : '▼'}</span>
-                </button>
-                {isTOCStyleOpen && (
-                  <div className="p-3 border-t border-slate-850 bg-slate-900/10 flex flex-col gap-3.5">
-                    {/* Table of contents indices toggle */}
-                    <div className="flex flex-col gap-1 p-2 bg-slate-950 rounded border border-slate-800">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[9.5px] font-bold text-slate-350 uppercase">Índice Tabla de Contenidos (TOC)</span>
-                        <button
-                          onClick={() => handleSettingsChange('showTOC', !settings.showTOC)}
-                          className={`text-xs px-2.5 py-1 rounded border font-bold transition-all cursor-pointer ${
-                            settings.showTOC 
-                              ? 'bg-[#004080] border-[#FF6600] text-white' 
-                              : 'bg-slate-900 border-slate-800 text-slate-500'
-                          }`}
-                        >
-                          {settings.showTOC ? 'MOSTRAR ÍNDICE' : 'OCULTAR ÍNDICE'}
-                        </button>
-                      </div>
-                      {settings.showTOC && (
-                        <div className="flex flex-col gap-1 mt-2 border-t border-slate-900 pt-2">
-                          <label className="text-[8px] text-slate-400 font-bold uppercase">Título del Índice</label>
-                          <input
-                            type="text"
-                            value={settings.tocTitle || 'Tabla de Contenidos'}
-                            onChange={(e) => handleSettingsChange('tocTitle', e.target.value)}
-                            className="p-1 bg-slate-900 border border-slate-850 rounded text-slate-200 text-xs focus:ring-1 focus:ring-orange-500 focus:outline-none"
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* CSS Editor for blockStyleTOC */}
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                          <span>Editor CSS del Índice (TOC)</span>
-                        </label>
-                        <div className="flex gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const cssToCopy = settings.blockStyleTOC || DEFAULT_BLOCK_TOC;
-                              navigator.clipboard.writeText(cssToCopy)
-                                .then(() => triggerSuccessMsg('¡Estilos CSS copiados!'))
-                                .catch(() => alert('Error al copiar al portapapeles.'));
-                            }}
-                            className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-750 text-[9px] text-slate-200 rounded font-medium flex items-center gap-1 transition-all border border-slate-700"
-                            title="Copiar los estilos CSS de la tabla de contenidos al portapapeles"
-                          >
-                            <span>📋</span> Copiar CSS
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (confirm('¿Restablecer los estilos del Índice a los predeterminados con .toc-header independiente?')) {
-                                handleSettingsChange('blockStyleTOC', DEFAULT_BLOCK_TOC);
-                                triggerSuccessMsg('Estilos del Índice restablecidos.');
-                              }
-                            }}
-                            className="px-2 py-0.5 bg-slate-800/40 hover:bg-slate-800 text-[9px] text-slate-400 hover:text-slate-200 rounded font-medium flex items-center gap-1 transition-all border border-slate-850 hover:border-slate-750"
-                            title="Restablecer a los estilos predeterminados"
-                          >
-                            <span>🔄</span> Restablecer
-                          </button>
-                        </div>
-                      </div>
-                      <textarea
-                        value={settings.blockStyleTOC || ''}
-                        onChange={(e) => handleSettingsChange('blockStyleTOC', e.target.value)}
-                        rows={10}
-                        className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-[10px] leading-relaxed focus:border-[#FF6600]/80 focus:outline-none"
-                        placeholder="/* Estilos CSS para el TOC de la hoja */"
-                      />
                     </div>
                   </div>
                 )}
@@ -1478,6 +1467,177 @@ Abril 2026 - Julio 2026
 
 
 
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: TABLA DE CONTENIDOS (TOC) LEVEL EDITING & STYLE CONFIG */}
+        {activeType === 'toc' && (
+          <div className="flex flex-col gap-4 text-xs">
+            {/* 1. Interactive TOC Schema & Level Editors */}
+            <div className="flex flex-col gap-2 p-3 bg-slate-950 rounded border border-slate-850">
+              {(() => {
+                const headings = getHeadings();
+                return (
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <span>📋</span> Esquema y Niveles de Títulos ({headings.length})
+                    </span>
+                    <p className="text-[10px] text-slate-500 mb-1 leading-normal">
+                      Usa las flechas para subir (izq) o bajar (der) el nivel jerárquico de tus títulos directamente en tu código.
+                    </p>
+                    
+                    {headings.length === 0 ? (
+                      <div className="p-4 bg-slate-950/40 rounded border border-slate-850 text-center text-slate-500 text-[11px]">
+                        No se detectaron títulos en el documento. Añade etiquetas h1-h6 o marcas de Markdown #, ## en tus bloques de contenido.
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-1.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar border border-slate-850 bg-slate-950/20 rounded p-2">
+                        {headings.map((heading, i) => {
+                          const indentPadding = (heading.level - 1) * 12;
+                          return (
+                            <div 
+                              key={`${heading.blockId}-${heading.lineIndex}-${i}`}
+                              className="flex items-center justify-between p-1.5 bg-slate-950/80 hover:bg-slate-900/40 border border-slate-900 rounded transition-all group gap-2"
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1" style={{ paddingLeft: `${indentPadding}px` }}>
+                                <span className="text-[8px] font-extrabold px-1 py-0.5 rounded bg-slate-900 text-orange-400 border border-slate-800 shrink-0 uppercase tracking-tight font-mono">
+                                  H{heading.level}
+                                </span>
+                                <span className="text-[11px] font-medium text-slate-250 truncate" title={heading.cleanText}>
+                                  {heading.cleanText}
+                                </span>
+                                <span className="text-[8px] text-slate-500 italic shrink-0 hidden group-hover:inline truncate max-w-[80px]">
+                                  ({heading.blockName})
+                                </span>
+                              </div>
+                              
+                              <div className="flex items-center gap-1 shrink-0">
+                                {/* Left Arrow Button (Promote Level) */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateHeadingLevel(heading, 'left')}
+                                  disabled={heading.level <= 1}
+                                  className="p-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white disabled:opacity-20 disabled:hover:bg-slate-900 disabled:hover:text-slate-300 transition-all cursor-pointer"
+                                  title="Subir nivel (ej. H2 a H1)"
+                                >
+                                  <ChevronLeft className="w-3.5 h-3.5" />
+                                </button>
+                                
+                                {/* Right Arrow Button (Demote Level) */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateHeadingLevel(heading, 'right')}
+                                  disabled={heading.level >= 6}
+                                  className="p-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white disabled:opacity-20 disabled:hover:bg-slate-900 disabled:hover:text-slate-300 transition-all cursor-pointer"
+                                  title="Bajar nivel (ej. H2 a H3)"
+                                >
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* 2. TOC Visibility & Global Settings */}
+            <div className="flex flex-col gap-3.5 p-3 bg-slate-950 rounded border border-slate-850">
+              <span className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">
+                Ajustes Generales del Índice
+              </span>
+
+              {/* Table of contents indices toggle */}
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9.5px] font-bold text-slate-350 uppercase">Mostrar Tabla de Contenidos (TOC)</span>
+                  <button
+                    onClick={() => handleSettingsChange('showTOC', !settings.showTOC)}
+                    className={`text-xs px-2.5 py-1 rounded border font-bold transition-all cursor-pointer ${
+                      settings.showTOC 
+                        ? 'bg-[#004080] border-[#FF6600] text-white' 
+                        : 'bg-slate-900 border-slate-800 text-slate-500'
+                    }`}
+                  >
+                    {settings.showTOC ? 'SÍ, MOSTRAR' : 'NO, OCULTAR'}
+                  </button>
+                </div>
+                {settings.showTOC && (
+                  <div className="flex flex-col gap-1 mt-2 border-t border-slate-900 pt-2">
+                    <label className="text-[8px] text-slate-400 font-bold uppercase">Título del Índice</label>
+                    <input
+                      type="text"
+                      value={settings.tocTitle || 'Tabla de Contenidos'}
+                      onChange={(e) => handleSettingsChange('tocTitle', e.target.value)}
+                      className="p-1.5 bg-slate-900 border border-slate-850 rounded text-slate-200 text-xs focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Headings autonumbering toggle */}
+              <div className="flex items-center justify-between border-t border-slate-900 pt-3">
+                <span className="text-[9.5px] font-bold text-slate-350 uppercase">Auto-Numerar Títulos (H1, H2, H3)</span>
+                <button
+                  onClick={() => handleSettingsChange('autoNumberHeadings', !settings.autoNumberHeadings)}
+                  className={`text-xs px-2.5 py-1 rounded border font-bold transition-all cursor-pointer ${
+                    settings.autoNumberHeadings 
+                      ? 'bg-[#004080] border-[#FF6600] text-white' 
+                      : 'bg-slate-900 border-slate-800 text-slate-500'
+                  }`}
+                >
+                  {settings.autoNumberHeadings ? 'SÍ (1. 2. 2.1)' : 'NO'}
+                </button>
+              </div>
+            </div>
+
+            {/* 3. CSS Customization Editor for blockStyleTOC */}
+            <div className="flex flex-col gap-2 p-3 bg-slate-950 rounded border border-slate-850">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                  Diseño de Tabla de Contenidos
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cssToCopy = settings.blockStyleTOC || DEFAULT_BLOCK_TOC;
+                      navigator.clipboard.writeText(cssToCopy)
+                        .then(() => triggerSuccessMsg('¡Estilos CSS copiados!'))
+                        .catch(() => alert('Error al copiar al portapapeles.'));
+                    }}
+                    className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-850 text-[8.5px] text-slate-300 rounded font-medium flex items-center gap-0.5 border border-slate-800"
+                    title="Copiar los estilos CSS de la tabla de contenidos al portapapeles"
+                  >
+                    Copiar CSS
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('¿Restablecer los estilos del Índice a los predeterminados?')) {
+                        handleSettingsChange('blockStyleTOC', DEFAULT_BLOCK_TOC);
+                        triggerSuccessMsg('Estilos del Índice restablecidos.');
+                      }
+                    }}
+                    className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-850 text-[8.5px] text-slate-400 hover:text-slate-300 rounded font-medium flex items-center gap-0.5 border border-slate-800"
+                    title="Restablecer a los estilos predeterminados"
+                  >
+                    Restablecer
+                  </button>
+                </div>
+              </div>
+              
+              <textarea
+                value={settings.blockStyleTOC || ''}
+                onChange={(e) => handleSettingsChange('blockStyleTOC', e.target.value)}
+                rows={10}
+                className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-slate-200 font-mono text-[10px] leading-relaxed focus:border-orange-500 focus:outline-none"
+                placeholder="/* Estilos CSS para el TOC de la hoja */"
+              />
             </div>
           </div>
         )}

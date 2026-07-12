@@ -14,7 +14,7 @@ import { getAllUploadedFiles, saveUploadedFilesToDB, clearAllUploadedFilesDB } f
 import { BibliographyDrawer } from './components/BibliographyDrawer';
 import { MarginsDrawer } from './components/MarginsDrawer';
 import { parseBibtex, generateBibtexFromItems } from './utils/bibParser';
-import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2, Layout, ChevronLeft, ChevronRight, Key, X } from 'lucide-react';
+import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2, Layout, ChevronLeft, ChevronRight, Key, X, List } from 'lucide-react';
 const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) */
 .unemi-document-content h1 {
   font-family: "Times New Roman", Times, Georgia, serif;
@@ -729,7 +729,7 @@ export default function App() {
   });
 
   const [lastFocusedBlockId, setLastFocusedBlockId] = useState<string | null>(null);
-  const [activeDrawerType, setActiveDrawerType] = useState<'cover' | 'settings' | 'uploads' | 'bibliography' | 'margins' | null>(null);
+  const [activeDrawerType, setActiveDrawerType] = useState<'cover' | 'settings' | 'uploads' | 'bibliography' | 'margins' | 'toc' | null>(null);
   const [autoCompile, setAutoCompile] = useState<boolean>(() => {
     const cached = localStorage.getItem('unemi_auto_compile');
     return cached !== 'false';
@@ -2927,6 +2927,25 @@ read -p "Presione [Enter] para salir..."`;
               >
                 <Layout className="w-5 h-5 shrink-0" />
                 <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Elementos del Margen</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (activeDrawerType === 'toc') {
+                    setActiveDrawerType(null);
+                  } else {
+                    setActiveDrawerType('toc');
+                  }
+                }}
+                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
+                  activeDrawerType === 'toc'
+                    ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                }`}
+                title="Tabla de contenidos (TOC)"
+              >
+                <List className="w-5 h-5 shrink-0" />
+                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Tabla de Contenidos</span>
               </button>
             </div>
 
