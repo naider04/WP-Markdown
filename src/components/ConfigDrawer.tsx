@@ -67,6 +67,39 @@ th {
   color: #ffffff;
 }`;
 
+const DEFAULT_BLOCK_TOC = `.toc-header {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 24px;
+}
+.toc-item {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 16px;
+  line-height: 2;
+  margin-bottom: 12px;
+}
+.toc-level-1 {
+  padding-left: 0px;
+  font-weight: bold;
+}
+.toc-level-2 {
+  padding-left: 24px;
+}
+.toc-level-3 {
+  padding-left: 48px;
+  font-style: italic;
+}
+.toc-dots {
+  border-bottom: 1px dotted black;
+  margin: 0 8px;
+}
+.toc-page {
+  font-weight: bold;
+  font-size: 16px;
+}`;
+
 function AutoGrowingTextArea({
   value,
   onChange,
@@ -1107,11 +1140,40 @@ Abril 2026 - Julio 2026
                     </div>
 
                     {/* CSS Editor for blockStyleTOC */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider flex items-center justify-between">
-                        <span>Editor CSS del Índice (TOC)</span>
-                        <span className="text-[7.5px] text-slate-500 font-mono normal-case">Estilos APA 7 activos</span>
-                      </label>
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                          <span>Editor CSS del Índice (TOC)</span>
+                        </label>
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const cssToCopy = settings.blockStyleTOC || DEFAULT_BLOCK_TOC;
+                              navigator.clipboard.writeText(cssToCopy)
+                                .then(() => triggerSuccessMsg('¡Estilos CSS copiados!'))
+                                .catch(() => alert('Error al copiar al portapapeles.'));
+                            }}
+                            className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-750 text-[9px] text-slate-200 rounded font-medium flex items-center gap-1 transition-all border border-slate-700"
+                            title="Copiar los estilos CSS de la tabla de contenidos al portapapeles"
+                          >
+                            <span>📋</span> Copiar CSS
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm('¿Restablecer los estilos del Índice a los predeterminados con .toc-header independiente?')) {
+                                handleSettingsChange('blockStyleTOC', DEFAULT_BLOCK_TOC);
+                                triggerSuccessMsg('Estilos del Índice restablecidos.');
+                              }
+                            }}
+                            className="px-2 py-0.5 bg-slate-800/40 hover:bg-slate-800 text-[9px] text-slate-400 hover:text-slate-200 rounded font-medium flex items-center gap-1 transition-all border border-slate-850 hover:border-slate-750"
+                            title="Restablecer a los estilos predeterminados"
+                          >
+                            <span>🔄</span> Restablecer
+                          </button>
+                        </div>
+                      </div>
                       <textarea
                         value={settings.blockStyleTOC || ''}
                         onChange={(e) => handleSettingsChange('blockStyleTOC', e.target.value)}

@@ -4220,19 +4220,23 @@ export default function DocumentPreview({
               uploadedFiles={uploadedFiles}
             >
               <div className="toc-container select-text">
-                <h3>{settings.tocTitle || "Tabla de Contenidos"}</h3>
+                <div className="toc-header">
+                  {settings.tocTitle || "Tabla de Contenidos"}
+                </div>
                 <ul className="toc-list">
-                  {dynamicHeadings.map((heading, hIdx) => (
-                    <li 
-                      key={hIdx} 
-                      className="flex items-end mb-2.5 text-[12.5px] text-gray-700" 
-                      style={{ paddingLeft: `${Math.max(0, (heading.level - 1) * 16)}px` }}
-                    >
-                      <span className="toc-title shrink-0 font-medium">{heading.text}</span>
-                      <span className="toc-dots flex-1" />
-                      <span className="toc-page font-bold text-[#004080] tabular-nums">{heading.page}</span>
-                    </li>
-                  ))}
+                  {dynamicHeadings.map((heading, hIdx) => {
+                    const levelClass = `toc-level-${heading.level}`;
+                    return (
+                      <li 
+                        key={hIdx} 
+                        className={`toc-item ${levelClass}`}
+                      >
+                        <span className="toc-title">{heading.text}</span>
+                        <span className="toc-dots" />
+                        <span className="toc-page">{heading.page}</span>
+                      </li>
+                    );
+                  })}
                   {dynamicHeadings.length === 0 && (
                     <li className="text-gray-400 italic text-center w-full py-4 flex justify-center items-center">
                       (Inserte títulos H1 o H2 en el editor de contenido para generar el índice automático)

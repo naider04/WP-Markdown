@@ -117,58 +117,37 @@ const DEFAULT_BLOCK_PAGENUM = `/* Estilo de la Numeración de Página APA 7 */
   font-size: 11px;
 }`;
 
-const DEFAULT_BLOCK_TOC = `/* Estilo de la Tabla de Contenidos (TOC) APA 7 */
-.toc-container {
-  margin: 0 !important;
-  padding: 0 !important;
-  border: none !important;
-  background-color: transparent !important;
-  box-shadow: none !important;
+const DEFAULT_BLOCK_TOC = `.toc-header {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 24px;
 }
-.toc-container h3 {
-  font-family: "Times New Roman", Times, Georgia, serif !important;
-  font-size: 16px !important;
-  color: #000000 !important;
-  border-bottom: none !important;
-  font-weight: bold !important;
-  text-transform: none !important;
-  text-align: center !important;
-  margin-top: 0 !important;
-  margin-bottom: 24px !important;
+.toc-item {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 16px;
+  line-height: 2;
+  margin-bottom: 12px;
 }
-.toc-list {
-  list-style-type: none !important;
-  padding-left: 0 !important;
-  margin: 0 !important;
+.toc-level-1 {
+  padding-left: 0px;
+  font-weight: bold;
 }
-.toc-list li {
-  display: flex !important;
-  align-items: flex-end !important;
-  margin-bottom: 12px !important;
-  font-family: "Times New Roman", Times, Georgia, serif !important;
-  font-size: 16px !important;
-  color: #000000 !important;
-  line-height: 2.0 !important;
+.toc-level-2 {
+  padding-left: 24px;
 }
-.toc-title {
-  font-family: "Times New Roman", Times, Georgia, serif !important;
-  font-size: 16px !important;
-  font-weight: normal !important;
-  color: #000000 !important;
-  white-space: nowrap !important;
+.toc-level-3 {
+  padding-left: 48px;
+  font-style: italic;
 }
 .toc-dots {
-  flex-grow: 1 !important;
-  border-bottom: 1px dotted #000000 !important;
-  margin: 0 8px !important;
-  position: relative !important;
-  top: -4px !important;
+  border-bottom: 1px dotted black;
+  margin: 0 8px;
 }
 .toc-page {
-  font-family: "Times New Roman", Times, Georgia, serif !important;
-  font-size: 16px !important;
-  font-weight: bold !important;
-  color: #000000 !important;
+  font-weight: bold;
+  font-size: 16px;
 }`;
 
 const DEFAULT_BLOCK_TABLE = `/* Estilos de Tablas Académicas APA 7 */
@@ -585,7 +564,7 @@ export default function App() {
         if (parsed.blockStylePageNum && parsed.blockStylePageNum.includes('#004080')) {
           parsed.blockStylePageNum = DEFAULT_BLOCK_PAGENUM;
         }
-        if (parsed.blockStyleTOC && (parsed.blockStyleTOC.includes('#f8fafc') || parsed.blockStyleTOC.includes('border-radius') || parsed.blockStyleTOC.includes('18px 0') || parsed.blockStyleTOC.includes('#666666') || parsed.blockStyleTOC.includes('border-bottom: 1px dotted'))) {
+        if (parsed.blockStyleTOC && (parsed.blockStyleTOC.includes('#f8fafc') || parsed.blockStyleTOC.includes('border-radius') || parsed.blockStyleTOC.includes('18px 0') || parsed.blockStyleTOC.includes('#666666') || parsed.blockStyleTOC.includes('border-bottom: 1px dotted') || parsed.blockStyleTOC.includes('APA 7') || parsed.blockStyleTOC.includes('.toc-list li'))) {
           parsed.blockStyleTOC = DEFAULT_BLOCK_TOC;
         }
         

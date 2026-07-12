@@ -256,62 +256,47 @@
 
 /* Table of Contents Academic Style */
 .toc-container {
-  margin: 18px 0;
-  padding: 16px 20px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  background-color: #f8fafc;
+  margin: 0;
+  padding: 0;
 }
 
-.toc-container h3 {
+.toc-header {
   font-family: var(--font-sans);
-  color: #004080 !important;
-  border-bottom: 2px solid #FF6600 !important;
-  padding-bottom: 5px;
-  margin-top: 0 !important;
-  margin-bottom: 14px !important;
-  font-size: 15px !important;
-  text-transform: uppercase;
-  font-weight: 750 !important;
-  letter-spacing: 0.025em;
+  margin-top: 0;
+  margin-bottom: 24px;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
 }
 
 .toc-list {
-  list-style-type: none !important;
-  padding-left: 0 !important;
-  margin: 0 !important;
+  list-style-type: none;
+  padding-left: 0;
+  margin: 0;
 }
 
-.toc-list li {
-  display: flex !important;
-  align-items: flex-end !important;
-  margin-bottom: 9px !important;
-  font-size: 12.5px !important;
-  color: #334155 !important;
-  line-height: 1.2 !important;
+.toc-item {
+  display: flex;
+  align-items: flex-end;
+  margin-bottom: 12px;
 }
 
-.toc-list li::before {
-  content: none !important;
+.toc-item::before {
+  content: none;
 }
 
 .toc-title {
-  font-weight: 600 !important;
-  white-space: nowrap !important;
+  white-space: nowrap;
 }
 
 .toc-dots {
-  flex-grow: 1 !important;
-  border-bottom: 2px dotted #cbd5e1 !important;
-  margin: 0 8px !important;
-  position: relative !important;
-  top: -4px !important;
+  flex-grow: 1;
+  border-bottom: 1px dotted black;
+  margin: 0 8px;
 }
 
 .toc-page {
-  font-weight: 700 !important;
-  color: #004080 !important;
-  font-family: var(--font-mono) !important;
+  font-weight: bold;
 }
 
 /* Manual Page Break element */
