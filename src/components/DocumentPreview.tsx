@@ -549,6 +549,19 @@ export default function DocumentPreview({
   const [zoom, setZoom] = useState<number>(100);
   const [recalculating, setRecalculating] = useState<boolean>(false);
   const [dynamicHeadings, setDynamicHeadings] = useState<HeadingItem[]>([]);
+
+  const renderPageHTML = (html: string) => {
+    if (!html.includes('data-heading-ref=')) return html;
+    
+    return html.replace(/<span[^>]*class="toc-page"[^>]*data-heading-ref="(\d+)"[^>]*>999<\/span>/g, (match, refStr) => {
+      const idx = parseInt(refStr, 10);
+      const heading = dynamicHeadings[idx];
+      if (heading) {
+        return `<span class="toc-page" data-heading-ref="${idx}">${heading.page}</span>`;
+      }
+      return `<span class="toc-page" data-heading-ref="${idx}">...</span>`;
+    });
+  };
   const [detectedOverflows, setDetectedOverflows] = useState<{
     id: string;
     type: 'ancho' | 'alto';
@@ -1766,8 +1779,92 @@ export default function DocumentPreview({
       return citations.length > 0 ? `(${citations.join('; ')})` : match;
     });
 
-    // 4. Append automatic APA bibliography page at the very end
-    if (settings.showBibliography && bibliography && bibliography.length > 0) {
+    // 3b. Replace manual pagebreaks [PAGEBREAK]
+    selectHtml = selectHtml.replace(/<p>\s*\[PAGEBREAK\]\s*<\/p>/gi, '<div class="page-break"></div>');
+    selectHtml = selectHtml.replace(/\[PAGEBREAK\]/gi, '<div class="page-break"></div>');
+
+    // 3c. Replace manual bibliography [BIBLIOGRAPHY]
+    const hasManualBibliography = selectHtml.includes('[BIBLIOGRAPHY]');
+    if (hasManualBibliography) {
+      let bibItemsToShow = [...bibliography];
+      if (settings.showOnlyCitedBibliography) {
+        bibItemsToShow = bibItemsToShow.filter(b => citedKeys.has(b.key.toLowerCase()));
+      }
+
+      const sortedBib = bibItemsToShow.sort((a, b) => a.authors.localeCompare(b.authors));
+      const bibTitle = settings.bibliographyTitle || 'Referencias Bibliográficas';
+      
+      let bibHtml = `
+        <h1 class="unemi-bibliography-title" style="font-family: 'Times New Roman', Times, serif; font-size: 16px; font-weight: bold; text-align: center; margin-top: 24px; margin-bottom: 24px;">
+          ${bibTitle}
+        </h1>
+      `;
+
+      sortedBib.forEach(item => {
+        bibHtml += `
+          <div style="padding-left: 0.5in !important; text-indent: -0.5in !important; line-height: 2.0 !important; font-size: 16px !important; font-family: 'Times New Roman', Times, serif !important; text-align: left !important; display: block !important;" class="unemi-bibliography-item">
+            ${formatAPABibliographyItem(item)}
+          </div>
+        `;
+      });
+
+      selectHtml = selectHtml.replace(/<p>\s*\[BIBLIOGRAPHY\]\s*<\/p>/gi, bibHtml);
+      selectHtml = selectHtml.replace(/\[BIBLIOGRAPHY\]/gi, bibHtml);
+    }
+
+    // 3d. Replace manual Table of Contents [TOC]
+    const hasManualTOC = selectHtml.includes('[TOC]');
+    if (hasManualTOC) {
+      // Extract all headings from the current HTML structure (including manual bibliography if inserted, but excluding the manual TOC itself since it's not yet inserted)
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = selectHtml;
+      const headingsForManualTOC: { text: string; level: number }[] = [];
+      const hElements = Array.from(tempDiv.querySelectorAll('h1, h2, h3'));
+      hElements.forEach((h) => {
+        const text = h.textContent?.trim() || '';
+        if (text) {
+          headingsForManualTOC.push({
+            text,
+            level: parseInt(h.tagName.substring(1), 10)
+          });
+        }
+      });
+
+      const tocTitle = settings.tocTitle || 'Tabla de Contenidos';
+      let manualTocHtml = `
+        <div class="toc-container select-text manual-toc">
+          <div class="toc-header">${tocTitle}</div>
+          <ul class="toc-list">
+      `;
+      if (headingsForManualTOC.length > 0) {
+        headingsForManualTOC.forEach((h, hIdx) => {
+          const levelClass = `toc-level-${h.level}`;
+          manualTocHtml += `
+            <li class="toc-item ${levelClass}">
+              <span class="toc-title">${h.text}</span>
+              <span class="toc-dots"></span>
+              <span class="toc-page" data-heading-ref="${hIdx}">999</span>
+            </li>
+          `;
+        });
+      } else {
+        manualTocHtml += `
+          <li class="text-gray-400 italic text-center w-full py-4 flex justify-center items-center">
+            (Inserte títulos H1 o H2 en el editor de contenido para generar el índice automático)
+          </li>
+        `;
+      }
+      manualTocHtml += `
+          </ul>
+        </div>
+      `;
+
+      selectHtml = selectHtml.replace(/<p>\s*\[TOC\]\s*<\/p>/gi, manualTocHtml);
+      selectHtml = selectHtml.replace(/\[TOC\]/gi, manualTocHtml);
+    }
+
+    // 4. Append automatic APA bibliography page at the very end (only if not manually inserted)
+    if (!hasManualBibliography && settings.showBibliography && bibliography && bibliography.length > 0) {
       let bibItemsToShow = [...bibliography];
       if (settings.showOnlyCitedBibliography) {
         bibItemsToShow = bibItemsToShow.filter(b => citedKeys.has(b.key.toLowerCase()));
@@ -1796,7 +1893,7 @@ export default function DocumentPreview({
     }
 
     return renderMathInHtml(selectHtml);
-  }, [htmlContent, htmlBlocks, uploadedFiles, bibliography, settings.showBibliography, settings.bibliographyTitle, settings.showOnlyCitedBibliography]);
+  }, [htmlContent, htmlBlocks, uploadedFiles, bibliography, settings.showBibliography, settings.bibliographyTitle, settings.showOnlyCitedBibliography, settings.tocTitle]);
 
   const resolvedCover = React.useMemo(() => {
     let selectCover = { ...cover };
@@ -4403,7 +4500,7 @@ export default function DocumentPreview({
                 >
                   <div
                     className="unemi-document-body"
-                    dangerouslySetInnerHTML={{ __html: pageHTMLJoined }}
+                    dangerouslySetInnerHTML={{ __html: renderPageHTML(pageHTMLJoined) }}
                   />
                 </PageTemplate>
               );
