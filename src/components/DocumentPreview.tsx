@@ -280,7 +280,157 @@ function renderMathInHtml(html: string): string {
   };
   
   walk(doc.body);
+
+  // Wrap any bare root-level inline elements or text nodes in a paragraph (<p>)
+  const body = doc.body;
+  const nodes = Array.from(body.childNodes);
+  const blockTags = new Set([
+    'P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 
+    'UL', 'OL', 'LI', 'TABLE', 'PRE', 'BLOCKQUOTE', 
+    'HR', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 
+    'FIGURE', 'FORM'
+  ]);
+  
+  let currentGroup: Node[] = [];
+  const flushGroup = () => {
+    if (currentGroup.length === 0) return;
+    
+    const hasContentOrElement = currentGroup.some(node => {
+      if (node.nodeType === Node.ELEMENT_NODE) return true;
+      if (node.nodeType === Node.TEXT_NODE && (node.nodeValue || '').trim() !== '') return true;
+      return false;
+    });
+    
+    if (hasContentOrElement) {
+      const p = doc.createElement('p');
+      const firstNode = currentGroup[0];
+      body.insertBefore(p, firstNode);
+      currentGroup.forEach(node => {
+        p.appendChild(node);
+      });
+    }
+    
+    currentGroup = [];
+  };
+  
+  for (const node of nodes) {
+    const isBlock = node.nodeType === Node.ELEMENT_NODE && blockTags.has((node as HTMLElement).tagName.toUpperCase());
+    if (isBlock) {
+      flushGroup();
+    } else {
+      currentGroup.push(node);
+    }
+  }
+  flushGroup();
+
   return doc.body.innerHTML;
+}
+
+function extractAndRenderMathPlaceholders(text: string): { cleanText: string; placeholders: Map<string, string> } {
+  const placeholders = new Map<string, string>();
+  let result = "";
+  let index = 0;
+  let placeholderCounter = 0;
+  
+  while (index < text.length) {
+    let delimType: 'double_dollar' | 'bracket' | 'single_dollar' | 'paren' | null = null;
+    
+    const doubleDollarIdx = text.indexOf('$$', index);
+    const bracketIdx = text.indexOf('\\[', index);
+    const parenIdx = text.indexOf('\\(', index);
+    const singleDollarIdx = text.indexOf('$', index);
+    
+    let minIdx = Infinity;
+    
+    if (doubleDollarIdx !== -1 && doubleDollarIdx < minIdx) {
+      minIdx = doubleDollarIdx;
+      delimType = 'double_dollar';
+    }
+    if (bracketIdx !== -1 && bracketIdx < minIdx) {
+      minIdx = bracketIdx;
+      delimType = 'bracket';
+    }
+    if (parenIdx !== -1 && parenIdx < minIdx) {
+      minIdx = parenIdx;
+      delimType = 'paren';
+    }
+    if (singleDollarIdx !== -1 && singleDollarIdx < minIdx) {
+      if (singleDollarIdx === doubleDollarIdx) {
+        // Handled by double_dollar
+      } else {
+        const isEscaped = singleDollarIdx > 0 && text[singleDollarIdx - 1] === '\\';
+        if (!isEscaped) {
+          minIdx = singleDollarIdx;
+          delimType = 'single_dollar';
+        }
+      }
+    }
+    
+    if (delimType === null || minIdx === Infinity) {
+      result += text.slice(index);
+      break;
+    }
+    
+    result += text.slice(index, minIdx);
+    
+    let closeIdx = -1;
+    let mathContent = "";
+    let isDisplay = false;
+    let nextIndex = minIdx;
+    
+    if (delimType === 'double_dollar') {
+      closeIdx = text.indexOf('$$', minIdx + 2);
+      if (closeIdx !== -1) {
+        mathContent = text.slice(minIdx + 2, closeIdx);
+        isDisplay = true;
+        nextIndex = closeIdx + 2;
+      }
+    } else if (delimType === 'bracket') {
+      closeIdx = text.indexOf('\\]', minIdx + 2);
+      if (closeIdx !== -1) {
+        mathContent = text.slice(minIdx + 2, closeIdx);
+        isDisplay = true;
+        nextIndex = closeIdx + 2;
+      }
+    } else if (delimType === 'paren') {
+      closeIdx = text.indexOf('\\)', minIdx + 2);
+      if (closeIdx !== -1) {
+        mathContent = text.slice(minIdx + 2, closeIdx);
+        isDisplay = false;
+        nextIndex = closeIdx + 2;
+      }
+    } else if (delimType === 'single_dollar') {
+      closeIdx = text.indexOf('$', minIdx + 1);
+      if (closeIdx !== -1) {
+        mathContent = text.slice(minIdx + 1, closeIdx);
+        isDisplay = false;
+        nextIndex = closeIdx + 1;
+      }
+    }
+    
+    if (closeIdx === -1) {
+      const step = (delimType === 'double_dollar' || delimType === 'bracket' || delimType === 'paren') ? 2 : 1;
+      result += text.slice(minIdx, minIdx + step);
+      index = minIdx + step;
+    } else {
+      const placeholderKey = `MATHPLACEHOLDER_${placeholderCounter++}_` + Math.random().toString(36).substring(2, 8);
+      let rendered = "";
+      try {
+        rendered = katex.renderToString(mathContent, {
+          displayMode: isDisplay,
+          throwOnError: false
+        });
+      } catch (err) {
+        rendered = `<span class="text-red-500 font-mono text-[10px]" title="${escapeHtml(String(err))}">[Math Error: ${escapeHtml(mathContent)}]</span>`;
+      }
+      
+      placeholders.set(placeholderKey, rendered);
+      result += placeholderKey;
+      index = nextIndex;
+    }
+  }
+  
+  return { cleanText: result, placeholders };
 }
 
 function compileAndProcessMarkdown(
@@ -293,7 +443,9 @@ function compileAndProcessMarkdown(
 ): string {
   if (!isMarkdown) return text;
 
-  let code = text;
+  // Pre-extract and render all math expressions to shield them from markdown parser
+  const { cleanText, placeholders } = extractAndRenderMathPlaceholders(text);
+  let code = cleanText;
   const generatedFigures = new Map<string, string>();
   const generatedTables = new Map<string, string>();
 
@@ -439,6 +591,16 @@ function compileAndProcessMarkdown(
       resultHtml = resultHtml.replace(wrappedRegex, tableHtml);
     } else {
       resultHtml = resultHtml.replace(`TBLPLACEHOLDER-${tblId}`, tableHtml);
+    }
+  });
+
+  // 5. Restore math placeholders
+  placeholders.forEach((renderedHtml, placeholderKey) => {
+    const wrappedRegex = new RegExp(`<p>\\s*${placeholderKey}\\s*</p>`, 'g');
+    if (wrappedRegex.test(resultHtml)) {
+      resultHtml = resultHtml.replace(wrappedRegex, renderedHtml);
+    } else {
+      resultHtml = resultHtml.replace(new RegExp(placeholderKey, 'g'), renderedHtml);
     }
   });
 
@@ -1080,8 +1242,8 @@ export default function DocumentPreview({
     }
 
     .unemi-document-content ul:not(.toc-list) li:not(.toc-item)::before {
-      display: none !important;
-      content: none !important;
+      display: none;
+      content: none;
     }
 
     .unemi-document-content ol {
@@ -2460,8 +2622,8 @@ export default function DocumentPreview({
     }
 
     .unemi-document-content ul:not(.toc-list) li:not(.toc-item)::before {
-      display: none !important;
-      content: none !important;
+      display: none;
+      content: none;
     }
 
     .unemi-document-content ol {

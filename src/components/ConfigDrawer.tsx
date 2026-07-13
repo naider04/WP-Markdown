@@ -70,6 +70,73 @@ th {
   color: #ffffff;
 }`;
 
+const COMPATIBLE_LISTS_CSS = `/* 1. Ajustar el contenedor general de las listas */
+.unemi-document-content ul:not(.toc-list) {
+  list-style-type: none !important; /* Desactivar la viñeta nativa */
+  padding-left: 20px !important;    /* Espacio reservado para tu nueva viñeta */
+  margin-top: 0px !important;
+  margin-bottom: 12px !important;
+  text-indent: 0px !important;
+}
+
+/* 2. Listas ordenadas (numeradas) */
+.unemi-document-content ol {
+  list-style-type: none !important; /* Desactivar número nativo */
+  counter-reset: unemi-counter !important; /* Iniciar un contador CSS */
+  padding-left: 24px !important;
+  margin-top: 0px !important;
+  margin-bottom: 12px !important;
+  text-indent: 0px !important;
+}
+
+.unemi-document-content ul:not(.toc-list) li,
+.unemi-document-content ol li {
+  text-indent: 0px !important;
+  margin-bottom: 6px !important;
+  padding-left: 0px !important;
+  position: relative !important;
+}
+
+/* 3. CONTROL DE DISTANCIA DE VIÑETA (Círculo) */
+.unemi-document-content ul:not(.toc-list) li:not(.toc-item)::before,
+.unemi-document-content ul:not(.toc-list) li::before {
+  content: "•" !important;
+  display: block !important;
+  position: absolute !important;
+  /* CONTROL DIRECTO: Modificando este valor defines la separación exacta al texto */
+  left: -12px !important; 
+  top: 6px !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+}
+
+/* 4. CONTROL DE DISTANCIA DE NÚMEROS */
+.unemi-document-content ol li {
+  counter-increment: unemi-counter !important;
+}
+.unemi-document-content ol li::before {
+  content: counter(unemi-counter) "." !important;
+  display: block !important;
+  position: absolute !important;
+  /* CONTROL DIRECTO: Cambia esto para acercar/alejar los números */
+  left: -18px !important; 
+  top: 0px !important;
+  text-align: right !important;
+  width: 14px !important;
+}
+
+/* Evitar que párrafos y elementos directos de listas hereden indentación (Ecuaciones seguras) */
+.unemi-document-content ul:not(.toc-list) li p,
+.unemi-document-content ol li p,
+.unemi-document-content ul:not(.toc-list) li > span:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
+.unemi-document-content ul:not(.toc-list) li > div:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
+.unemi-document-content ol li > span:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
+.unemi-document-content ol li > div:not(.math-expr):not([class*="mjx"]):not([class*="katex"]) {
+  text-indent: 0px !important;
+  margin: 0 !important;
+  display: inline !important;
+}`;
+
 const DEFAULT_BLOCK_TOC = `.toc-header {
   font-family: "Times New Roman", Times, serif;
   font-size: 16px;
@@ -1352,10 +1419,40 @@ Abril 2026 - Julio 2026
                   <div className="p-3 border-t border-slate-850 bg-slate-900/10 flex flex-col gap-3.5">
                     {/* CSS Editor for blockStyleLists */}
                     <div className="flex flex-col gap-1">
-                      <label className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider flex items-center justify-between">
-                        <span>Editor CSS de Listas</span>
-                        <span className="text-[7.5px] text-slate-500 font-mono normal-case">Estilos APA 7 activos</span>
-                      </label>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider">
+                          Editor CSS de Listas
+                        </span>
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(COMPATIBLE_LISTS_CSS)
+                                .then(() => triggerSuccessMsg('¡CSS compatible copiado!'))
+                                .catch(() => alert('Error al copiar al portapapeles.'));
+                            }}
+                            className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-850 text-[8.5px] text-orange-400 hover:text-orange-300 rounded font-bold flex items-center gap-0.5 border border-slate-800 transition-colors cursor-pointer"
+                            title="Copiar CSS de listas compatible con ecuaciones"
+                          >
+                            <Copy className="w-2.5 h-2.5" />
+                            <span>Copiar Compatible</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm('¿Deseas aplicar directamente el CSS de listas compatible con ecuaciones en tu editor?')) {
+                                handleSettingsChange('blockStyleLists', COMPATIBLE_LISTS_CSS);
+                                triggerSuccessMsg('¡CSS compatible aplicado!');
+                              }
+                            }}
+                            className="px-1.5 py-0.5 bg-orange-600 hover:bg-orange-500 text-white text-[8.5px] rounded font-bold flex items-center gap-0.5 transition-colors cursor-pointer"
+                            title="Aplicar el CSS compatible directamente"
+                          >
+                            <Check className="w-2.5 h-2.5" />
+                            <span>Aplicar</span>
+                          </button>
+                        </div>
+                      </div>
                       <textarea
                         value={settings.blockStyleLists || ''}
                         onChange={(e) => handleSettingsChange('blockStyleLists', e.target.value)}

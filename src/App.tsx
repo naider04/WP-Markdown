@@ -231,13 +231,13 @@ const DEFAULT_BLOCK_LISTS = `/* Estilo de Listas Académicas */
   position: relative !important;
 }
 
-/* Evitar que párrafos internos de listas hereden indentación de texto */
+/* Evitar que párrafos y elementos directos de listas hereden indentación de texto (Compatible con Ecuaciones) */
 .unemi-document-content ul:not(.toc-list) li p,
-.unemi-document-content ul:not(.toc-list) li span,
-.unemi-document-content ul:not(.toc-list) li div,
 .unemi-document-content ol li p,
-.unemi-document-content ol li span,
-.unemi-document-content ol li div {
+.unemi-document-content ul:not(.toc-list) li > span:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
+.unemi-document-content ul:not(.toc-list) li > div:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
+.unemi-document-content ol li > span:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
+.unemi-document-content ol li > div:not(.math-expr):not([class*="mjx"]):not([class*="katex"]) {
   text-indent: 0px !important;
   margin: 0 !important;
   display: inline !important;
@@ -1633,8 +1633,8 @@ export default function App() {
     }
 
     .unemi-document-content ul:not(.toc-list) li:not(.toc-item)::before {
-      display: none !important;
-      content: none !important;
+      display: none;
+      content: none;
     }
 
     .unemi-document-content ol {

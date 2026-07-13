@@ -174,7 +174,7 @@
 }
 
 .unemi-document-content ul:not(.toc-list) li::before {
-  content: none !important; /* Remove orange bullet squares */
+  content: none; /* Remove orange bullet squares without preventing user override */
 }
 
 .unemi-document-content ol {
@@ -192,11 +192,11 @@
 
 /* Evitar que párrafos internos de listas hereden indentación de texto o hagan saltos de línea */
 .unemi-document-content ul:not(.toc-list) li p,
-.unemi-document-content ul:not(.toc-list) li span,
-.unemi-document-content ul:not(.toc-list) li div,
+.unemi-document-content ul:not(.toc-list) li span:not(.katex):not(.katex *),
+.unemi-document-content ul:not(.toc-list) li div:not(.katex):not(.katex *),
 .unemi-document-content ol li p,
-.unemi-document-content ol li span,
-.unemi-document-content ol li div {
+.unemi-document-content ol li span:not(.katex):not(.katex *),
+.unemi-document-content ol li div:not(.katex):not(.katex *) {
   text-indent: 0px !important;
   margin: 0 !important;
   display: inline !important;
