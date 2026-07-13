@@ -23,11 +23,23 @@ interface AutoGrowingTextAreaProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  debounceDelay: number;
 }
 
-function AutoGrowingTextArea({ id, value, onChange, placeholder }: AutoGrowingTextAreaProps) {
+function AutoGrowingTextArea({ id, value, onChange, placeholder, debounceDelay }: AutoGrowingTextAreaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastWidthRef = useRef<number>(0);
+  const [localValue, setLocalValue] = useState(value);
+  const lastPropagatedRef = useRef(value);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync with outer changes only if they were initiated externally (e.g. templates, file loads, undo/reverts)
+  useEffect(() => {
+    if (value !== lastPropagatedRef.current) {
+      setLocalValue(value);
+      lastPropagatedRef.current = value;
+    }
+  }, [value]);
 
   const adjustHeight = () => {
     const textarea = textareaRef.current;
@@ -40,7 +52,7 @@ function AutoGrowingTextArea({ id, value, onChange, placeholder }: AutoGrowingTe
 
   useEffect(() => {
     adjustHeight();
-  }, [value]);
+  }, [localValue]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -65,15 +77,40 @@ function AutoGrowingTextArea({ id, value, onChange, placeholder }: AutoGrowingTe
     };
   }, []);
 
+  // Cleanup active timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  const handleChange = (newVal: string) => {
+    setLocalValue(newVal);
+    adjustHeight();
+
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+
+    if (debounceDelay === 0) {
+      lastPropagatedRef.current = newVal;
+      onChange(newVal);
+    } else {
+      timerRef.current = setTimeout(() => {
+        lastPropagatedRef.current = newVal;
+        onChange(newVal);
+      }, debounceDelay);
+    }
+  };
+
   return (
     <textarea
       id={id}
       ref={textareaRef}
-      value={value}
-      onChange={(e) => {
-        onChange(e.target.value);
-        adjustHeight();
-      }}
+      value={localValue}
+      onChange={(e) => handleChange(e.target.value)}
       style={{ resize: 'none' }}
       className="w-full p-2 bg-slate-950 text-slate-300 font-mono text-xs focus:outline-none border-0 focus:ring-0 leading-relaxed custom-scrollbar overflow-y-hidden"
       placeholder={placeholder}
@@ -108,6 +145,12 @@ export function SidebarEditor({
   onResetToOriginal,
   syncStatusMsg,
 }: SidebarEditorProps) {
+  // Debounce delay state for typing (default 500ms, persistent in localStorage)
+  const [debounceDelay, setDebounceDelay] = useState<number>(() => {
+    const saved = localStorage.getItem('unemi_editor_debounce_delay');
+    return saved !== null ? parseInt(saved, 10) : 500;
+  });
+
   // Drag and drop state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -311,6 +354,33 @@ export function SidebarEditor({
         </div>
       </div>
 
+      {/* Configuración de Retraso de Escritura */}
+      <div className="px-3 py-2 bg-slate-950/80 border-b border-slate-850 flex items-center justify-between gap-3 text-slate-300">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0"></span>
+          <span className="font-semibold text-[10px] text-slate-300 tracking-wide select-none">
+            Retraso de actualización (milisegundos):
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <input
+            type="number"
+            min="0"
+            max="3000"
+            step="100"
+            value={debounceDelay}
+            onChange={(e) => {
+              const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+              setDebounceDelay(val);
+              localStorage.setItem('unemi_editor_debounce_delay', val.toString());
+            }}
+            className="w-14 h-6 px-1 bg-slate-900 border border-slate-700 text-slate-200 text-[10.5px] rounded font-mono text-center focus:outline-none focus:border-orange-500"
+            title="Aumentar el tiempo si tu escritura va lenta debido a una conexión de red inestable."
+          />
+          <span className="text-[9px] text-slate-400 font-mono font-bold uppercase select-none">ms</span>
+        </div>
+      </div>
+
       {/* Editor scroll blocks list */}
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-col gap-5 bg-slate-900/40">
         
@@ -408,6 +478,7 @@ export function SidebarEditor({
                         value={block.code}
                         onChange={(val) => handleCodeChange(block.id, val)}
                         placeholder="Escribe aquí en Markdown (puedes incluir fórmulas LaTeX y etiquetas HTML)..."
+                        debounceDelay={debounceDelay}
                       />
 
                       {/* Display of real-time validation feedback */}
