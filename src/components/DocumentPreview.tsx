@@ -31,6 +31,7 @@ interface DocumentPreviewProps {
   compiledUploadedFiles?: UploadedFile[];
   compiledHtmlBlocks?: HTMLBlock[];
   compiledBibliography?: BibliographyItem[];
+  exportFileName?: string;
 }
 
 interface HeadingItem {
@@ -658,6 +659,7 @@ export default function DocumentPreview({
   compiledUploadedFiles = [],
   compiledHtmlBlocks = [],
   compiledBibliography = [],
+  exportFileName,
 }: DocumentPreviewProps) {
   const cover = liveCover;
   const settings = liveSettings;
@@ -1041,7 +1043,7 @@ export default function DocumentPreview({
   <!-- PREVIEW_MODE_V1 -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${cover.title || 'Plantilla de Documento UNEMI'}</title>
+  <title>${exportFileName || cover.title || 'Plantilla de Documento UNEMI'}</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -1869,9 +1871,14 @@ export default function DocumentPreview({
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '_');
 
+      let pdfFilename = `${cleanTitle}_perfecto.pdf`;
+      if (exportFileName && exportFileName.trim()) {
+        pdfFilename = `${exportFileName.trim()}.pdf`;
+      }
+
       const options = {
         margin: 0,
-        filename: `${cleanTitle}_perfecto.pdf`,
+        filename: pdfFilename,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: {
           scale: 2, // Escala de rendering en alta densidad (2x) para nitidez excepcional
@@ -2425,7 +2432,7 @@ export default function DocumentPreview({
   <!-- SYNCED_MODE_V2 -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${cover.title || 'Plantilla de Documento UNEMI'}</title>
+  <title>${exportFileName || cover.title || 'Plantilla de Documento UNEMI'}</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   

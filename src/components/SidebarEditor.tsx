@@ -27,6 +27,7 @@ interface AutoGrowingTextAreaProps {
 
 function AutoGrowingTextArea({ id, value, onChange, placeholder }: AutoGrowingTextAreaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastWidthRef = useRef<number>(0);
 
   const adjustHeight = () => {
     const textarea = textareaRef.current;
@@ -40,6 +41,29 @@ function AutoGrowingTextArea({ id, value, onChange, placeholder }: AutoGrowingTe
   useEffect(() => {
     adjustHeight();
   }, [value]);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    lastWidthRef.current = textarea.clientWidth;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const currentWidth = entry.contentRect.width;
+        if (Math.abs(currentWidth - lastWidthRef.current) > 0.5) {
+          lastWidthRef.current = currentWidth;
+          adjustHeight();
+        }
+      }
+    });
+
+    resizeObserver.observe(textarea);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   return (
     <textarea

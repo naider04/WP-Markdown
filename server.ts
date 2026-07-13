@@ -96,6 +96,11 @@ Para cada imagen:
 3. Determina si colocar la imagen 'after' (después) o 'before' (antes) del 'anchorText', o bien usa 'append' (al final del bloque) o 'prepend' (al inicio del bloque).
 4. Genera la etiqueta Markdown de la imagen exacta en 'imageTag'. Escribe un título o leyenda adecuada para la imagen, no inventes datos, limítate a lo que puedas deducir de la descripción proporcionada. Ejemplo: "![Esquema conceptual del proyecto](nombre_de_archivo.png){width=70%}"
 
+INSTRUCCIÓN ESPECIAL PARA INSERTAR DOS O MÁS IMÁGENES CONSECUTIVAS:
+Si deseas insertar dos o más imágenes juntas (una justo después de la otra) en la misma ubicación del documento:
+- Usa exactamente el mismo 'selectedBlockId', el mismo 'anchorText' y la misma 'relation'. El backend de la aplicación detectará esto y las agrupará de manera inteligente para que queden insertadas consecutivamente (una tras otra) en el orden correcto, sin pisarse ni invertirse.
+- Por ejemplo, si deseas que la Imagen A y la Imagen B queden juntas después del párrafo "Frase clave de anclaje", puedes asignar a ambas 'anchorText': "Frase clave de anclaje" y 'relation': "after". El sistema las mantendrá ordenadas secuencialmente en el mismo lugar de inserción.
+
 BLOQUES DISPONIBLES EN EL DOCUMENTO:
 ${blocksText}
 `;
@@ -155,35 +160,69 @@ ${blocksText}
       // Copy htmlBlocks so we can modify them incrementally
       let currentBlocks = JSON.parse(JSON.stringify(htmlBlocks));
 
+      // Group insertions by block ID, anchorText, and relation so consecutive insertions at the same point are joined correctly and maintain their original sequence order
+      interface GroupedInsertion {
+        selectedBlockId: string;
+        anchorText: string;
+        relation: string;
+        imageTags: string[];
+      }
+
+      const groupedInsertions: GroupedInsertion[] = [];
+
       for (const insertion of insertions) {
-        const { imageName: instImageName, selectedBlockId, anchorText, relation, imageTag } = insertion;
+        const { selectedBlockId, anchorText, relation, imageTag } = insertion;
+        
+        const existingGroup = groupedInsertions.find(g => 
+          g.selectedBlockId === selectedBlockId && 
+          g.anchorText === (anchorText || "") && 
+          g.relation === relation
+        );
+
+        if (existingGroup) {
+          existingGroup.imageTags.push(imageTag);
+        } else {
+          groupedInsertions.push({
+            selectedBlockId,
+            anchorText: anchorText || "",
+            relation,
+            imageTags: [imageTag]
+          });
+        }
+      }
+
+      // Perform the grouped insertions
+      for (const group of groupedInsertions) {
+        const { selectedBlockId, anchorText, relation, imageTags } = group;
         
         const blockIndex = currentBlocks.findIndex((b: any) => b.id === selectedBlockId);
         if (blockIndex === -1) {
-          // Fallback if AI picked an invalid block ID
           continue;
         }
 
         const originalCode = currentBlocks[blockIndex].code || "";
         let modifiedCode = "";
+        
+        // Join the multiple image tags of this group with clean blank lines so they appear one right after the other
+        const combinedTags = imageTags.join("\n\n");
 
         if (relation === "prepend") {
-          modifiedCode = `${imageTag}\n\n${originalCode}`;
+          modifiedCode = `${combinedTags}\n\n${originalCode}`;
         } else if (relation === "append" || !anchorText) {
-          modifiedCode = `${originalCode}\n\n${imageTag}`;
+          modifiedCode = `${originalCode}\n\n${combinedTags}`;
         } else {
           const index = originalCode.indexOf(anchorText);
           if (index !== -1) {
             if (relation === "before") {
-              modifiedCode = originalCode.slice(0, index) + `${imageTag}\n\n` + originalCode.slice(index);
+              modifiedCode = originalCode.slice(0, index) + `${combinedTags}\n\n` + originalCode.slice(index);
             } else {
               // relation === "after"
               const insertAt = index + anchorText.length;
-              modifiedCode = originalCode.slice(0, insertAt) + `\n\n${imageTag}` + originalCode.slice(insertAt);
+              modifiedCode = originalCode.slice(0, insertAt) + `\n\n${combinedTags}` + originalCode.slice(insertAt);
             }
           } else {
             // Fallback if anchorText is not found exactly: append to end
-            modifiedCode = `${originalCode}\n\n${imageTag}`;
+            modifiedCode = `${originalCode}\n\n${combinedTags}`;
           }
         }
 

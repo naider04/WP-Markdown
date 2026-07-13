@@ -914,6 +914,15 @@ export default function App() {
     localStorage.setItem('unemi_export_filename', exportFileName);
   }, [exportFileName]);
 
+  // Sync main tab document.title with the custom filename or cover title
+  useEffect(() => {
+    if (exportFileName && exportFileName.trim()) {
+      document.title = exportFileName.trim();
+    } else {
+      document.title = cover.title || "Plantilla de Documentación Académica";
+    }
+  }, [exportFileName, cover.title]);
+
   // Initialize and load files from IndexedDB or migrate from localStorage
   useEffect(() => {
     async function loadFiles() {
@@ -1465,7 +1474,7 @@ export default function App() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${cover.title || 'Plantilla de Documento Académico'}</title>
+  <title>${exportFileName || cover.title || 'Plantilla de Documento Académico'}</title>
   
   <!-- Tailwind CSS Play CDN compiler to guarantee precise styling of layout positions & borders -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -3104,6 +3113,7 @@ read -p "Presione [Enter] para salir..."`;
             compiledUploadedFiles={compiledUploadedFiles}
             compiledHtmlBlocks={compiledHtmlBlocks}
             compiledBibliography={compiledBibliography}
+            exportFileName={exportFileName}
           />
         </div>
       </div>
