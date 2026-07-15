@@ -28,7 +28,7 @@ export interface CoverConfig {
   applyBgImageToAllPages?: boolean;
 }
 
-export type PageSize = 'letter' | 'a4' | '16:9';
+export type PageSize = 'letter' | 'a4' | '16:9' | 'continuous';
 export type PageOrientation = 'portrait' | 'landscape';
 
 export interface PageSettings {
@@ -122,6 +122,12 @@ export interface PageSettings {
   showOnlyCitedBibliography?: boolean;
   bibliographyTitle?: string;
   marginElements?: MarginElement[];
+
+  // Configuración de Plantillas dinámicas (HTML + JSON)
+  showTemplatePages?: boolean;
+  templateHtml?: string;
+  templateJson?: string;
+  templateStartPage?: number;
 }
 
 export interface MarginElement {

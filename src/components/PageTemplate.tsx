@@ -17,6 +17,7 @@ interface PageTemplateProps {
   coverConfig: CoverConfig;
   children: React.ReactNode;
   uploadedFiles?: any[];
+  isTemplatePage?: boolean;
 }
 
 function formatCoordinate(val: string | undefined): string {
@@ -38,22 +39,28 @@ export default function PageTemplate({
   coverConfig,
   children,
   uploadedFiles,
+  isTemplatePage = false,
 }: PageTemplateProps) {
   const isLetter = pageSize === 'letter';
   const isA4 = pageSize === 'a4';
+  const isContinuous = pageSize === 'continuous';
   const isPortrait = (settings.orientation || 'portrait') === 'portrait';
 
   // Dimensions in Pixels at 96 DPI:
   // Letter: 8.5" x 11" => 816px x 1056px
   // A4: 8.27" x 11.69" => 794px x 1123px
   // 16:9 widescreen presentation: 1120px x 630px
-  const width = isPortrait
-    ? (isLetter ? 816 : isA4 ? 794 : 630)
-    : (isLetter ? 1056 : isA4 ? 1123 : 1120);
+  const width = isContinuous
+    ? 794
+    : isPortrait
+      ? (isLetter ? 816 : isA4 ? 794 : 630)
+      : (isLetter ? 1056 : isA4 ? 1123 : 1120);
 
-  const height = isPortrait
-    ? (isLetter ? 1056 : isA4 ? 1123 : 1120)
-    : (isLetter ? 816 : isA4 ? 794 : 630);
+  const height = isContinuous
+    ? 'auto'
+    : isPortrait
+      ? (isLetter ? 1056 : isA4 ? 1123 : 1120)
+      : (isLetter ? 816 : isA4 ? 794 : 630);
 
   const topMargin = settings.marginTop !== undefined ? settings.marginTop : 96;
   const bottomMargin = settings.marginBottom !== undefined ? settings.marginBottom : 96;
@@ -112,7 +119,7 @@ export default function PageTemplate({
       style={{
         boxSizing: 'border-box',
         width: `${width}px`,
-        height: `${height}px`,
+        height: typeof height === 'number' ? `${height}px` : height,
         paddingTop: `${topMargin}px`,
         paddingBottom: `${bottomMargin}px`,
         paddingLeft: `${leftMargin}px`,
@@ -175,8 +182,11 @@ export default function PageTemplate({
       )}
 
       {/* 3. CONTENT CONTAINER: Bounded strictly within the padded area */}
-      <div className="flex-1 w-full h-full flex flex-col overflow-hidden text-justify relative z-10">
-        <div className="unemi-document-content w-full h-full select-text leading-relaxed text-[16px] text-black">
+      <div 
+        className="flex-1 w-full h-full flex flex-col overflow-hidden text-justify relative"
+        style={{ zIndex: isTemplatePage ? 40 : 10 }}
+      >
+        <div className={`${isTemplatePage ? "unemi-template-content" : "unemi-document-content"} w-full h-full select-text leading-relaxed text-[16px] ${isTemplatePage ? "" : "text-black"}`}>
           {children}
         </div>
       </div>

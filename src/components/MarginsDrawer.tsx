@@ -285,13 +285,19 @@ export function MarginsDrawer({
                             <label className="text-[9.5px] text-slate-350 font-bold uppercase tracking-wider block mb-1">
                               Páginas
                             </label>
-                            <input
-                              type="text"
-                              value={el.pagesPattern}
-                              onChange={(e) => handleUpdateElement(el.id, 'pagesPattern', e.target.value)}
-                              className="w-full p-1.5 bg-slate-900 border border-slate-800 rounded text-orange-400 text-xs font-mono font-bold focus:border-orange-500 focus:outline-none"
-                              placeholder="ej. !first()"
-                            />
+                            {settings.pageSize === 'continuous' ? (
+                              <div className="text-[10px] text-slate-400 italic bg-slate-950 p-2 rounded border border-slate-850">
+                                Deshabilitado en Tira Continua (se aplica a la única página)
+                              </div>
+                            ) : (
+                              <input
+                                type="text"
+                                value={el.pagesPattern}
+                                onChange={(e) => handleUpdateElement(el.id, 'pagesPattern', e.target.value)}
+                                className="w-full p-1.5 bg-slate-900 border border-slate-800 rounded text-orange-400 text-xs font-mono font-bold focus:border-orange-500 focus:outline-none"
+                                placeholder="ej. !first()"
+                              />
+                            )}
                           </div>
 
                         </div>

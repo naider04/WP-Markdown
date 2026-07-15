@@ -612,15 +612,20 @@ export function ConfigDrawer({
   const handleCopyDimensions = () => {
     const isLetter = settings.pageSize === 'letter';
     const isA4 = settings.pageSize === 'a4';
+    const isContinuous = settings.pageSize === 'continuous';
     const isPortrait = (settings.orientation || 'portrait') === 'portrait';
 
-    const width = isPortrait
-      ? (isLetter ? 816 : isA4 ? 794 : 630)
-      : (isLetter ? 1056 : isA4 ? 1123 : 1120);
+    const width = isContinuous
+      ? 794
+      : isPortrait
+        ? (isLetter ? 816 : isA4 ? 794 : 630)
+        : (isLetter ? 1056 : isA4 ? 1123 : 1120);
 
-    const height = isPortrait
-      ? (isLetter ? 1056 : isA4 ? 1123 : 1120)
-      : (isLetter ? 816 : isA4 ? 794 : 630);
+    const height = isContinuous
+      ? 1500 // arbitrary height description for pixels
+      : isPortrait
+        ? (isLetter ? 1056 : isA4 ? 1123 : 1120)
+        : (isLetter ? 816 : isA4 ? 794 : 630);
 
     const topMarg = settings.marginTop !== undefined ? settings.marginTop : 96;
     const bottomMarg = settings.marginBottom !== undefined ? settings.marginBottom : 96;
@@ -628,9 +633,9 @@ export function ConfigDrawer({
     const rightMarg = settings.marginRight !== undefined ? settings.marginRight : 96;
 
     const usableWidth = width - leftMarg - rightMarg;
-    const usableHeight = height - topMarg - bottomMarg;
+    const usableHeight = isContinuous ? 'Auto' : (height - topMarg - bottomMarg);
 
-    const sizeName = isLetter ? 'Carta (Letter)' : isA4 ? 'A4' : 'Personalizado (16:9)';
+    const sizeName = isLetter ? 'Carta (Letter)' : isA4 ? 'A4' : isContinuous ? 'Tira Continua' : 'Personalizado (16:9)';
     const orientName = isPortrait ? 'Vertical (Portrait)' : 'Horizontal (Landscape)';
 
     const textToCopy = `=== AJUSTES FÍSICOS Y DIMENSIONES DE PÁGINA ===
@@ -639,9 +644,9 @@ Orientación: ${orientName}
 DPI de Renderizado: 96 DPI
 
 Dimensiones Totales de Hoja:
-- Píxeles: ${width}px × ${height}px
-- Pulgadas: ${(width / 96).toFixed(2)}" × ${(height / 96).toFixed(2)}"
-- Centímetros: ${((width / 96) * 2.54).toFixed(2)} cm × ${((height / 96) * 2.54).toFixed(2)} cm
+- Píxeles: ${width}px × ${isContinuous ? 'Auto' : `${height}px`}
+- Pulgadas: ${(width / 96).toFixed(2)}" × ${isContinuous ? 'Auto' : `${(height / 96).toFixed(2)}"`}
+- Centímetros: ${((width / 96) * 2.54).toFixed(2)} cm × ${isContinuous ? 'Auto' : `${((height / 96) * 2.54).toFixed(2)} cm`}
 
 Márgenes de Página (Bordes):
 - Superior (Top): ${topMarg}px (${(topMarg / 96).toFixed(2)}" / ${((topMarg / 96) * 2.54).toFixed(2)} cm)
@@ -650,9 +655,9 @@ Márgenes de Página (Bordes):
 - Derecho (Right): ${rightMarg}px (${(rightMarg / 96).toFixed(2)}" / ${((rightMarg / 96) * 2.54).toFixed(2)} cm)
 
 Área Útil de Contenido (Restando los bordes):
-- Píxeles: ${usableWidth}px × ${usableHeight}px
-- Pulgadas: ${(usableWidth / 96).toFixed(2)}" × ${(usableHeight / 96).toFixed(2)}"
-- Centímetros: ${((usableWidth / 96) * 2.54).toFixed(2)} cm × ${((usableHeight / 96) * 2.54).toFixed(2)} cm`;
+- Píxeles: ${usableWidth}px × ${isContinuous ? 'Auto' : `${usableHeight}px`}
+- Pulgadas: ${(usableWidth / 96).toFixed(2)}" × ${isContinuous ? 'Auto' : `${(Number(usableHeight) / 96).toFixed(2)}"`}
+- Centímetros: ${((usableWidth / 96) * 2.54).toFixed(2)} cm × ${isContinuous ? 'Auto' : `${((Number(usableHeight) / 96) * 2.54).toFixed(2)} cm`}`;
 
     navigator.clipboard.writeText(textToCopy)
       .then(() => {
@@ -1118,7 +1123,7 @@ Abril 2026 - Julio 2026
             {/* Page Dimensions selector */}
             <div className="flex flex-col gap-1.5 flex-1">
               <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Tamaño de Papel</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => handleSettingsChange('pageSize', 'letter')}
                   className={`p-2 rounded border text-center font-bold tracking-wide text-xs transition-all cursor-pointer ${
@@ -1154,6 +1159,18 @@ Abril 2026 - Julio 2026
                 >
                   16:9
                   <span className="block text-[8px] font-normal text-slate-400 mt-0.5">Pantalla</span>
+                </button>
+                <button
+                  onClick={() => handleSettingsChange('pageSize', 'continuous')}
+                  className={`p-2 rounded border text-center font-bold tracking-wide text-xs transition-all cursor-pointer ${
+                    settings.pageSize === 'continuous'
+                      ? 'bg-[#004080] border-[#FF6600] text-white'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Tira Continua (Una sola tira de papel sin división de hojas)"
+                >
+                  Continua
+                  <span className="block text-[8px] font-normal text-slate-400 mt-0.5">Sin hojas</span>
                 </button>
               </div>
             </div>
@@ -1814,12 +1831,16 @@ Abril 2026 - Julio 2026
                 <div className="flex items-center justify-between">
                   <span className="text-[9.5px] font-bold text-slate-350 uppercase">Mostrar Tabla de Contenidos (TOC)</span>
                   <button
+                    disabled={settings.pageSize === 'continuous'}
                     onClick={() => handleSettingsChange('showTOC', !settings.showTOC)}
-                    className={`text-xs px-2.5 py-1 rounded border font-bold transition-all cursor-pointer ${
-                      settings.showTOC 
-                        ? 'bg-[#004080] border-[#FF6600] text-white' 
-                        : 'bg-slate-900 border-slate-800 text-slate-500'
+                    className={`text-xs px-2.5 py-1 rounded border font-bold transition-all ${
+                      settings.pageSize === 'continuous'
+                        ? 'bg-slate-900 border-slate-950 text-slate-600 opacity-40 cursor-not-allowed'
+                        : settings.showTOC 
+                          ? 'bg-[#004080] border-[#FF6600] text-white cursor-pointer' 
+                          : 'bg-slate-900 border-slate-800 text-slate-500 cursor-pointer'
                     }`}
+                    title={settings.pageSize === 'continuous' ? "Deshabilitado en Tira Continua" : ""}
                   >
                     {settings.showTOC ? 'SÍ, MOSTRAR' : 'NO, OCULTAR'}
                   </button>

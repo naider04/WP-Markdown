@@ -14,7 +14,125 @@ import { getAllUploadedFiles, saveUploadedFilesToDB, clearAllUploadedFilesDB } f
 import { BibliographyDrawer } from './components/BibliographyDrawer';
 import { MarginsDrawer } from './components/MarginsDrawer';
 import { parseBibtex, generateBibtexFromItems } from './utils/bibParser';
-import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2, Layout, ChevronLeft, ChevronRight, Key, X, List } from 'lucide-react';
+import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2, Layout, ChevronLeft, ChevronRight, Key, X, List, Grid } from 'lucide-react';
+import { TemplatesDrawer } from './components/TemplatesDrawer';
+
+const DEFAULT_TEMPLATE_HTML = `<style>
+.a4-template-card {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 931px; /* alto aproximado neto entre márgenes de 96px */
+  padding: 60px;
+  background: transparent;
+  border: 4px double #004080;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-family: 'Arial', sans-serif;
+  box-shadow: none;
+  margin: 0 auto;
+}
+
+.template-header {
+  border-bottom: 2px solid #004080;
+  padding-bottom: 20px;
+  text-align: center;
+}
+
+.template-header h2 {
+  margin: 0;
+  font-size: 16px;
+  color: #FF6600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 800;
+}
+
+.template-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 40px 0;
+}
+
+.template-word {
+  font-size: 56px;
+  color: #004080;
+  font-weight: 800;
+  letter-spacing: -1px;
+  margin-bottom: 24px;
+  text-transform: capitalize;
+}
+
+.template-definition {
+  font-size: 24px;
+  color: #334155;
+  line-height: 1.6;
+  max-width: 600px;
+  margin-bottom: 30px;
+  font-weight: 500;
+}
+
+.template-example {
+  font-size: 20px;
+  font-style: italic;
+  color: #64748b;
+  max-width: 500px;
+  line-height: 1.5;
+  background: #f8fafc;
+  padding: 20px 30px;
+  border-left: 4px solid #FF6600;
+  border-radius: 0 8px 8px 0;
+}
+
+.template-footer {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+</style>
+
+<div class="a4-template-card">
+  <div class="template-header">
+    <h2>Ficha de Vocabulario Académico</h2>
+  </div>
+  <div class="template-body">
+    <h1 class="template-word">{{word}}</h1>
+    <p class="template-definition">{{definition}}</p>
+    <p class="template-example">"{{example}}"</p>
+  </div>
+  <div class="template-footer">
+    Universidad Estatal de Milagro • UNEMI
+  </div>
+</div>`;
+
+const DEFAULT_TEMPLATE_JSON = `[
+  {
+    "word": "abandon",
+    "definition": "To leave behind; to give up completely or forever.",
+    "example": "He had to abandon the car because it had run out of fuel."
+  },
+  {
+    "word": "ability",
+    "definition": "The physical or mental power, skill, or means to do something.",
+    "example": "She possesses a remarkable ability to learn complex concepts quickly."
+  },
+  {
+    "word": "challenge",
+    "definition": "A task or situation that tests someone's abilities or resources.",
+    "example": "Overcoming this difficulty will be a great challenge for the team."
+  }
+]`;
+
 const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) */
 .unemi-document-content h1 {
   font-family: "Times New Roman", Times, Georgia, serif;
@@ -598,6 +716,10 @@ export default function App() {
           h3LineBreak: parsed.h3LineBreak !== undefined ? parsed.h3LineBreak : true,
           h4LineBreak: parsed.h4LineBreak !== undefined ? parsed.h4LineBreak : false,
           h5LineBreak: parsed.h5LineBreak !== undefined ? parsed.h5LineBreak : false,
+          showTemplatePages: parsed.showTemplatePages !== undefined ? parsed.showTemplatePages : true,
+          templateHtml: parsed.templateHtml !== undefined ? parsed.templateHtml : DEFAULT_TEMPLATE_HTML,
+          templateJson: parsed.templateJson !== undefined ? parsed.templateJson : DEFAULT_TEMPLATE_JSON,
+          templateStartPage: parsed.templateStartPage !== undefined ? parsed.templateStartPage : 2,
           ...parsed
         };
       } catch (e) {
@@ -643,6 +765,10 @@ export default function App() {
       showOnlyCitedBibliography: false,
       bibliographyTitle: 'Referencias Bibliográficas',
       marginElements: DEFAULT_MARGIN_ELEMENTS,
+      showTemplatePages: true,
+      templateHtml: DEFAULT_TEMPLATE_HTML,
+      templateJson: DEFAULT_TEMPLATE_JSON,
+      templateStartPage: 2,
     };
   });
 
@@ -729,7 +855,25 @@ export default function App() {
   });
 
   const [lastFocusedBlockId, setLastFocusedBlockId] = useState<string | null>(null);
-  const [activeDrawerType, setActiveDrawerType] = useState<'cover' | 'settings' | 'uploads' | 'bibliography' | 'margins' | 'toc' | null>(null);
+  const [activeDrawerType, setActiveDrawerType] = useState<'cover' | 'settings' | 'uploads' | 'bibliography' | 'margins' | 'toc' | 'templates' | null>(null);
+
+  // Reset activeDrawerType from 'cover' to null if continuous paper size is selected
+  // and turn off showTOC and showBibliography automatically
+  useEffect(() => {
+    if (settings.pageSize === 'continuous') {
+      if (activeDrawerType === 'cover') {
+        setActiveDrawerType(null);
+      }
+      if (settings.showTOC || settings.showBibliography) {
+        setSettings((prev) => ({
+          ...prev,
+          showTOC: false,
+          showBibliography: false,
+        }));
+      }
+    }
+  }, [settings.pageSize, activeDrawerType, settings.showTOC, settings.showBibliography]);
+
   const [autoCompile, setAutoCompile] = useState<boolean>(() => {
     const cached = localStorage.getItem('unemi_auto_compile');
     return cached !== 'false';
@@ -2891,6 +3035,7 @@ read -p "Presione [Enter] para salir..."`;
               </button>
 
               <button
+                disabled={settings.pageSize === 'continuous'}
                 onClick={() => {
                   if (activeDrawerType === 'cover') {
                     setActiveDrawerType(null);
@@ -2898,12 +3043,14 @@ read -p "Presione [Enter] para salir..."`;
                     setActiveDrawerType('cover');
                   }
                 }}
-                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
-                  activeDrawerType === 'cover'
-                    ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)]'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center ${
+                  settings.pageSize === 'continuous'
+                    ? 'opacity-30 cursor-not-allowed text-slate-600'
+                    : activeDrawerType === 'cover'
+                      ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)] cursor-pointer'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 cursor-pointer'
                 }`}
-                title="Configurar Portada"
+                title={settings.pageSize === 'continuous' ? "Portada deshabilitada en Tira Continua" : "Configurar Portada"}
               >
                 <Layers className="w-5 h-5 shrink-0" />
                 <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Portada</span>
@@ -3003,6 +3150,25 @@ read -p "Presione [Enter] para salir..."`;
                 <List className="w-5 h-5 shrink-0" />
                 <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Tabla de Contenidos</span>
               </button>
+
+              <button
+                onClick={() => {
+                  if (activeDrawerType === 'templates') {
+                    setActiveDrawerType(null);
+                  } else {
+                    setActiveDrawerType('templates');
+                  }
+                }}
+                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
+                  activeDrawerType === 'templates'
+                    ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                }`}
+                title="Generar Hojas desde Plantillas Dinámicas"
+              >
+                <Grid className="w-5 h-5 shrink-0" />
+                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Plantillas</span>
+              </button>
             </div>
 
             {/* 2. Content Editing Screen (second part) */}
@@ -3036,9 +3202,16 @@ read -p "Presione [Enter] para salir..."`;
                   bibliographyTitle={settings.bibliographyTitle || 'Referencias Bibliográficas'}
                   onChangeBibliographyTitle={(title) => setSettings(prev => ({ ...prev, bibliographyTitle: title }))}
                   onInsertHTML={handleInsertHTML}
+                  pageSize={settings.pageSize}
                 />
               ) : activeDrawerType === 'margins' ? (
                 <MarginsDrawer
+                  settings={settings}
+                  setSettings={setSettings}
+                  onClose={() => setActiveDrawerType(null)}
+                />
+              ) : activeDrawerType === 'templates' ? (
+                <TemplatesDrawer
                   settings={settings}
                   setSettings={setSettings}
                   onClose={() => setActiveDrawerType(null)}

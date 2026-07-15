@@ -28,6 +28,7 @@ interface BibliographyDrawerProps {
   onToggleShowOnlyCitedBibliography: (show: boolean) => void;
   bibliographyTitle: string;
   onChangeBibliographyTitle: (title: string) => void;
+  pageSize?: string;
 }
 
 export function BibliographyDrawer({
@@ -40,7 +41,8 @@ export function BibliographyDrawer({
   showOnlyCitedBibliography,
   onToggleShowOnlyCitedBibliography,
   bibliographyTitle,
-  onChangeBibliographyTitle
+  onChangeBibliographyTitle,
+  pageSize
 }: BibliographyDrawerProps) {
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -104,12 +106,16 @@ export function BibliographyDrawer({
               </span>
             </div>
             <button
+              disabled={pageSize === 'continuous'}
               onClick={() => onToggleShowBibliography(!showBibliography)}
-              className={`text-xs px-2.5 py-1 rounded border font-bold transition-all cursor-pointer ${
-                showBibliography
-                  ? 'bg-[#004080] border-[#FF6600] text-white'
-                  : 'bg-slate-900 border-slate-800 text-slate-500'
+              className={`text-xs px-2.5 py-1 rounded border font-bold transition-all ${
+                pageSize === 'continuous'
+                  ? 'bg-slate-900 border-slate-950 text-slate-600 opacity-40 cursor-not-allowed'
+                  : showBibliography
+                    ? 'bg-[#004080] border-[#FF6600] text-white cursor-pointer'
+                    : 'bg-slate-900 border-slate-800 text-slate-500 cursor-pointer'
               }`}
+              title={pageSize === 'continuous' ? "Deshabilitado en Tira Continua" : ""}
             >
               {showBibliography ? 'SÍ (PÁGINA FINAL)' : 'NO'}
             </button>

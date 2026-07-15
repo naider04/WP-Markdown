@@ -747,7 +747,11 @@ export default function DocumentPreview({
     const coverPage = document.getElementById('unemi-cover-page');
     const docPages = document.querySelectorAll('[name^="document-page-"]');
 
-    if (!coverPage || docPages.length === 0) {
+    if (settings.pageSize !== 'continuous' && !coverPage) {
+      alert('Por favor, espere a que el documento se compile en el visor principal.');
+      return;
+    }
+    if (docPages.length === 0) {
       alert('Por favor, espere a que el documento se compile en el visor principal.');
       return;
     }
@@ -757,11 +761,13 @@ export default function DocumentPreview({
     try {
       let pagesHTML = '';
       
-      const coverClone = coverPage.cloneNode(true) as HTMLElement;
-      coverClone.style.boxShadow = 'none';
-      coverClone.style.border = 'none';
-      coverClone.style.margin = '0 auto';
-      pagesHTML += `<div class="print-page-boundary mb-8">${coverClone.outerHTML}</div>\n`;
+      if (settings.pageSize !== 'continuous' && coverPage) {
+        const coverClone = coverPage.cloneNode(true) as HTMLElement;
+        coverClone.style.boxShadow = 'none';
+        coverClone.style.border = 'none';
+        coverClone.style.margin = '0 auto';
+        pagesHTML += `<div class="print-page-boundary mb-8">${coverClone.outerHTML}</div>\n`;
+      }
 
       docPages.forEach((page) => {
         const pageClone = page.cloneNode(true) as HTMLElement;
@@ -779,15 +785,20 @@ export default function DocumentPreview({
 
       const isLetterSize = settings.pageSize === 'letter';
       const isA4 = settings.pageSize === 'a4';
+      const isContinuous = settings.pageSize === 'continuous';
       const isPortrait = (settings.orientation || 'portrait') === 'portrait';
       
-      const paperWidth = isPortrait 
-        ? (isLetterSize ? '816px' : isA4 ? '794px' : '630px')
-        : (isLetterSize ? '1056px' : isA4 ? '1123px' : '1120px');
-        
-      const paperHeight = isPortrait 
-        ? (isLetterSize ? '1056px' : isA4 ? '1123px' : '1120px')
-        : (isLetterSize ? '816px' : isA4 ? '794px' : '630px');
+      const paperWidth = isContinuous
+        ? '794px'
+        : isPortrait 
+          ? (isLetterSize ? '816px' : isA4 ? '794px' : '630px')
+          : (isLetterSize ? '1056px' : isA4 ? '1123px' : '1120px');
+         
+      const paperHeight = isContinuous
+        ? 'auto'
+        : isPortrait 
+          ? (isLetterSize ? '1056px' : isA4 ? '1123px' : '1120px')
+          : (isLetterSize ? '816px' : isA4 ? '794px' : '630px');
 
       const topMargin = settings.marginTop !== undefined ? settings.marginTop : 96;
       const bottomMargin = settings.marginBottom !== undefined ? settings.marginBottom : 96;
@@ -1809,7 +1820,11 @@ export default function DocumentPreview({
       const coverPage = document.getElementById('unemi-cover-page');
       const docPages = document.querySelectorAll('[name^="document-page-"]');
 
-      if (!coverPage || docPages.length === 0) {
+      if (settings.pageSize !== 'continuous' && (!coverPage || docPages.length === 0)) {
+        alert('Por favor, espere a que el documento se compile en el visor.');
+        return;
+      }
+      if (docPages.length === 0) {
         alert('Por favor, espere a que el documento se compile en el visor.');
         return;
       }
@@ -1825,14 +1840,16 @@ export default function DocumentPreview({
       tempWrapper.style.flexDirection = 'column';
       tempWrapper.style.gap = '0px';
 
-      // Clonamos y saneamos la portada para el PDF
-      const coverClone = coverPage.cloneNode(true) as HTMLElement;
-      coverClone.style.boxShadow = 'none';
-      coverClone.style.border = 'none';
-      coverClone.style.margin = '0 auto';
-      coverClone.style.setProperty('page-break-after', 'always', 'important');
-      coverClone.style.setProperty('break-after', 'page', 'important');
-      tempWrapper.appendChild(coverClone);
+      if (settings.pageSize !== 'continuous' && coverPage) {
+        // Clonamos y saneamos la portada para el PDF
+        const coverClone = coverPage.cloneNode(true) as HTMLElement;
+        coverClone.style.boxShadow = 'none';
+        coverClone.style.border = 'none';
+        coverClone.style.margin = '0 auto';
+        coverClone.style.setProperty('page-break-after', 'always', 'important');
+        coverClone.style.setProperty('break-after', 'page', 'important');
+        tempWrapper.appendChild(coverClone);
+      }
 
       // Clonamos y saneamos cada una de las páginas individuales
       docPages.forEach((page, idx) => {
@@ -1847,7 +1864,7 @@ export default function DocumentPreview({
           guideOverlay.remove();
         }
 
-        if (idx < docPages.length - 1) {
+        if (settings.pageSize !== 'continuous' && idx < docPages.length - 1) {
           pageClone.style.setProperty('page-break-after', 'always', 'important');
           pageClone.style.setProperty('break-after', 'page', 'important');
         }
@@ -1863,6 +1880,17 @@ export default function DocumentPreview({
       } else if (settings.pageSize === '16:9') {
         // En una escala de milímetros con relación de aspecto 16:9 estándar (Landscape 16:9)
         formatSize = isPortrait ? [167.06, 297] : [297, 167.06];
+      } else if (settings.pageSize === 'continuous') {
+        // Medir el alto real en píxeles del único contenedor de página
+        const singlePage = docPages[0] as HTMLElement;
+        const heightInPx = (singlePage ? singlePage.offsetHeight : 1200) + 5;
+        const widthInPx = singlePage ? singlePage.offsetWidth : 794;
+        
+        // Convertir píxeles a mm para jsPDF (a 96 DPI: 1px = 25.4 / 96 mm)
+        const widthInMm = (widthInPx * 25.4) / 96;
+        const heightInMm = (heightInPx * 25.4) / 96;
+        
+        formatSize = [widthInMm, heightInMm];
       }
 
       const cleanTitle = (cover.title || 'documento_unemi')
@@ -2158,20 +2186,23 @@ export default function DocumentPreview({
       try {
         const coverPage = document.getElementById('unemi-cover-page');
         const docPages = document.querySelectorAll('[name^="document-page-"]');
-        if (!coverPage || docPages.length === 0) return;
+        if (settings.pageSize !== 'continuous' && !coverPage) return;
+        if (docPages.length === 0) return;
 
         let pagesHTML = '';
         
-        const coverClone = coverPage.cloneNode(true) as HTMLElement;
-        coverClone.style.boxShadow = 'none';
-        coverClone.style.border = 'none';
-        coverClone.style.margin = '0 auto';
-        
-        // Remove toolbar from coverClone if any
-        const coverToolbar = coverClone.querySelector('#unemi-academic-toolbar');
-        if (coverToolbar) coverToolbar.remove();
+        if (settings.pageSize !== 'continuous' && coverPage) {
+          const coverClone = coverPage.cloneNode(true) as HTMLElement;
+          coverClone.style.boxShadow = 'none';
+          coverClone.style.border = 'none';
+          coverClone.style.margin = '0 auto';
+          
+          // Remove toolbar from coverClone if any
+          const coverToolbar = coverClone.querySelector('#unemi-academic-toolbar');
+          if (coverToolbar) coverToolbar.remove();
 
-        pagesHTML += `<div class="print-page-boundary mb-8">${coverClone.outerHTML}</div>\n`;
+          pagesHTML += `<div class="print-page-boundary mb-8">${coverClone.outerHTML}</div>\n`;
+        }
 
         docPages.forEach((page) => {
           const pageClone = page.cloneNode(true) as HTMLElement;
@@ -2189,15 +2220,20 @@ export default function DocumentPreview({
 
         const isLetterSize = settings.pageSize === 'letter';
         const isA4 = settings.pageSize === 'a4';
+        const isContinuous = settings.pageSize === 'continuous';
         const isPortrait = (settings.orientation || 'portrait') === 'portrait';
         
-        const paperWidth = isPortrait 
-          ? (isLetterSize ? '816px' : isA4 ? '794px' : '630px')
-          : (isLetterSize ? '1056px' : isA4 ? '1123px' : '1120px');
-          
-        const paperHeight = isPortrait 
-          ? (isLetterSize ? '1056px' : isA4 ? '1123px' : '1120px')
-          : (isLetterSize ? '816px' : isA4 ? '794px' : '630px');
+        const paperWidth = isContinuous
+          ? '794px'
+          : isPortrait 
+            ? (isLetterSize ? '816px' : isA4 ? '794px' : '630px')
+            : (isLetterSize ? '1056px' : isA4 ? '1123px' : '1120px');
+           
+        const paperHeight = isContinuous
+          ? 'auto'
+          : isPortrait 
+            ? (isLetterSize ? '1056px' : isA4 ? '1123px' : '1120px')
+            : (isLetterSize ? '816px' : isA4 ? '794px' : '630px');
 
         const topMargin = settings.marginTop !== undefined ? settings.marginTop : 96;
         const bottomMargin = settings.marginBottom !== undefined ? settings.marginBottom : 96;
@@ -3325,6 +3361,64 @@ export default function DocumentPreview({
       
       // Select raw rendered children in our hidden container
       const childNodes = Array.from(hiddenMeasureRef.current.children) as HTMLElement[];
+      let detectedHeadings: HeadingItem[] = [];
+
+      if (settings.pageSize === 'continuous') {
+        let contentHtmls = childNodes.map(node => node.outerHTML);
+
+        if (settings.showTemplatePages && settings.templateHtml && settings.templateJson) {
+          try {
+            const data = JSON.parse(settings.templateJson);
+            if (Array.isArray(data)) {
+              const templateHtmls = data.map((item: any) => {
+                let html = settings.templateHtml || '';
+                Object.keys(item).forEach(key => {
+                  const val = item[key];
+                  const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
+                  html = html.replace(regex, String(val));
+                });
+                return html;
+              });
+
+              const insertIndex = Math.max(0, Math.min(contentHtmls.length, (settings.templateStartPage || 1) - 1));
+              contentHtmls.splice(insertIndex, 0, ...templateHtmls);
+            }
+          } catch (err) {
+            console.error("Error parsing templates in continuous mode:", err);
+          }
+        }
+
+        const pagesList = [contentHtmls];
+
+        contentHtmls.forEach((html) => {
+          const parserDiv = document.createElement('div');
+          parserDiv.innerHTML = html;
+          const hElements = Array.from(parserDiv.querySelectorAll('h1, h2, h3, h4, h5'));
+          hElements.forEach((h) => {
+            const text = h.textContent?.trim() || '';
+            if (text) {
+              let level = 1;
+              if (h.tagName.startsWith('H') && h.tagName.length === 2) {
+                level = parseInt(h.tagName.substring(1), 10);
+              }
+              detectedHeadings.push({
+                text,
+                level,
+                page: 1,
+                pageRelative: 0
+              });
+            }
+          });
+        });
+
+        setPaginatedPages(pagesList);
+        setPaginatedTOCPages([]);
+        setDynamicHeadings(detectedHeadings);
+        setPageCount(1);
+        setRecalculating(false);
+        return;
+      }
+
       const pagesList: string[][] = [[]];
       let currentPageIndex = 0;
       let accumulatedPageHeight = 0;
@@ -3332,8 +3426,6 @@ export default function DocumentPreview({
       // Vertical threshold boundary in pixels, reserving safety margin:
       const totalHeight = pageHeight;
       const maxHeight = totalHeight - topMargin - bottomMargin - 5;
-
-      let detectedHeadings: HeadingItem[] = [];
 
       // Create a temporary measurement container with the exact same styles
       const tempMeasureContainer = document.createElement('div');
@@ -3841,6 +3933,29 @@ export default function DocumentPreview({
             pagesList[currentPageIndex].push(item.html);
             accumulatedPageHeight += elementHeight;
           }
+        }
+      }
+
+      // Template insertion
+      if (settings.showTemplatePages && settings.templateHtml && settings.templateJson) {
+        try {
+          const data = JSON.parse(settings.templateJson);
+          if (Array.isArray(data)) {
+            const templatePages: string[][] = data.map((item: any) => {
+              let html = settings.templateHtml || '';
+              Object.keys(item).forEach(key => {
+                const val = item[key];
+                const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
+                html = html.replace(regex, String(val));
+              });
+              return [html];
+            });
+
+            const insertIndex = Math.max(0, Math.min(pagesList.length, (settings.templateStartPage || 1) - 1));
+            pagesList.splice(insertIndex, 0, ...templatePages);
+          }
+        } catch (err) {
+          console.error("Error parsing template JSON or HTML:", err);
         }
       }
 
@@ -4722,14 +4837,16 @@ export default function DocumentPreview({
           }}
         >
           {/* PAGE 1: COVER PAGE (No headers/footers) */}
-          <CoverPage 
-            config={resolvedCover} 
-            pageSize={settings.pageSize} 
-            orientation={settings.orientation} 
-            marginElements={settings.marginElements}
-            totalPages={paginatedPages.length + 1 + (settings.showTOC ? paginatedTOCPages.length : 0)}
-            uploadedFiles={uploadedFiles}
-          />
+          {settings.pageSize !== 'continuous' && (
+            <CoverPage 
+              config={resolvedCover} 
+              pageSize={settings.pageSize} 
+              orientation={settings.orientation} 
+              marginElements={settings.marginElements}
+              totalPages={paginatedPages.length + 1 + (settings.showTOC ? paginatedTOCPages.length : 0)}
+              uploadedFiles={uploadedFiles}
+            />
+          )}
 
           {/* PAGE 2+: TABLE OF CONTENTS (Optional academic pages, strictly out of content.html) */}
           {settings.showTOC && paginatedTOCPages.map((tocPageHeadings, tIdx) => {
@@ -4787,6 +4904,24 @@ export default function DocumentPreview({
             paginatedPages.map((pageHTMLs, index) => {
               const pageHTMLJoined = pageHTMLs.join('');
 
+              let isTemplatePage = false;
+              if (settings.showTemplatePages && settings.templateHtml && settings.templateJson) {
+                try {
+                  const data = JSON.parse(settings.templateJson);
+                  if (Array.isArray(data)) {
+                    const templateLength = data.length;
+                    const originalContentLength = paginatedPages.length - templateLength;
+                    const insertIndex = Math.max(0, Math.min(originalContentLength, (settings.templateStartPage || 1) - 1));
+                    
+                    if (index >= insertIndex && index < insertIndex + templateLength) {
+                      isTemplatePage = true;
+                    }
+                  }
+                } catch (e) {
+                  // ignore parse error
+                }
+              }
+
               return (
                 <PageTemplate
                   key={index}
@@ -4797,6 +4932,7 @@ export default function DocumentPreview({
                   showGuides={settings.showGuides}
                   coverConfig={resolvedCover}
                   uploadedFiles={uploadedFiles}
+                  isTemplatePage={isTemplatePage}
                 >
                   <div
                     className="unemi-document-body"
