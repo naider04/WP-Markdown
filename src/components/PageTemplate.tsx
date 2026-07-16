@@ -184,7 +184,7 @@ export default function PageTemplate({
       {/* 3. CONTENT CONTAINER: Bounded strictly within the padded area */}
       <div 
         className="flex-1 w-full h-full flex flex-col overflow-hidden text-justify relative"
-        style={{ zIndex: isTemplatePage ? 40 : 10 }}
+        style={{ zIndex: 40 }}
       >
         <div className={`${isTemplatePage ? "unemi-template-content" : "unemi-document-content"} w-full h-full select-text leading-relaxed text-[16px] ${isTemplatePage ? "" : "text-black"}`}>
           {children}
