@@ -4,14 +4,17 @@
  */
 
 type Token =
+  | { type: 'UNION' }
+  | { type: 'INTERSECT' }
+  | { type: 'NOT' }
+  | { type: 'LPAREN' }
+  | { type: 'RPAREN' }
+  | { type: 'K' }
+  | { type: 'N' }
   | { type: 'NUMBER'; value: number }
-  | { type: 'RANGE_OP' } // '..'
-  | { type: 'DOT' } // '.'
-  | { type: 'NOT' } // '!'
-  | { type: 'LPAREN' } // '('
-  | { type: 'RPAREN' } // ')'
-  | { type: 'IDENTIFIER'; value: string }
-  | { type: 'COMMA' }; // ','
+  | { type: 'MINUS' }
+  | { type: 'PLUS' }
+  | { type: 'RANGE' };
 
 function tokenize(input: string): Token[] {
   const tokens: Token[] = [];
@@ -22,13 +25,13 @@ function tokenize(input: string): Token[] {
       i++;
       continue;
     }
-    if (char === '.' && input[i + 1] === '.') {
-      tokens.push({ type: 'RANGE_OP' });
-      i += 2;
+    if (char === ',' || char === ';') {
+      tokens.push({ type: 'UNION' });
+      i++;
       continue;
     }
-    if (char === '.') {
-      tokens.push({ type: 'DOT' });
+    if (char === '&') {
+      tokens.push({ type: 'INTERSECT' });
       i++;
       continue;
     }
@@ -47,14 +50,24 @@ function tokenize(input: string): Token[] {
       i++;
       continue;
     }
-    if (char === ',') {
-      tokens.push({ type: 'COMMA' });
+    if (char === '-') {
+      tokens.push({ type: 'MINUS' });
       i++;
       continue;
     }
-    if (char === '*') {
-      tokens.push({ type: 'IDENTIFIER', value: '*' });
+    if (char === '+') {
+      tokens.push({ type: 'PLUS' });
       i++;
+      continue;
+    }
+    if (char === '*' && input[i + 1] !== '*') {
+      tokens.push({ type: 'K' });
+      i++;
+      continue;
+    }
+    if (char === '.' && input[i + 1] === '.') {
+      tokens.push({ type: 'RANGE' });
+      i += 2;
       continue;
     }
     if (/\d/.test(char)) {
@@ -67,12 +80,27 @@ function tokenize(input: string): Token[] {
       continue;
     }
     if (/[a-zA-Z_]/.test(char)) {
-      let ident = '';
+      let word = '';
       while (i < input.length && /[a-zA-Z0-9_]/.test(input[i])) {
-        ident += input[i];
+        word += input[i];
         i++;
       }
-      tokens.push({ type: 'IDENTIFIER', value: ident });
+      const lowerWord = word.toLowerCase();
+      if (lowerWord === 'k') {
+        tokens.push({ type: 'K' });
+      } else if (lowerWord === 'n') {
+        tokens.push({ type: 'N' });
+      } else if (lowerWord === 'all' || lowerWord === 'todas') {
+        tokens.push({ type: 'K' });
+      } else if (lowerWord === 'even' || lowerWord === 'pares') {
+        tokens.push({ type: 'NUMBER', value: 2 });
+        tokens.push({ type: 'K' });
+      } else if (lowerWord === 'odd' || lowerWord === 'impares') {
+        tokens.push({ type: 'NUMBER', value: 2 });
+        tokens.push({ type: 'K' });
+        tokens.push({ type: 'MINUS' });
+        tokens.push({ type: 'NUMBER', value: 1 });
+      }
       continue;
     }
     i++;
@@ -83,9 +111,11 @@ function tokenize(input: string): Token[] {
 class PageSyntaxParser {
   private tokens: Token[];
   private pos = 0;
+  private totalPages: number;
 
-  constructor(tokens: Token[]) {
+  constructor(tokens: Token[], totalPages: number) {
     this.tokens = tokens;
+    this.totalPages = totalPages;
   }
 
   private peek(): Token | null {
@@ -105,150 +135,160 @@ class PageSyntaxParser {
     return false;
   }
 
-  public parseExpression(): (currentSet: number[]) => number[] {
-    // Expression is one or more dot-chains separated by commas (Union)
-    const chains: ((currentSet: number[]) => number[])[] = [this.parseDotChain()];
+  public parseExpression(): Set<number> {
+    const result = this.parseIntersection();
 
-    while (this.match('COMMA')) {
-      chains.push(this.parseDotChain());
+    while (this.match('UNION')) {
+      const right = this.parseIntersection();
+      for (const val of right) {
+        result.add(val);
+      }
     }
 
-    return (currentSet: number[]) => {
-      const results = chains.map((chain) => chain(currentSet));
-      const combinedSet = new Set(results.flat());
-      return currentSet.filter((p) => combinedSet.has(p));
-    };
+    return result;
   }
 
-  private parseDotChain(): (currentSet: number[]) => number[] {
-    let fn = this.parsePrimary();
+  private parseIntersection(): Set<number> {
+    let result = this.parseUnary();
 
-    while (this.match('DOT')) {
-      const rightFn = this.parseChainElement();
-      const prevFn = fn;
-      fn = (currentSet: number[]) => {
-        const leftResult = prevFn(currentSet);
-        return rightFn(leftResult);
-      };
+    while (this.match('INTERSECT')) {
+      const right = this.parseUnary();
+      const newResult = new Set<number>();
+      for (const val of result) {
+        if (right.has(val)) {
+          newResult.add(val);
+        }
+      }
+      result = newResult;
     }
 
-    return fn;
+    return result;
   }
 
-  private parsePrimary(): (currentSet: number[]) => number[] {
+  private parseUnary(): Set<number> {
     if (this.match('NOT')) {
-      const innerFn = this.parsePrimary();
-      return (currentSet: number[]) => {
-        const innerResult = innerFn(currentSet);
-        const innerSet = new Set(innerResult);
-        return currentSet.filter((p) => !innerSet.has(p));
-      };
+      const inner = this.parseUnary();
+      const complement = new Set<number>();
+      for (let p = 1; p <= this.totalPages; p++) {
+        if (!inner.has(p)) {
+          complement.add(p);
+        }
+      }
+      return complement;
     }
 
+    return this.parsePrimary();
+  }
+
+  private parsePrimary(): Set<number> {
     if (this.match('LPAREN')) {
-      const fn = this.parseExpression();
+      const result = this.parseExpression();
       if (!this.match('RPAREN')) {
         console.warn('Mismatched parentheses in page syntax');
       }
-      return fn;
+      return result;
     }
 
     const token = this.peek();
-    if (token && token.type === 'NUMBER') {
-      const numToken = this.next() as { type: 'NUMBER'; value: number };
-      if (this.match('RANGE_OP')) {
-        const nextToken = this.peek();
-        if (nextToken && nextToken.type === 'NUMBER') {
-          const endToken = this.next() as { type: 'NUMBER'; value: number };
-          const start = numToken.value;
-          const end = endToken.value;
-          return (currentSet: number[]) => {
-            const range: number[] = [];
-            for (let p = start; p <= end; p++) {
-              range.push(p);
+    if (!token) {
+      return new Set<number>();
+    }
+
+    // 1. Check if it's "2k-1" or "2k"
+    if (token.type === 'NUMBER' && token.value === 2) {
+      const nextToken = this.tokens[this.pos + 1];
+      if (nextToken && nextToken.type === 'K') {
+        this.pos += 2;
+        const opToken = this.peek();
+        if (opToken && (opToken.type === 'MINUS' || opToken.type === 'PLUS')) {
+          const numToken = this.tokens[this.pos + 1];
+          if (numToken && numToken.type === 'NUMBER' && numToken.value === 1) {
+            this.pos += 2;
+            const odds = new Set<number>();
+            for (let p = 1; p <= this.totalPages; p++) {
+              if (p % 2 !== 0) {
+                odds.add(p);
+              }
             }
-            const rangeSet = new Set(range);
-            return currentSet.filter((p) => rangeSet.has(p));
-          };
-        } else {
-          return (currentSet: number[]) => currentSet.filter((p) => p === numToken.value);
+            return odds;
+          }
+        }
+        const evens = new Set<number>();
+        for (let p = 1; p <= this.totalPages; p++) {
+          if (p % 2 === 0) {
+            evens.add(p);
+          }
+        }
+        return evens;
+      }
+    }
+
+    // 2. Check if it's "k"
+    if (token.type === 'K') {
+      this.next();
+      const allPages = new Set<number>();
+      for (let p = 1; p <= this.totalPages; p++) {
+        allPages.add(p);
+      }
+      return allPages;
+    }
+
+    // 3. Check if it's "n" or "n-X"
+    if (token.type === 'N') {
+      this.next();
+      const opToken = this.peek();
+      if (opToken && (opToken.type === 'MINUS' || opToken.type === 'PLUS')) {
+        const numToken = this.tokens[this.pos + 1];
+        if (numToken && numToken.type === 'NUMBER') {
+          this.pos += 2;
+          const offset = opToken.type === 'MINUS' ? -numToken.value : numToken.value;
+          const targetPage = this.totalPages + offset;
+          const resultSet = new Set<number>();
+          if (targetPage >= 1 && targetPage <= this.totalPages) {
+            resultSet.add(targetPage);
+          }
+          return resultSet;
         }
       }
-      return (currentSet: number[]) => currentSet.filter((p) => p === numToken.value);
+      const resultSet = new Set<number>();
+      if (this.totalPages >= 1) {
+        resultSet.add(this.totalPages);
+      }
+      return resultSet;
     }
 
-    if (token && token.type === 'IDENTIFIER') {
-      return this.parseSelectorCall();
+    // 4. Check if it's a NUMBER
+    if (token.type === 'NUMBER') {
+      const numToken = this.next() as { type: 'NUMBER'; value: number };
+      const start = numToken.value;
+
+      if (this.match('RANGE')) {
+        const endToken = this.peek();
+        if (endToken && endToken.type === 'NUMBER') {
+          this.next();
+          const end = endToken.value;
+          const rangeSet = new Set<number>();
+          for (let p = Math.min(start, end); p <= Math.max(start, end); p++) {
+            if (p >= 1 && p <= this.totalPages) {
+              rangeSet.add(p);
+            }
+          }
+          return rangeSet;
+        }
+      }
+
+      const resultSet = new Set<number>();
+      if (start >= 1 && start <= this.totalPages) {
+        resultSet.add(start);
+      }
+      return resultSet;
     }
 
-    return (currentSet: number[]) => currentSet;
-  }
-
-  private parseChainElement(): (currentSet: number[]) => number[] {
-    if (this.match('NOT')) {
-      const innerFn = this.parseChainElement();
-      return (currentSet: number[]) => {
-        const innerResult = innerFn(currentSet);
-        const innerSet = new Set(innerResult);
-        return currentSet.filter((p) => !innerSet.has(p));
-      };
-    }
-
-    if (this.peek()?.type === 'IDENTIFIER') {
-      return this.parseSelectorCall();
-    }
-
-    return (currentSet: number[]) => currentSet;
-  }
-
-  private parseSelectorCall(): (currentSet: number[]) => number[] {
-    const identToken = this.next() as { type: 'IDENTIFIER'; value: string };
-    const name = identToken.value.toLowerCase();
-
-    let args: number[] = [];
-    if (name !== 'even' && name !== 'odd' && name !== '*' && name !== 'all' && name !== 'todas' && this.match('LPAREN')) {
-      const nextToken = this.peek();
-      if (nextToken && nextToken.type === 'NUMBER') {
-        const argToken = this.next() as { type: 'NUMBER'; value: number };
-        args.push(argToken.value);
-      }
-      if (!this.match('RPAREN')) {
-        console.warn(`Expected closing parenthesis for selector: ${name}`);
-      }
-    }
-
-    return (currentSet: number[]) => {
-      if (name === 'first') {
-        const n = args[0] !== undefined ? args[0] : 1;
-        return currentSet.slice(0, n);
-      }
-      if (name === 'last') {
-        const n = args[0] !== undefined ? args[0] : 1;
-        return currentSet.slice(Math.max(0, currentSet.length - n));
-      }
-      if (name === 'even') {
-        return currentSet.filter((p) => p % 2 === 0);
-      }
-      if (name === 'odd') {
-        return currentSet.filter((p) => p % 2 !== 0);
-      }
-      if (name === '*' || name === 'all' || name === 'todas') {
-        return currentSet;
-      }
-      if (name === 'every') {
-        const n = args[0] !== undefined ? args[0] : 1;
-        if (n <= 0) return currentSet;
-        return currentSet.filter((_, idx) => idx % n === 0);
-      }
-      return currentSet;
-    };
+    this.next();
+    return new Set<number>();
   }
 }
 
-/**
- * Evaluates whether a MarginElement should render on a specific page number
- * based on its target pages pattern.
- */
 export function shouldShowOnPage(
   pattern: string | undefined,
   pageNumber: number,
@@ -259,7 +299,6 @@ export function shouldShowOnPage(
   const trimmed = pattern.trim();
   const normalized = trimmed.toLowerCase();
 
-  // Handle defaults immediately
   if (
     normalized === '' ||
     normalized === 'all' ||
@@ -273,16 +312,12 @@ export function shouldShowOnPage(
     const tokens = tokenize(trimmed);
     if (tokens.length === 0) return true;
 
-    const parser = new PageSyntaxParser(tokens);
-    const evaluateFn = parser.parseExpression();
+    const parser = new PageSyntaxParser(tokens, totalPages);
+    const selectedPages = parser.parseExpression();
 
-    const universe = Array.from({ length: totalPages }, (_, i) => i + 1);
-    const selectedPages = evaluateFn(universe);
-
-    return selectedPages.includes(pageNumber);
+    return selectedPages.has(pageNumber);
   } catch (error) {
     console.error(`Error parsing selector syntax pattern: "${pattern}"`, error);
-    // Graceful fallback to show on all pages
     return true;
   }
 }

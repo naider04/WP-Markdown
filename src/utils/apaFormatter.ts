@@ -20,7 +20,7 @@ export function isInstitutional(authorStr: string): boolean {
   
   const institutionalKeywords = [
     'universidad', 'university', 'asociación', 'association', 'instituto', 'institute',
-    'organización', 'organization', 'editorial', 'unemi', 'gobierno', 'government',
+    'organización', 'organization', 'editorial', 'wp', 'gobierno', 'government',
     'ministerio', 'ministry', 'corporación', 'corporation', 'sociedad', 'society',
     'grupo', 'group', 'fundación', 'foundation', 'banco', 'bank', 'comisión', 'commission',
     'consejo', 'council', 'centre', 'centro', 'laboratory', 'laboratorio', 'academy', 'academia',

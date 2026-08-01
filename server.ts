@@ -43,7 +43,7 @@ async function startServer() {
   // API Route: Insert an image into the appropriate Markdown block using Gemini AI
   app.post("/api/gemini/insert-image", async (req, res) => {
     try {
-      const { htmlBlocks, imageName, imageDescription, images } = req.body;
+      const { htmlBlocks, imageName, imageDescription, images, formatInstruction } = req.body;
       const clientApiKey = req.headers["x-user-api-key"] as string | undefined;
       const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
 
@@ -84,6 +84,10 @@ async function startServer() {
         return `--- INICIO DE BLOQUE (ID: "${b.id}", NOMBRE: "${b.name}") ---\n${b.code}\n--- FIN DE BLOQUE (ID: "${b.id}") ---`;
       }).join("\n\n");
 
+      const formatInstructionPrompt = formatInstruction && typeof formatInstruction === 'string' && formatInstruction.trim().length > 0
+        ? `\nPREFERENCIA DE SINTAXIS/FORMATO INDICADA EN LENGUAJE NATURAL POR EL USUARIO:\n"${formatInstruction.trim()}"\n\nAplica esta preferencia para generar el 'imageTag' de cada imagen. Tienes libertad para elegir la sintaxis exacta (Markdown, HTML, etc.) que cumpla la indicación del usuario.\n`
+        : `\nFORMATO PREDETERMINADO:\nSi el usuario no especifica formato, puedes usar el formato estándar Markdown con atributos (ej: "![Título o leyenda](nombre.png){width=70%}") o HTML según corresponda.\n`;
+
       const prompt = `
 Mira este Markdown y determina de forma inteligente cuál es el mejor bloque y el punto idóneo (ancla) para insertar cada una de las siguientes imágenes:
 
@@ -94,12 +98,20 @@ Para cada imagen:
 1. Elige el block ID más idóneo.
 2. Encuentra una frase o párrafo textual y exacto dentro de ese bloque para usarlo como 'anchorText' (ancla de texto), de modo que podamos insertar la imagen antes o después de esa frase de manera segura. Debe ser un fragmento único e idéntico para que la búsqueda sea exacta.
 3. Determina si colocar la imagen 'after' (después) o 'before' (antes) del 'anchorText', o bien usa 'append' (al final del bloque) o 'prepend' (al inicio del bloque).
-4. Genera la etiqueta Markdown de la imagen exacta en 'imageTag'. Escribe un título o leyenda adecuada para la imagen, no inventes datos, limítate a lo que puedas deducir de la descripción proporcionada. Ejemplo: "![Esquema conceptual del proyecto](nombre_de_archivo.png){width=70%}"
+4. Genera la etiqueta o fragmento de código de la imagen exacta en 'imageTag'.
+
+${formatInstructionPrompt}
+
+EJEMPLOS DE GUÍA DE SINTAXIS DE 'imageTag':
+- Ejemplo APA 7: "![Título de la figura](nombre.png){id=fig-1 width=70% note=\\"Nota explicativa de los datos.\\"}"
+- Ejemplo HTML simple (solo imagen): "<img src=\\"nombre.png\\" width=\\"400\\" />"
+- Ejemplo HTML con estilo: "<div style=\\"text-align: center;\\"><img src=\\"nombre.png\\" style=\\"max-width: 80%;\\" /></div>"
+- Ejemplo solo nombre de figura sin descripción: "![Nombre de la figura](nombre.png)"
+- Ejemplo solo imagen sin nombre ni descripción: "![](nombre.png){width=60%}"
 
 INSTRUCCIÓN ESPECIAL PARA INSERTAR DOS O MÁS IMÁGENES CONSECUTIVAS:
 Si deseas insertar dos o más imágenes juntas (una justo después de la otra) en la misma ubicación del documento:
 - Usa exactamente el mismo 'selectedBlockId', el mismo 'anchorText' y la misma 'relation'. El backend de la aplicación detectará esto y las agrupará de manera inteligente para que queden insertadas consecutivamente (una tras otra) en el orden correcto, sin pisarse ni invertirse.
-- Por ejemplo, si deseas que la Imagen A y la Imagen B queden juntas después del párrafo "Frase clave de anclaje", puedes asignar a ambas 'anchorText': "Frase clave de anclaje" y 'relation': "after". El sistema las mantendrá ordenadas secuencialmente en el mismo lugar de inserción.
 
 BLOQUES DISPONIBLES EN EL DOCUMENTO:
 ${blocksText}
@@ -298,10 +310,10 @@ ${blocksText}
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[UNEMI Server] Servidor backend ejecutándose en http://localhost:${PORT}`);
+    console.log(`[WP Server] Servidor backend ejecutándose en http://localhost:${PORT}`);
   });
 }
 
 startServer().catch((err) => {
-  console.error("Error al iniciar el servidor UNEMI Express:", err);
+  console.error("Error al iniciar el servidor WP Express:", err);
 });

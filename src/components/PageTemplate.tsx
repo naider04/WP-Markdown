@@ -112,6 +112,53 @@ export default function PageTemplate({
     return processed;
   };
 
+  if (isContinuous) {
+    return (
+      <div
+        name={`document-page-${pageNumber}`}
+        className={`${isTemplatePage ? "wp-template-content" : "wp-document-content"} bg-white text-black relative select-text`}
+        style={{
+          boxSizing: 'border-box',
+          width: '100%',
+          maxWidth: '794px',
+          margin: '0 auto',
+          paddingTop: `${topMargin}px`,
+          paddingBottom: `${bottomMargin}px`,
+          paddingLeft: `${leftMargin}px`,
+          paddingRight: `${rightMargin}px`,
+          border: '0px none transparent',
+          outline: 'none',
+          boxShadow: 'none',
+        }}
+      >
+        {/* Margin-bypassing Elements */}
+        {settings.marginElements && settings.marginElements.map((el) => {
+          if (el.hidden) return null;
+          if (!shouldShowOnPage(el.pagesPattern, pageNumber, totalPages)) return null;
+          return (
+            <div
+              key={el.id}
+              className="wp-margin-element"
+              style={{
+                position: 'absolute',
+                top: formatCoordinate(el.top),
+                right: formatCoordinate(el.right),
+                bottom: formatCoordinate(el.bottom),
+                left: formatCoordinate(el.left),
+                width: formatCoordinate(el.width),
+                height: formatCoordinate(el.height),
+                zIndex: 35,
+                pointerEvents: 'auto',
+              }}
+              dangerouslySetInnerHTML={{ __html: resolveUploadedImages(resolvePageVariables(el.code, pageNumber, totalPages)) }}
+            />
+          );
+        })}
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div
       name={`document-page-${pageNumber}`}
@@ -128,11 +175,12 @@ export default function PageTemplate({
     >
       {/* Margin-bypassing Elements */}
       {settings.marginElements && settings.marginElements.map((el) => {
+        if (el.hidden) return null;
         if (!shouldShowOnPage(el.pagesPattern, pageNumber, totalPages)) return null;
         return (
           <div
             key={el.id}
-            className="unemi-margin-element"
+            className="wp-margin-element"
             style={{
               position: 'absolute',
               top: formatCoordinate(el.top),
@@ -186,7 +234,7 @@ export default function PageTemplate({
         className="flex-1 w-full h-full flex flex-col overflow-hidden text-justify relative"
         style={{ zIndex: 40 }}
       >
-        <div className={`${isTemplatePage ? "unemi-template-content" : "unemi-document-content"} w-full h-full select-text leading-relaxed text-[16px] ${isTemplatePage ? "" : "text-black"}`}>
+        <div className={`${isTemplatePage ? "wp-template-content" : "wp-document-content"} w-full h-full select-text leading-relaxed text-[16px] ${isTemplatePage ? "" : "text-black"}`}>
           {children}
         </div>
       </div>

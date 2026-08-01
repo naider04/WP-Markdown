@@ -14,9 +14,11 @@ import {
   AlertTriangle,
   AlertCircle,
   Copy,
-  Check
+  Check,
+  FileText
 } from 'lucide-react';
 import { validateContent } from '../utils/validation';
+import { copyToWordClipboard } from '../lib/wordExporter';
 
 interface AutoGrowingTextAreaProps {
   id: string;
@@ -24,14 +26,21 @@ interface AutoGrowingTextAreaProps {
   onChange: (value: string) => void;
   placeholder?: string;
   debounceDelay: number;
+  autoFocus?: boolean;
 }
 
-function AutoGrowingTextArea({ id, value, onChange, placeholder, debounceDelay }: AutoGrowingTextAreaProps) {
+function AutoGrowingTextArea({ id, value, onChange, placeholder, debounceDelay, autoFocus }: AutoGrowingTextAreaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastWidthRef = useRef<number>(0);
   const [localValue, setLocalValue] = useState(value);
   const lastPropagatedRef = useRef(value);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (autoFocus && textareaRef.current) {
+      textareaRef.current.focus({ preventScroll: true });
+    }
+  }, [autoFocus]);
 
   // Sync with outer changes only if they were initiated externally (e.g. templates, file loads, undo/reverts)
   useEffect(() => {
@@ -43,10 +52,35 @@ function AutoGrowingTextArea({ id, value, onChange, placeholder, debounceDelay }
 
   const adjustHeight = () => {
     const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      // Use scrollHeight to auto-grow the textarea naturally, minimum height 130px
+    if (!textarea) return;
+
+    // Save scroll position of all scrollable parent containers before height recalculation
+    const scrollParents: { el: HTMLElement; scrollTop: number }[] = [];
+    let parent = textarea.parentElement;
+    while (parent && parent !== document.body) {
+      const style = window.getComputedStyle(parent);
+      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        scrollParents.push({ el: parent, scrollTop: parent.scrollTop });
+      }
+      parent = parent.parentElement;
+    }
+
+    const currentHeight = textarea.offsetHeight;
+
+    if (textarea.scrollHeight > currentHeight) {
+      // Expanding content (e.g., Enter key, Ctrl+V paste, typing new lines).
+      // Direct expansion prevents height collapsing to 'auto' and avoids scroll jumps.
       textarea.style.height = `${Math.max(130, textarea.scrollHeight)}px`;
+    } else {
+      // Contracting content (e.g., Ctrl+X cut, Backspace, Delete).
+      textarea.style.height = 'auto';
+      const newHeight = Math.max(130, textarea.scrollHeight);
+      textarea.style.height = `${newHeight}px`;
+
+      // Instantly restore original parent scroll positions
+      for (const sp of scrollParents) {
+        sp.el.scrollTop = sp.scrollTop;
+      }
     }
   };
 
@@ -145,11 +179,8 @@ export function SidebarEditor({
   onResetToOriginal,
   syncStatusMsg,
 }: SidebarEditorProps) {
-  // Debounce delay state for typing (default 500ms, persistent in localStorage)
-  const [debounceDelay, setDebounceDelay] = useState<number>(() => {
-    const saved = localStorage.getItem('unemi_editor_debounce_delay');
-    return saved !== null ? parseInt(saved, 10) : 500;
-  });
+  // Debounce delay state for typing (default 0ms, managed by global header controls)
+  const [debounceDelay] = useState<number>(0);
 
   // Drag and drop state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -157,6 +188,7 @@ export function SidebarEditor({
 
   // Copy state
   const [copied, setCopied] = useState(false);
+  const [copiedWord, setCopiedWord] = useState(false);
 
   const handleCopyAllMarkdown = () => {
     const allMarkdown = htmlBlocks.map(block => block.code).join('\n\n');
@@ -168,8 +200,19 @@ export function SidebarEditor({
     });
   };
 
+  const handleCopyAllForWord = async () => {
+    const success = await copyToWordClipboard(htmlBlocks);
+    if (success) {
+      setCopiedWord(true);
+      setTimeout(() => setCopiedWord(false), 2000);
+    }
+  };
+
   // State to handle block delete confirmation modal
   const [blockToDelete, setBlockToDelete] = useState<HTMLBlock | null>(null);
+
+  // State to track which block is actively in 3rd-click edit mode
+  const [activeEditingBlockId, setActiveEditingBlockId] = useState<string | null>(null);
 
   // State for showing the "Nuevo Bloque" dropdown menu
   const [showAddMenu, setShowAddMenu] = useState<boolean>(false);
@@ -201,12 +244,12 @@ export function SidebarEditor({
       name,
       code,
       collapsed: false,
-      isFunctional: false,
       isMarkdown: true,
     };
     setHtmlBlocks((prev) => [...prev, newBlock]);
     setIsLocallyEdited(true);
     setLastFocusedBlockId(newBlock.id);
+    setActiveEditingBlockId(newBlock.id);
     setShowAddMenu(false);
   };
 
@@ -215,6 +258,7 @@ export function SidebarEditor({
     setHtmlBlocks((prev) =>
       prev.map((b) => (b.id === id ? { ...b, collapsed: !b.collapsed } : b))
     );
+    setActiveEditingBlockId(null);
     setIsLocallyEdited(true);
   };
 
@@ -290,95 +334,106 @@ export function SidebarEditor({
     if (!lastFocusedBlockId) return;
     const selectedBlock = htmlBlocks.find((b) => b.id === lastFocusedBlockId);
     if (!selectedBlock) return;
-    setBlockToDelete(selectedBlock);
+    if (blockToDelete?.id === selectedBlock.id) {
+      setBlockToDelete(null);
+    } else {
+      setBlockToDelete(selectedBlock);
+    }
   };
 
   return (
     <div className="flex flex-col h-full bg-slate-900 border-r border-slate-880 text-xs text-slate-300 font-sans select-none">
       
       {/* Workspace Header */}
-      <div className="p-3 bg-slate-950 border-b border-slate-850 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <Code className="w-4 h-4 text-orange-500 shrink-0" />
-          <span className="font-extrabold uppercase tracking-widest text-[11px] text-slate-100 truncate">
-            Contenido ({htmlBlocks.length})
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {/* Colapsar / Expandir button */}
-          <button
-            onClick={handleToggleCollapseSelected}
-            disabled={!selectedBlock}
-            className={`h-7 px-2 border transition-all flex items-center gap-1 text-[10px] font-bold rounded ${
-              selectedBlock
-                ? 'bg-slate-800 hover:bg-slate-700 hover:text-orange-400 border-slate-700 text-slate-200 cursor-pointer active:scale-95'
-                : 'bg-slate-900/40 text-slate-600 border-slate-850 cursor-not-allowed opacity-35'
-            }`}
-            title={selectedBlock ? (selectedBlock.collapsed ? "Expandir bloque seleccionado" : "Colapsar bloque seleccionado") : "Seleccione un bloque para expandir/colapsar"}
-          >
-            {selectedBlock?.collapsed ? (
-              <>
-                <ChevronDown className="w-3.5 h-3.5 text-orange-500" />
-                <span>Expandir</span>
-              </>
-            ) : (
-              <>
-                <ChevronUp className="w-3.5 h-3.5 text-orange-500" />
-                <span>Colapsar</span>
-              </>
-            )}
-          </button>
+      <div className="p-3 bg-slate-950 border-b border-slate-850 flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Code className="w-4 h-4 text-orange-500 shrink-0" />
+            <span className="font-extrabold uppercase tracking-widest text-[11px] text-slate-100 truncate">
+              Contenido ({htmlBlocks.length})
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Colapsar / Expandir button */}
+            <button
+              onClick={handleToggleCollapseSelected}
+              disabled={!selectedBlock}
+              className={`h-7 px-2 border transition-all flex items-center gap-1 text-[10px] font-bold rounded ${
+                selectedBlock
+                  ? 'bg-slate-800 hover:bg-slate-700 hover:text-orange-400 border-slate-700 text-slate-200 cursor-pointer active:scale-95'
+                  : 'bg-slate-900/40 text-slate-600 border-slate-850 cursor-not-allowed opacity-35'
+              }`}
+              title={selectedBlock ? (selectedBlock.collapsed ? "Expandir bloque seleccionado" : "Colapsar bloque seleccionado") : "Seleccione un bloque para expandir/colapsar"}
+            >
+              {selectedBlock?.collapsed ? (
+                <>
+                  <ChevronDown className="w-3.5 h-3.5 text-orange-500" />
+                  <span>Expandir</span>
+                </>
+              ) : (
+                <>
+                  <ChevronUp className="w-3.5 h-3.5 text-orange-500" />
+                  <span>Colapsar</span>
+                </>
+              )}
+            </button>
 
-          {/* Eliminar button */}
-          <button
-            onClick={handleDeleteSelected}
-            disabled={!selectedBlock}
-            className={`h-7 px-2 border transition-all flex items-center gap-1 text-[10px] font-bold rounded ${
-              selectedBlock
-                ? 'bg-red-950/40 hover:bg-red-900/40 border-red-900/60 hover:border-red-500 text-red-400 cursor-pointer active:scale-95'
-                : 'bg-slate-900/40 text-slate-600 border-slate-850 cursor-not-allowed opacity-35'
-            }`}
-            title={selectedBlock ? "Eliminar bloque seleccionado" : "Seleccione un bloque para eliminar"}
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+            {/* Eliminar button */}
+            <button
+              onClick={handleDeleteSelected}
+              disabled={!selectedBlock}
+              className={`h-7 px-2 border transition-all flex items-center gap-1 text-[10px] font-bold rounded ${
+                selectedBlock
+                  ? 'bg-red-950/40 hover:bg-red-900/40 border-red-900/60 hover:border-red-500 text-red-400 cursor-pointer active:scale-95'
+                  : 'bg-slate-900/40 text-slate-600 border-slate-850 cursor-not-allowed opacity-35'
+              }`}
+              title={selectedBlock ? "Eliminar bloque seleccionado" : "Seleccione un bloque para eliminar"}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
 
-          {/* Nuevo Bloque button */}
-          <button
-            onClick={() => handleAddBlock()}
-            className="h-7 px-2 border border-[#FF6600] bg-[#004080] hover:bg-[#003060] text-white font-bold transition-all flex items-center gap-1 cursor-pointer rounded text-[10px] active:scale-95 shadow-md"
-            title="Agregar un nuevo fragmento de contenido"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
+            {/* Nuevo Bloque button */}
+            <button
+              onClick={() => handleAddBlock()}
+              className="h-7 px-2 border border-[#FF6600] bg-[#004080] hover:bg-[#003060] text-white font-bold transition-all flex items-center gap-1 cursor-pointer rounded text-[10px] active:scale-95 shadow-md"
+              title="Agregar un nuevo fragmento de contenido"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Configuración de Retraso de Escritura */}
-      <div className="px-3 py-2 bg-slate-950/80 border-b border-slate-850 flex items-center justify-between gap-3 text-slate-300">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0"></span>
-          <span className="font-semibold text-[10px] text-slate-300 tracking-wide select-none">
-            Retraso de actualización (milisegundos):
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <input
-            type="number"
-            min="0"
-            max="3000"
-            step="100"
-            value={debounceDelay}
-            onChange={(e) => {
-              const val = Math.max(0, parseInt(e.target.value, 10) || 0);
-              setDebounceDelay(val);
-              localStorage.setItem('unemi_editor_debounce_delay', val.toString());
-            }}
-            className="w-14 h-6 px-1 bg-slate-900 border border-slate-700 text-slate-200 text-[10.5px] rounded font-mono text-center focus:outline-none focus:border-orange-500"
-            title="Aumentar el tiempo si tu escritura va lenta debido a una conexión de red inestable."
-          />
-          <span className="text-[9px] text-slate-400 font-mono font-bold uppercase select-none">ms</span>
-        </div>
+        {/* Compact inline confirmation right below the buttons */}
+        {blockToDelete && (
+          <div className="p-2 bg-red-950/90 border border-red-800/80 rounded flex items-center justify-between gap-2 shadow-sm">
+            <span className="text-[10.5px] text-red-200 font-medium truncate">
+              ¿Eliminar <strong className="text-orange-400 font-semibold">"{blockToDelete.name}"</strong>?
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setBlockToDelete(null)}
+                className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-semibold text-slate-300 transition-all cursor-pointer active:scale-95"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setHtmlBlocks((prev) => prev.filter((b) => b.id !== blockToDelete.id));
+                  setIsLocallyEdited(true);
+                  if (lastFocusedBlockId === blockToDelete.id) {
+                    setLastFocusedBlockId(null);
+                  }
+                  setBlockToDelete(null);
+                }}
+                className="px-2.5 py-0.5 rounded bg-red-650 hover:bg-red-550 border border-red-600 text-white text-[10px] font-bold transition-all cursor-pointer shadow-md active:scale-95"
+              >
+                Sí, eliminar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Editor scroll blocks list */}
@@ -396,6 +451,8 @@ export function SidebarEditor({
 
         {htmlBlocks.map((block, index) => {
           const isFocused = lastFocusedBlockId === block.id;
+          const isEditing = activeEditingBlockId === block.id;
+          const isExpanded = !block.collapsed;
 
           return (
             <div
@@ -409,16 +466,32 @@ export function SidebarEditor({
               } ${
                 draggedIndex === index ? 'opacity-30' : ''
               }`}
-              onFocus={() => setLastFocusedBlockId(block.id)}
+              onFocus={() => {
+                if (lastFocusedBlockId !== block.id) {
+                  setLastFocusedBlockId(block.id);
+                  setActiveEditingBlockId(null);
+                }
+              }}
               onClick={() => {
-                if (lastFocusedBlockId !== block.id) setLastFocusedBlockId(block.id);
+                if (!isFocused) {
+                  // 1st click: Select block
+                  setLastFocusedBlockId(block.id);
+                  setActiveEditingBlockId(null);
+                } else if (!isExpanded) {
+                  // 2nd click: Expand block (non-editable view)
+                  setHtmlBlocks((prev) =>
+                    prev.map((b) => (b.id === block.id ? { ...b, collapsed: false } : b))
+                  );
+                  setIsLocallyEdited(true);
+                  setActiveEditingBlockId(null);
+                }
               }}
               onDragOver={(e) => handleDragOver(e, index)}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, index)}
             >
               {/* Top border toggle button - positioned perfectly absolute overlaying upper border, shifted to the left */}
-              {!block.collapsed && (
+              {isExpanded && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -433,7 +506,7 @@ export function SidebarEditor({
               )}
 
               {/* Bottom border toggle button - positioned perfectly absolute overlaying lower border, shifted to the right */}
-              {!block.collapsed && (
+              {isExpanded && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -447,22 +520,66 @@ export function SidebarEditor({
                 </button>
               )}
 
-              {/* Center Column: Code Editor content / Collapsed preview (with padding right to clear the floating number badge) */}
+              {/* Center Column: Code Editor content / Collapsed preview / Expanded preview */}
               <div className="flex-1 flex flex-col min-w-0 pr-14">
                 {(() => {
                   const validationErrors = validateContent(block.code);
                   const hasErrors = validationErrors.some(e => e.severity === 'error');
 
-                  return !block.collapsed ? (
+                  if (!isExpanded) {
+                    // Stage 1 / Collapsed preview
+                    return (
+                      <div
+                        className="flex-1 p-3 py-3.5 bg-[#002e45]/5 hover:bg-[#002e45]/10 cursor-pointer flex flex-col justify-center min-w-0 select-none"
+                        title={isFocused ? "2º Clic: Haz clic para expandir el bloque" : "1º Clic: Haz clic para seleccionar el bloque"}
+                      >
+                        <div className="flex items-center justify-between gap-1.5 min-w-0">
+                          <span className="font-mono text-xs text-slate-300 truncate flex-1">
+                            {block.code.trim().split('\n')[0] || <span className="italic text-slate-600">&lt;vacío&gt;</span>}
+                          </span>
+                          {validationErrors.length > 0 && (
+                            <span 
+                              className={`shrink-0 flex items-center justify-center p-0.5 rounded-full ${
+                                hasErrors ? 'bg-red-950 text-red-500 border border-red-900/40' : 'bg-amber-950 text-amber-500 border border-amber-900/40'
+                              }`}
+                              title={`Este bloque contiene ${validationErrors.length} advertencia(s) de sintaxis`}
+                            >
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (!isEditing) {
+                    // Stage 2 / Expanded Read-Only View (Lag-free preview)
+                    return (
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveEditingBlockId(block.id);
+                        }}
+                        className="flex-1 p-2.5 bg-slate-950/80 rounded flex flex-col gap-2 cursor-pointer group hover:bg-slate-900/40 transition-colors"
+                        title="3er Clic: Haz clic aquí para activar la edición y colocar el cursor"
+                      >
+                        <pre className="font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap break-words max-h-[280px] overflow-y-auto custom-scrollbar p-1">
+                          {block.code || <span className="italic text-slate-600">&lt;Bloque vacío&gt;</span>}
+                        </pre>
+                      </div>
+                    );
+                  }
+
+                  // Stage 3 / Active Editable Mode
+                  return (
                     <div className="flex-1 flex flex-col relative bg-slate-950 select-text p-1.5 py-3">
                       {/* Block Header Toolbar */}
                       <div className="flex items-center justify-between gap-2 px-2 pb-2 mb-2 border-b border-slate-900/60">
-                        {/* Status indicators */}
                         <div className="flex items-center gap-1 shrink-0 text-[10px] font-semibold select-none">
                           {validationErrors.length === 0 ? (
                             <span className="text-emerald-400 flex items-center gap-1 font-mono text-[9px]" title="La sintaxis de HTML y LaTeX es correcta">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                              ✓ Código OK
+                              ✓ OK
                             </span>
                           ) : (
                             <span className={`flex items-center gap-1 font-mono text-[9px] ${hasErrors ? 'text-red-400' : 'text-amber-400'}`}>
@@ -479,6 +596,7 @@ export function SidebarEditor({
                         onChange={(val) => handleCodeChange(block.id, val)}
                         placeholder="Escribe aquí en Markdown (puedes incluir fórmulas LaTeX y etiquetas HTML)..."
                         debounceDelay={debounceDelay}
+                        autoFocus={true}
                       />
 
                       {/* Display of real-time validation feedback */}
@@ -500,31 +618,6 @@ export function SidebarEditor({
                           ))}
                         </div>
                       )}
-                    </div>
-                  ) : (
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleCollapseBlock(block.id);
-                      }}
-                      className="flex-1 p-3 py-3.5 bg-[#002e45]/5 hover:bg-[#002e45]/10 cursor-pointer flex flex-col justify-center min-w-0 select-none"
-                      title="Haga clic para expandir y editar"
-                    >
-                      <div className="flex items-center justify-between gap-1.5 min-w-0">
-                        <span className="font-mono text-xs text-slate-300 truncate flex-1">
-                          {block.code.trim().split('\n')[0] || <span className="italic text-slate-600">&lt;vacío&gt;</span>}
-                        </span>
-                        {validationErrors.length > 0 && (
-                          <span 
-                            className={`shrink-0 flex items-center justify-center p-0.5 rounded-full ${
-                              hasErrors ? 'bg-red-950 text-red-500 border border-red-900/40' : 'bg-amber-950 text-amber-500 border border-amber-900/40'
-                            }`}
-                            title={`Este bloque contiene ${validationErrors.length} advertencia(s) de sintaxis`}
-                          >
-                            <AlertTriangle className="w-2.5 h-2.5" />
-                          </span>
-                        )}
-                      </div>
                     </div>
                   );
                 })()}
@@ -550,64 +643,46 @@ export function SidebarEditor({
         })}
 
         {htmlBlocks.length > 0 && (
-          <button
-            onClick={handleCopyAllMarkdown}
-            className="mt-4 w-full h-9 px-4 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-200 hover:text-white border border-slate-700 hover:border-orange-500 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md select-none shrink-0"
-            title="Copiar todo el markdown de todos los bloques al portapapeles"
-          >
-            {copied ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span className="text-emerald-400">¡Todo Copiado!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-4 h-4 text-orange-500" />
-                <span>Copiar Todo el Contenido</span>
-              </>
-            )}
-          </button>
+          <div className="mt-4 flex flex-col sm:flex-row gap-2 w-full shrink-0">
+            <button
+              onClick={handleCopyAllMarkdown}
+              className="flex-1 h-9 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-200 hover:text-white border border-slate-700 hover:border-orange-500 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md select-none shrink-0"
+              title="Copiar todo el markdown de todos los bloques al portapapeles"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <span className="text-emerald-400">¡Markdown Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4 text-orange-500" />
+                  <span>Copiar Markdown</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={handleCopyAllForWord}
+              className="flex-1 h-9 px-3 rounded-lg bg-blue-950/60 hover:bg-blue-900/80 active:scale-98 text-blue-200 hover:text-white border border-blue-800/80 hover:border-blue-400 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md select-none shrink-0"
+              title="Copiar todo el contenido en formato compatible con Microsoft Word (con ecuaciones matemáticas OMML editables)"
+            >
+              {copiedWord ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <span className="text-emerald-400">¡Copiado para Word!</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4 text-blue-400" />
+                  <span>Copiar para Word</span>
+                </>
+              )}
+            </button>
+          </div>
         )}
 
       </div>
-
-      {/* Confirmation Modal to avoid native blocked window.confirm inside iframe sandbox */}
-      {blockToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-slate-900 border-2 border-red-500/80 rounded-xl p-5 shadow-2xl text-slate-200">
-            <h3 className="text-sm font-bold text-red-400 flex items-center gap-2 mb-3">
-              <Trash2 className="w-4 h-4 text-red-500" />
-              ¿Confirmar eliminación?
-            </h3>
-            <p className="text-xs text-slate-300 leading-relaxed mb-5">
-              ¿Está seguro de que desea eliminar el bloque <span className="font-extrabold text-orange-400">"{blockToDelete.name}"</span>? Esta acción no se puede deshacer.
-            </p>
-            <div className="flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setBlockToDelete(null)}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-800 text-xs font-semibold text-slate-300 transition-all cursor-pointer active:scale-95"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setHtmlBlocks((prev) => prev.filter((b) => b.id !== blockToDelete.id));
-                  setIsLocallyEdited(true);
-                  if (lastFocusedBlockId === blockToDelete.id) {
-                    setLastFocusedBlockId(null);
-                  }
-                  setBlockToDelete(null);
-                }}
-                className="px-4 py-1.5 rounded-lg bg-red-650 hover:bg-red-550 border border-red-650 text-white text-xs font-bold transition-all cursor-pointer shadow-lg active:scale-95"
-              >
-                Sí, eliminar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

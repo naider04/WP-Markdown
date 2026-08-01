@@ -71,7 +71,7 @@ th {
 }`;
 
 const COMPATIBLE_LISTS_CSS = `/* 1. Ajustar el contenedor general de las listas */
-.unemi-document-content ul:not(.toc-list) {
+.wp-document-content ul:not(.toc-list) {
   list-style-type: none !important; /* Desactivar la viñeta nativa */
   padding-left: 20px !important;    /* Espacio reservado para tu nueva viñeta */
   margin-top: 0px !important;
@@ -80,17 +80,17 @@ const COMPATIBLE_LISTS_CSS = `/* 1. Ajustar el contenedor general de las listas 
 }
 
 /* 2. Listas ordenadas (numeradas) */
-.unemi-document-content ol {
+.wp-document-content ol {
   list-style-type: none !important; /* Desactivar número nativo */
-  counter-reset: unemi-counter !important; /* Iniciar un contador CSS */
+  counter-reset: wp-counter !important; /* Iniciar un contador CSS */
   padding-left: 24px !important;
   margin-top: 0px !important;
   margin-bottom: 12px !important;
   text-indent: 0px !important;
 }
 
-.unemi-document-content ul:not(.toc-list) li,
-.unemi-document-content ol li {
+.wp-document-content ul:not(.toc-list) li,
+.wp-document-content ol li {
   text-indent: 0px !important;
   margin-bottom: 6px !important;
   padding-left: 0px !important;
@@ -98,8 +98,8 @@ const COMPATIBLE_LISTS_CSS = `/* 1. Ajustar el contenedor general de las listas 
 }
 
 /* 3. CONTROL DE DISTANCIA DE VIÑETA (Círculo) */
-.unemi-document-content ul:not(.toc-list) li:not(.toc-item)::before,
-.unemi-document-content ul:not(.toc-list) li::before {
+.wp-document-content ul:not(.toc-list) li:not(.toc-item)::before,
+.wp-document-content ul:not(.toc-list) li::before {
   content: "•" !important;
   display: block !important;
   position: absolute !important;
@@ -111,11 +111,11 @@ const COMPATIBLE_LISTS_CSS = `/* 1. Ajustar el contenedor general de las listas 
 }
 
 /* 4. CONTROL DE DISTANCIA DE NÚMEROS */
-.unemi-document-content ol li {
-  counter-increment: unemi-counter !important;
+.wp-document-content ol li {
+  counter-increment: wp-counter !important;
 }
-.unemi-document-content ol li::before {
-  content: counter(unemi-counter) "." !important;
+.wp-document-content ol li::before {
+  content: counter(wp-counter) "." !important;
   display: block !important;
   position: absolute !important;
   /* CONTROL DIRECTO: Cambia esto para acercar/alejar los números */
@@ -126,12 +126,12 @@ const COMPATIBLE_LISTS_CSS = `/* 1. Ajustar el contenedor general de las listas 
 }
 
 /* Evitar que párrafos y elementos directos de listas hereden indentación (Ecuaciones seguras) */
-.unemi-document-content ul:not(.toc-list) li p,
-.unemi-document-content ol li p,
-.unemi-document-content ul:not(.toc-list) li > span:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
-.unemi-document-content ul:not(.toc-list) li > div:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
-.unemi-document-content ol li > span:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
-.unemi-document-content ol li > div:not(.math-expr):not([class*="mjx"]):not([class*="katex"]) {
+.wp-document-content ul:not(.toc-list) li p,
+.wp-document-content ol li p,
+.wp-document-content ul:not(.toc-list) li > span:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
+.wp-document-content ul:not(.toc-list) li > div:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
+.wp-document-content ol li > span:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
+.wp-document-content ol li > div:not(.math-expr):not([class*="mjx"]):not([class*="katex"]) {
   text-indent: 0px !important;
   margin: 0 !important;
   display: inline !important;
@@ -329,43 +329,61 @@ export function ConfigDrawer({
   const [showFormats, setShowFormats] = useState<boolean>(false);
   const [isInsertingAI, setIsInsertingAI] = useState<string | null>(null);
   const [aiExplanations, setAiExplanations] = useState<Array<{ imageName: string; text: string }> | null>(null);
-  const [selectedImagesForAI, setSelectedImagesForAI] = useState<UploadedFile[]>([]);
+  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
+  const [isAIFormatModalOpen, setIsAIFormatModalOpen] = useState<boolean>(false);
+  const [customFormatInstruction, setCustomFormatInstruction] = useState<string>('');
+  const [urlInputSrc, setUrlInputSrc] = useState<string>('');
+  const [urlInputDesc, setUrlInputDesc] = useState<string>('');
 
-  const handleToggleAISingleSelection = (item: UploadedFile) => {
-    if (!item.description || item.description.trim() === '') {
-      alert("Por favor, ingresa una descripción para la imagen antes de intentar seleccionarla para insertar con IA. Esto le permite al modelo saber qué ilustra la figura y determinar su posición correcta en el documento.");
-      setIsEditingDescId(item.id);
-      setEditingDescText('');
-      return;
-    }
-
-    setSelectedImagesForAI(prev => {
-      const exists = prev.some(img => img.id === item.id);
-      if (exists) {
-        return prev.filter(img => img.id !== item.id);
-      } else {
-        return [...prev, item];
+  const handleClipboardPaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) imageFiles.push(file);
       }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      handleMultipleFilesUpload(imageFiles);
+      triggerSuccessMsg('¡Imagen del portapapeles agregada!');
+    }
+  };
+
+  const handleToggleSelectFile = (id: string) => {
+    setSelectedFileIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleDeleteSelectedFiles = () => {
+    if (selectedFileIds.length === 0) return;
+    setUploadedFiles(prev => prev.filter(file => !selectedFileIds.includes(file.id)));
+    setSelectedFileIds([]);
+    triggerSuccessMsg('Imágenes seleccionadas eliminadas');
+  };
+
+  const handleCopyAllNames = () => {
+    if (uploadedFiles.length === 0) return;
+    const namesText = uploadedFiles.map(f => f.name).join('\n');
+    navigator.clipboard.writeText(namesText).then(() => {
+      triggerSuccessMsg('¡Nombres copiados al portapapeles!');
+    }).catch(() => {
+      alert('Error al copiar los nombres al portapapeles.');
     });
   };
 
-  const handleInsertAllSelectedWithAI = async () => {
+  const handleExecuteAIInsertion = async () => {
     if (!htmlBlocks || htmlBlocks.length === 0) {
       alert("No hay bloques de texto (Markdown) disponibles para insertar estas imágenes.");
       return;
     }
 
-    if (selectedImagesForAI.length === 0) {
+    const selectedFiles = uploadedFiles.filter(f => selectedFileIds.includes(f.id));
+    if (selectedFiles.length === 0) {
       alert("Por favor, selecciona al menos una imagen para insertar.");
-      return;
-    }
-
-    // Verify all selected images have descriptions
-    const missingDesc = selectedImagesForAI.find(item => !item.description || item.description.trim() === '');
-    if (missingDesc) {
-      alert(`La imagen "${missingDesc.name}" no tiene descripción. Por favor ingresa una descripción para todas las imágenes seleccionadas antes de insertar.`);
-      setIsEditingDescId(missingDesc.id);
-      setEditingDescText('');
       return;
     }
 
@@ -379,10 +397,11 @@ export function ConfigDrawer({
         },
         body: JSON.stringify({
           htmlBlocks: htmlBlocks.map(b => ({ id: b.id, name: b.name, code: b.code })),
-          images: selectedImagesForAI.map(img => ({
+          images: selectedFiles.map(img => ({
             name: img.name,
             description: img.description || ""
-          }))
+          })),
+          formatInstruction: customFormatInstruction.trim(),
         }),
       });
 
@@ -394,18 +413,16 @@ export function ConfigDrawer({
       const result = await response.json();
       const { modifiedBlocks, explanations } = result;
 
-      // Update the whole list of blocks in App state
       if (setHtmlBlocks && modifiedBlocks) {
         setHtmlBlocks(modifiedBlocks);
       }
 
-      // Show explanation modal with all justifications (only if we have any, but we disabled it now)
       if (explanations && explanations.length > 0) {
         setAiExplanations(explanations);
       }
       
-      // Clear the selection list
-      setSelectedImagesForAI([]);
+      setSelectedFileIds([]);
+      setIsAIFormatModalOpen(false);
       triggerSuccessMsg("¡Imágenes insertadas con IA!");
     } catch (err: any) {
       console.error(err);
@@ -673,61 +690,66 @@ Márgenes de Página (Bordes):
     const apa7CSS = `/* === CONFIGURACIÓN DE ESTILOS FORMATO APA 7 (NORMAS APA 7ma EDICIÓN) === */
 
 /* Nivel 1: Centrado, Negrita, Caso de Título (Párrafo nuevo) */
-.unemi-document-content h1 {
+.wp-document-content h1 {
   font-family: "Times New Roman", Times, Georgia, serif !important;
   font-size: 16px !important;
   font-weight: bold !important;
   text-align: center !important;
-  margin-top: 24px !important;
-  margin-bottom: 12px !important;
-  line-height: 1.8 !important;
+  margin-top: 0px !important;
+  margin-bottom: 0px !important;
+  line-height: 200% !important;
 }
 
 /* Nivel 2: Alineado a la izquierda, Negrita, Caso de Título (Párrafo nuevo) */
-.unemi-document-content h2 {
+.wp-document-content h2 {
   font-family: "Times New Roman", Times, Georgia, serif !important;
   font-size: 16px !important;
   font-weight: bold !important;
   text-align: left !important;
-  margin-top: 18px !important;
-  margin-bottom: 8px !important;
-  line-height: 1.8 !important;
+  margin-top: 0px !important;
+  margin-bottom: 0px !important;
+  line-height: 200% !important;
 }
 
 /* Nivel 3: Alineado a la izquierda, Negrita, Cursiva, Caso de Título (Párrafo nuevo) */
-.unemi-document-content h3 {
+.wp-document-content h3 {
   font-family: "Times New Roman", Times, Georgia, serif !important;
   font-size: 16px !important;
   font-weight: bold !important;
   font-style: italic !important;
   text-align: left !important;
-  margin-top: 12px !important;
-  margin-bottom: 6px !important;
-  line-height: 1.8 !important;
+  margin-top: 0px !important;
+  margin-bottom: 0px !important;
+  line-height: 200% !important;
 }
 
 /* Nivel 4: Con sangría (0.5 in), Negrita, punto final (En la misma línea / Run-in) */
-.unemi-document-content .apa-runin.apa-level4 {
+.wp-document-content .apa-runin.apa-level4 {
   font-weight: bold !important;
   font-style: normal !important;
-  padding-left: 0.5in !important;
 }
 
 /* Nivel 5: Con sangría (0.5 in), Negrita, Cursiva, punto final (En la misma línea / Run-in) */
-.unemi-document-content .apa-runin.apa-level5 {
+.wp-document-content .apa-runin.apa-level5 {
   font-weight: bold !important;
   font-style: italic !important;
-  padding-left: 0.5in !important;
 }
 
 /* Párrafo APA 7 general */
-.unemi-document-content p {
+.wp-document-content p {
   font-family: "Times New Roman", Times, Georgia, serif !important;
   font-size: 16px !important;
-  line-height: 1.8 !important;
+  line-height: 2.0 !important;
   color: #000000 !important;
   text-align: left !important;
-  margin-bottom: 12px !important;
+  text-indent: 0.5in !important;
+  margin-top: 0px !important;
+  margin-bottom: 0px !important;
+}
+
+/* Evitar doble indentación en párrafos que contienen encabezados run-in (Nivel 4 y 5) */
+.wp-document-content p:has(.apa-runin) {
+  text-indent: 0px !important;
 }`;
 
     navigator.clipboard.writeText(apa7CSS).then(() => {
@@ -819,19 +841,28 @@ Márgenes de Página (Bordes):
     triggerSuccessMsg('¡Descripción guardada!');
   };
 
-  const handleAddFileByUrl = (url: string, name: string) => {
+  const handleAddFileByUrl = (url: string, description?: string) => {
     if (!url.trim()) return;
     const sanitizedUrl = url.trim();
-    let sanitizedName = name.trim();
-    if (!sanitizedName) {
-      try {
-        const parts = sanitizedUrl.split('/');
-        const lastPart = parts[parts.length - 1];
-        sanitizedName = lastPart.split('?')[0] || 'imagen_url.png';
-      } catch {
-        sanitizedName = 'imagen_url.png';
+    let sanitizedName = '';
+    try {
+      const urlObj = new URL(sanitizedUrl);
+      const pathname = urlObj.pathname;
+      const parts = pathname.split('/');
+      const lastPart = parts[parts.length - 1];
+      if (lastPart && lastPart.includes('.')) {
+        sanitizedName = decodeURIComponent(lastPart);
       }
+    } catch {
+      const parts = sanitizedUrl.split('/');
+      const lastPart = parts[parts.length - 1];
+      sanitizedName = lastPart.split('?')[0] || '';
     }
+
+    if (!sanitizedName || sanitizedName.trim() === '') {
+      sanitizedName = 'imagen_url_' + Date.now().toString().slice(-4) + '.png';
+    }
+
     if (!sanitizedName.includes('.')) {
       sanitizedName += '.png';
     }
@@ -843,9 +874,10 @@ Márgenes de Página (Bordes):
       size: 0,
       dataUrl: sanitizedUrl,
       uploadedAt: new Date().toISOString(),
+      description: description?.trim() || '',
     };
     setUploadedFiles((prev) => [...prev, newFile]);
-    triggerSuccessMsg('Imagen por URL agregada!');
+    triggerSuccessMsg('¡Imagen por URL agregada!');
   };
 
   const handleCopySnippet = (filename: string) => {
@@ -893,8 +925,8 @@ Márgenes de Página (Bordes):
       : "absolute top-14 right-0 bottom-0 w-[420px] bg-slate-900 border-l border-slate-800 shadow-2xl z-40 flex flex-col font-sans select-none print:hidden"}>
       
       {/* Header bar */}
-      <div className="p-3.5 bg-slate-950 border-b border-slate-850 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="p-3 bg-slate-950 border-b border-slate-850 flex items-center justify-between shrink-0 gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           {activeType === 'cover' && (
             <>
               <Layers className="w-4 h-4 text-orange-500 shrink-0" />
@@ -908,10 +940,39 @@ Márgenes de Página (Bordes):
             </>
           )}
           {activeType === 'uploads' && (
-            <>
-              <Image className="w-4 h-4 text-orange-500 shrink-0" />
-              <span className="text-[11px] font-extrabold text-slate-100 uppercase tracking-wider truncate">Archivos / Uploads</span>
-            </>
+            <div className="flex items-center gap-2 min-w-0 flex-1 justify-between">
+              <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+                <Image className="w-4 h-4 text-orange-500 shrink-0" />
+                <span className="text-[11px] font-extrabold text-slate-100 uppercase tracking-wider truncate">Archivos / Uploads</span>
+              </div>
+
+              {/* Botones de acción arriba: Eliminar (icono) e Insertar */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* 1. Eliminar (Solo icono + contador) */}
+                <button
+                  type="button"
+                  disabled={selectedFileIds.length === 0}
+                  onClick={handleDeleteSelectedFiles}
+                  className="py-1 px-2 rounded font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer border disabled:opacity-30 disabled:cursor-not-allowed bg-red-950/40 hover:bg-red-900/60 text-red-300 border-red-800/60 active:scale-95"
+                  title={selectedFileIds.length > 0 ? `Eliminar imágenes seleccionadas (${selectedFileIds.length})` : "Eliminar seleccionadas"}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {selectedFileIds.length > 0 && <span className="text-[9px] font-mono font-bold">({selectedFileIds.length})</span>}
+                </button>
+
+                {/* 2. Insertar */}
+                <button
+                  type="button"
+                  disabled={selectedFileIds.length === 0}
+                  onClick={() => setIsAIFormatModalOpen(true)}
+                  className="py-1 px-2.5 rounded font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer border disabled:opacity-30 disabled:cursor-not-allowed bg-orange-600/20 hover:bg-orange-600/30 text-orange-400 border-orange-500/40 active:scale-95"
+                  title="Insertar imágenes seleccionadas"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Insertar {selectedFileIds.length > 0 ? `(${selectedFileIds.length})` : ''}</span>
+                </button>
+              </div>
+            </div>
           )}
           {activeType === 'toc' && (
             <>
@@ -922,7 +983,7 @@ Márgenes de Página (Bordes):
         </div>
         <button 
           onClick={onClose}
-          className="p-1.5 hover:bg-slate-850 rounded transition-all text-slate-400 hover:text-slate-200 cursor-pointer"
+          className="p-1.5 hover:bg-slate-850 rounded transition-all text-slate-400 hover:text-slate-200 cursor-pointer shrink-0"
           title="Cerrar panel"
         >
           <X className="w-4 h-4" />
@@ -935,6 +996,48 @@ Márgenes de Página (Bordes):
         {/* TAB 1: COVERPORTADA CONTROLS */}
         {activeType === 'cover' && (
           <div className="flex flex-col gap-4 text-xs">
+            {/* Activar / Desactivar Portada Control Box */}
+            <div className="p-3.5 bg-slate-950/90 border border-slate-800 rounded-lg flex flex-col gap-2.5 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`p-2 rounded-lg shrink-0 ${cover.enabled !== false ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                    {cover.enabled !== false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[11px] font-bold text-slate-100 truncate">Mostrar Portada en Documento</span>
+                    <span className="text-[9.5px] text-slate-400 truncate">
+                      {cover.enabled !== false
+                        ? 'La portada se incluye en el documento'
+                        : 'Portada desactivada / eliminada del documento'}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleCoverChange('enabled', cover.enabled === false ? true : false)}
+                  className={`px-3 py-1.5 rounded-md font-extrabold text-[10.5px] tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1.5 border shrink-0 active:scale-95 ${
+                    cover.enabled !== false
+                      ? 'bg-red-950/80 hover:bg-red-900 border-red-700/80 text-red-200 shadow-sm'
+                      : 'bg-emerald-950/80 hover:bg-emerald-900 border-emerald-700/80 text-emerald-200 shadow-sm'
+                  }`}
+                  title={cover.enabled !== false ? "Desactivar y eliminar la portada del documento" : "Activar e incluir la portada en el documento"}
+                >
+                  {cover.enabled !== false ? (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5 text-red-400" />
+                      <span>Desactivar Portada</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Activar Portada</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
             {/* Markdown content of cover */}
             <div className="flex flex-col gap-2 mt-2">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
@@ -1167,10 +1270,10 @@ Abril 2026 - Julio 2026
                       ? 'bg-[#004080] border-[#FF6600] text-white'
                       : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
                   }`}
-                  title="Tira Continua (Una sola tira de papel sin división de hojas)"
+                  title="Modo sin división de hojas ni bordes para copiar directamente a Microsoft Word"
                 >
                   Continua
-                  <span className="block text-[8px] font-normal text-slate-400 mt-0.5">Sin hojas</span>
+                  <span className="block text-[8px] font-normal text-slate-400 mt-0.5">Copiar a Word</span>
                 </button>
               </div>
             </div>
@@ -1371,7 +1474,7 @@ Abril 2026 - Julio 2026
                       onChange={(e) => handleSettingsChange('blockStyleTitles', e.target.value)}
                       rows={14}
                       className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-[10.5px]"
-                      placeholder="/* .unemi-document-content h1 {} */"
+                      placeholder="/* .wp-document-content h1 {} */"
                     />
                   </div>
                 )}
@@ -1390,7 +1493,30 @@ Abril 2026 - Julio 2026
                   <span>{isTableStyleOpen ? '▲' : '▼'}</span>
                 </button>
                 {isTableStyleOpen && (
-                  <div className="p-3 border-t border-slate-850 bg-slate-900/10 flex flex-col gap-2">
+                  <div className="p-3 border-t border-slate-850 bg-slate-900/10 flex flex-col gap-3">
+                    {/* Toggle button for repeating table headers on page splits */}
+                    <div className="flex items-center justify-between p-2.5 bg-slate-950 rounded-lg border border-slate-800">
+                      <div className="flex flex-col gap-0.5 pr-2">
+                        <span className="font-bold text-[10px] uppercase tracking-wider text-slate-200">
+                          Repetir encabezado al dividir tabla
+                        </span>
+                        <span className="text-[9px] text-slate-400 leading-tight">
+                          Repite el encabezado (thead) en cada hoja cuando la tabla se divide entre páginas
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSettingsChange('repeatTableHeader', !(settings.repeatTableHeader ?? true))}
+                        className={`px-3 py-1.5 rounded font-bold text-[10px] uppercase tracking-wider transition-all cursor-pointer border shrink-0 ${
+                          (settings.repeatTableHeader ?? true)
+                            ? 'bg-orange-500/15 border-orange-500/40 text-orange-400 hover:bg-orange-500/25'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'
+                        }`}
+                      >
+                        {(settings.repeatTableHeader ?? true) ? 'Activado' : 'Desactivado'}
+                      </button>
+                    </div>
+
                     <span className="text-[9px] text-slate-400 font-bold uppercase">Editor CSS de Tablas de Documento</span>
                     <textarea
                       value={settings.tableCustomCss !== undefined && settings.tableCustomCss !== null ? settings.tableCustomCss : DEFAULT_TABLE_CSS}
@@ -1403,12 +1529,12 @@ Abril 2026 - Julio 2026
                         <span>📊 ¿Cómo poner bordes a tus Tablas?</span>
                       </span>
                       <p className="text-slate-400 text-[10px] leading-relaxed">
-                        Por defecto, el estilo UNEMI/APA 7 inserta tablas sin bordes verticales. Copia y pega el siguiente código arriba para activar una cuadrícula completa en tu previsualización de tablas:
+                        Por defecto, el estilo WP/APA 7 inserta tablas sin bordes verticales. Copia y pega el siguiente código arriba para activar una cuadrícula completa en tu previsualización de tablas:
                       </p>
                       <pre className="p-2 bg-slate-900 rounded font-mono text-[9px] text-[#FF6600]/90 select-all border border-slate-800/60 overflow-x-auto leading-normal">
-{`.unemi-document-content table, 
-.unemi-document-content table th, 
-.unemi-document-content table td {
+{`.wp-document-content table, 
+.wp-document-content table th, 
+.wp-document-content table td {
   border: 1px solid #000000 !important;
 }`}
                       </pre>
@@ -1635,7 +1761,7 @@ Abril 2026 - Julio 2026
                               <br />
                               <span style={{ color: keywordColor, fontWeight: isBoldKeyword ? 'bold' : 'normal' }}>{"const "}</span>
                               <span>{"mensaje = "}</span>
-                              <span style={{ color: stringColor, fontStyle: isItalicString ? 'italic' : 'normal' }}>{`"Hola UNEMI"`}</span>
+                              <span style={{ color: stringColor, fontStyle: isItalicString ? 'italic' : 'normal' }}>{`"Hola WP"`}</span>
                               <span>{";"}</span>
                             </div>
                           );
@@ -1924,81 +2050,65 @@ Abril 2026 - Julio 2026
         {/* TAB 3: FILE BANK GESTION */}
         {activeType === 'uploads' && (
           <div className="flex flex-col gap-4 text-xs">
-            <p className="text-[11px] text-slate-400 leading-normal">
-              Sube imágenes locales (de hasta 5MB) para incrustarlas directamente en tu documento académico. Se codificarán en Base64 para máxima portabilidad de la hoja.
-            </p>
-
-            {/* Drag & Drop Upload Zone */}
-            <div 
-              className="border-2 border-dashed border-slate-700 hover:border-orange-500 bg-slate-950/50 hover:bg-slate-900/20 active:bg-slate-900/40 rounded-lg p-5 text-center transition-all cursor-pointer relative group flex flex-col items-center justify-center gap-2"
-              onClick={() => document.getElementById('drawer-assets-uploader')?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const files = e.dataTransfer.files;
-                if (files && files.length > 0) {
-                  handleMultipleFilesUpload(files);
-                }
-              }}
-            >
-              <Upload className="w-8 h-8 text-slate-500 group-hover:text-orange-500 transition-colors" />
-              <div className="flex flex-col gap-1">
-                <span className="font-bold text-slate-350 text-[11px]">Subir una o varias imágenes</span>
-                <span className="text-[9.5px] text-slate-500 font-normal">Soporta selección múltiple y arrastrar/soltar</span>
-              </div>
-              <input
-                id="drawer-assets-uploader"
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={(e) => {
-                  const files = e.target.files;
-                  if (files && files.length > 0) {
-                    handleMultipleFilesUpload(files);
-                  }
-                  e.target.value = '';
-                }}
-                className="hidden"
-              />
-            </div>
-
             {/* Panel de Enlaces URL Externos */}
-            <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-lg flex flex-col gap-2">
+            <div 
+              className="p-3 bg-slate-950/60 border border-slate-800 rounded-lg flex flex-col gap-2"
+              onPaste={handleClipboardPaste}
+            >
               <span className="font-extrabold uppercase text-[9.5px] tracking-wider text-slate-350">
-                🌐 Añadir imagen por URL externa
+                🌐 Añadir imagen por URL externa (o pega Ctrl+V)
               </span>
+
+              {/* Instant Image Preview if URL is pasted */}
+              {urlInputSrc.trim().length > 0 && (
+                <div className="w-full h-28 rounded bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden p-1 relative">
+                  <img
+                    src={urlInputSrc.trim()}
+                    alt="Previsualización"
+                    className="max-w-full max-h-full object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                    onLoad={(e) => {
+                      (e.target as HTMLElement).style.display = 'block';
+                    }}
+                    referrerPolicy="no-referrer"
+                  />
+                  <span className="absolute bottom-1 right-1 text-[8.5px] bg-slate-950/80 text-slate-400 px-1.5 py-0.5 rounded font-mono border border-slate-800">
+                    Vista previa
+                  </span>
+                </div>
+              )}
+
               <div className="flex flex-col gap-1.5">
                 <input
                   type="text"
-                  id="url-uploader-src"
-                  placeholder="Pegue la URL de la imagen (ej: https://ejemplo.com/grafico.png)"
+                  value={urlInputSrc}
+                  onChange={(e) => setUrlInputSrc(e.target.value)}
+                  onPaste={handleClipboardPaste}
+                  placeholder="Pegue la URL de la imagen o presione Ctrl+V..."
                   className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 text-[11px] focus:ring-1 focus:ring-orange-500 focus:outline-none focus:border-[#FF6600]/80 font-mono"
                 />
                 <div className="flex gap-1.5">
                   <input
                     type="text"
-                    id="url-uploader-name"
-                    placeholder="Nombre opcional (ej: mi_grafico.png)"
-                    className="flex-1 p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 text-[11px] focus:ring-1 focus:ring-orange-500 focus:outline-none focus:border-[#FF6600]/80 font-mono"
+                    value={urlInputDesc}
+                    onChange={(e) => setUrlInputDesc(e.target.value)}
+                    placeholder="Descripción opcional (ej: Diagrama de flujo)"
+                    className="flex-1 p-2 bg-slate-950 border border-slate-800 rounded text-slate-200 text-[11px] focus:ring-1 focus:ring-orange-500 focus:outline-none focus:border-[#FF6600]/80 font-sans"
                   />
                   <button
                     type="button"
                     onClick={() => {
-                      const urlEl = document.getElementById('url-uploader-src') as HTMLInputElement;
-                      const nameEl = document.getElementById('url-uploader-name') as HTMLInputElement;
-                      if (urlEl && urlEl.value.trim()) {
-                        handleAddFileByUrl(urlEl.value, nameEl.value);
-                        urlEl.value = '';
-                        nameEl.value = '';
+                      if (urlInputSrc.trim()) {
+                        handleAddFileByUrl(urlInputSrc, urlInputDesc);
+                        setUrlInputSrc('');
+                        setUrlInputDesc('');
                       } else {
                         alert('Por favor ingrese una URL de imagen válida.');
                       }
                     }}
-                    className="px-3 bg-[#004080] hover:bg-[#003060] border border-slate-800 rounded text-white font-bold text-[10.5px] cursor-pointer transition-all active:scale-95"
+                    className="px-3 bg-[#004080] hover:bg-[#003060] border border-slate-800 rounded text-white font-bold text-[10.5px] cursor-pointer transition-all active:scale-95 shrink-0"
                   >
                     Agregar URL
                   </button>
@@ -2008,202 +2118,177 @@ Abril 2026 - Julio 2026
 
             {/* Uploaded assets list */}
             <div className="flex flex-col gap-2">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex justify-between items-center">
+              <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                 <span>Imágenes Guardadas ({uploadedFiles.length})</span>
-                {uploadedFiles.length > 0 && (
+                {selectedFileIds.length > 0 && (
                   <button
-                    onClick={() => {
-                      if (confirm("¿Está seguro de eliminar TODAS las imágenes guardadas hoy?")) {
-                        setUploadedFiles([]);
-                      }
-                    }}
-                    className="text-[9px] lowercase font-bold text-red-500 hover:text-red-400 flex items-center gap-1 cursor-pointer"
+                    onClick={() => setSelectedFileIds([])}
+                    className="text-[9px] lowercase font-bold text-orange-400 hover:text-orange-300 cursor-pointer"
                   >
-                    Borrar todo
+                    Deseleccionar todo
                   </button>
                 )}
-              </span>
+              </div>
 
               {uploadedFiles.length === 0 ? (
                 <div className="p-6 text-center border border-slate-800 bg-slate-950/20 rounded-md text-slate-500 italic text-[11px]">
                   No hay imágenes agregadas. Use el cuadro superior para cargar su primer recurso.
                 </div>
               ) : (
-                <div className="flex flex-col gap-2 max-h-[380px] overflow-y-auto custom-scrollbar pr-0.5 select-text">
+                <div className="flex flex-col gap-2.5 select-text">
                   {uploadedFiles.map((item) => {
-                    const isEditing = editingFileId === item.id;
-                    const isSelectedForAI = selectedImagesForAI.some(f => f.id === item.id);
+                    const isEditingName = editingFileId === item.id;
+                    const isSelected = selectedFileIds.includes(item.id);
+
                     return (
                       <div 
                         key={item.id}
-                        className="p-2 border border-slate-850 bg-slate-950/40 rounded flex items-start gap-2.5 hover:border-slate-800 transition-all text-xs"
+                        className={`p-2.5 border rounded flex items-start gap-2.5 transition-all text-xs ${
+                          isSelected
+                            ? 'border-orange-500/60 bg-orange-950/20 shadow-sm'
+                            : 'border-slate-800/50 bg-slate-950/40'
+                        }`}
                       >
-                        {/* Thumbnail */}
-                        <div className="w-10 h-10 rounded bg-slate-900 border border-slate-800 shrink-0 overflow-hidden flex items-center justify-center mt-0.5">
-                          <img 
-                            src={item.dataUrl} 
-                            alt={item.name} 
-                            className="max-w-full max-h-full object-contain"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-
-                        {/* File Details / Rename Input with Side-by-Side Name and Description */}
-                        <div className="flex-1 min-w-0 grid grid-cols-2 gap-3 items-start">
-                          {/* Column 1: Name and Size */}
-                          <div className="min-w-0 flex flex-col gap-1">
-                            {isEditing ? (
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="text"
-                                  value={editingFileName}
-                                  onChange={(e) => setEditingFileName(e.target.value)}
-                                  className="flex-1 bg-slate-900 border border-orange-500 rounded px-1.5 py-0.5 text-[11px] text-white font-mono focus:outline-none focus:ring-1 focus:ring-orange-500"
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleSaveRename(item.id);
-                                    if (e.key === 'Escape') setEditingFileId(null);
-                                  }}
-                                  autoFocus
-                                />
-                                <button
-                                  onClick={() => handleSaveRename(item.id)}
-                                  className="p-1 rounded bg-[#004080] text-white hover:bg-[#003060] border border-slate-800 transition-all cursor-pointer flex items-center justify-center shrink-0"
-                                  title="Guardar nombre"
-                                >
-                                  <Check className="w-3 h-3" />
-                                </button>
-                                <button
-                                  onClick={() => setEditingFileId(null)}
-                                  className="p-1 rounded bg-slate-950 text-slate-400 hover:text-white border border-slate-800 transition-all cursor-pointer flex items-center justify-center shrink-0"
-                                  title="Cancelar"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1 group/item">
-                                <span className="font-bold text-[11px] text-slate-300 truncate block" title={item.name}>
-                                  {item.name}
-                                </span>
-                                <button
-                                  onClick={() => {
-                                    setEditingFileId(item.id);
-                                    setEditingFileName(item.name);
-                                  }}
-                                  className="p-0.5 rounded text-slate-500 hover:text-orange-400 hover:bg-slate-950/40 opacity-40 group-hover/item:opacity-100 transition-all cursor-pointer shrink-0"
-                                  title="Renombrar imagen"
-                                >
-                                  <Edit2 className="w-2.5 h-2.5" />
-                                </button>
-                              </div>
-                            )}
-
-                            <div className="flex items-center gap-1.5 text-[9.5px] text-slate-500 font-mono mt-0.5">
-                              <span>{(item.size / 1024).toFixed(1)} KB</span>
-                            </div>
-                          </div>
-
-                          {/* Column 2: Editable Image Description Field (to the right of Name) */}
-                          <div className="min-w-0 border-l border-slate-800 pl-2 flex flex-col gap-0.5">
-                            <span className="text-[8px] text-orange-400 uppercase font-black tracking-wider block">Descripción:</span>
-                            {isEditingDescId === item.id ? (
-                              <div className="flex gap-1 items-start mt-0.5">
-                                <textarea
-                                  value={editingDescText}
-                                  onChange={(e) => setEditingDescText(e.target.value)}
-                                  placeholder="Escribe la descripción..."
-                                  rows={2}
-                                  className="flex-1 bg-slate-900 border border-orange-500 rounded px-1.5 py-1 text-[10px] text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 leading-normal"
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                      e.preventDefault();
-                                      handleSaveDesc(item.id);
-                                    }
-                                    if (e.key === 'Escape') setIsEditingDescId(null);
-                                  }}
-                                  autoFocus
-                                />
-                                <div className="flex flex-col gap-1 shrink-0">
-                                  <button
-                                    onClick={() => handleSaveDesc(item.id)}
-                                    className="p-1 rounded bg-[#004080] text-white hover:bg-[#003060] transition-all cursor-pointer flex items-center justify-center"
-                                    title="Guardar descripción"
-                                  >
-                                    <Check className="w-2.5 h-2.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => setIsEditingDescId(null)}
-                                    className="p-1 rounded bg-slate-950 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center"
-                                    title="Cancelar"
-                                  >
-                                    <X className="w-2.5 h-2.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-start gap-1 group/desc min-h-[16px] mt-0.5">
-                                <span 
-                                  onClick={() => {
-                                    setIsEditingDescId(item.id);
-                                    setEditingDescText(item.description || '');
-                                  }}
-                                  className="text-[10px] text-slate-400 hover:text-slate-200 cursor-pointer break-words line-clamp-3 leading-normal flex-1"
-                                  title="Haz clic para editar la descripción"
-                                >
-                                  {item.description ? item.description : <span className="text-slate-600 italic">(Añadir desc.)</span>}
-                                </span>
-                                <button
-                                  onClick={() => {
-                                    setIsEditingDescId(item.id);
-                                    setEditingDescText(item.description || '');
-                                  }}
-                                  className="p-0.5 rounded text-slate-500 hover:text-orange-400 opacity-0 group-hover/desc:opacity-100 transition-all cursor-pointer shrink-0"
-                                  title="Editar descripción"
-                                >
-                                  <Edit2 className="w-2.5 h-2.5" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Quick actions buttons (2x2 Grid) */}
-                        <div className="grid grid-cols-2 gap-1 shrink-0">
-                          <button
-                            onClick={() => handleCopySnippet(item.name)}
-                            className="p-1 rounded bg-slate-950 hover:bg-[#004080] border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center"
-                            title="Copiar formato de figura"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleInsertImgTag(item.name)}
-                            className="p-1 rounded bg-slate-950 hover:bg-[#004080] border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center font-bold"
-                            title="Insertar en último editor"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleToggleAISingleSelection(item)}
-                            className={`p-1 rounded border transition-all cursor-pointer flex items-center justify-center ${
-                              isSelectedForAI
-                                ? 'bg-orange-500 text-slate-950 border-orange-400 hover:bg-orange-400'
-                                : 'bg-slate-950 hover:bg-orange-900/50 hover:border-orange-500/50 border-slate-800 text-slate-400 hover:text-orange-400'
+                        {/* 1. Left Column: Thumbnail (Clickable to select image) */}
+                        <div className="w-20 shrink-0 flex flex-col items-center">
+                          {/* Thumbnail */}
+                          <div 
+                            onClick={() => handleToggleSelectFile(item.id)}
+                            className={`w-20 h-20 rounded bg-slate-900 border shrink-0 overflow-hidden flex items-center justify-center cursor-pointer transition-all ${
+                              isSelected 
+                                ? 'border-orange-500 ring-2 ring-orange-500/40' 
+                                : 'border-transparent hover:border-slate-700'
                             }`}
-                            title="Añadir/quitar de la lista de inserción con IA"
+                            title={isSelected ? "Haz clic para deseleccionar" : "Haz clic para seleccionar esta imagen"}
                           >
-                            <Sparkles className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedImagesForAI(prev => prev.filter(f => f.id !== item.id));
-                              handleDeleteFile(item.id);
-                            }}
-                            className="p-1 rounded bg-slate-950 hover:bg-red-950/80 hover:border-red-500 border border-slate-800 text-slate-400 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center"
-                            title="Borrar imagen"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                            <img 
+                              src={item.dataUrl} 
+                              alt={item.name} 
+                              className="max-w-full max-h-full object-contain"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 2. Middle Column: Unified Note Container (Title + Size + Description inside same box) */}
+                        <div className="flex-1 min-w-0 border-l border-slate-800/50 pl-2.5 flex flex-col h-full">
+                          <div className="flex-1 min-w-0 bg-slate-950/60 border border-slate-800/80 rounded p-2 flex flex-col gap-1.5 focus-within:border-slate-700 transition-colors">
+                            {/* Note Title (Image Name + Extension) & Size Badge */}
+                            {(() => {
+                              const lastDot = item.name.lastIndexOf('.');
+                              const baseName = lastDot > 0 ? item.name.substring(0, lastDot) : item.name;
+                              const ext = lastDot > 0 ? item.name.substring(lastDot) : '';
+
+                              return (
+                                <div className="flex items-center justify-between gap-1 text-[11px] font-bold font-mono min-w-0 border-b border-slate-800/60 pb-1">
+                                  {isEditingName ? (
+                                    <div className="flex items-center gap-0.5 flex-1 min-w-0">
+                                      <input
+                                        type="text"
+                                        value={editingFileName}
+                                        onChange={(e) => setEditingFileName(e.target.value)}
+                                        onBlur={() => {
+                                          const cleanBase = editingFileName.trim() || baseName;
+                                          const finalName = cleanBase + ext;
+                                          if (finalName !== item.name) {
+                                            const duplicate = uploadedFiles.some(f => f.id !== item.id && f.name.toLowerCase() === finalName.toLowerCase());
+                                            if (duplicate) {
+                                              alert("Ya existe un archivo con este nombre");
+                                            } else {
+                                              setUploadedFiles(prev => prev.map(f => f.id === item.id ? { ...f, name: finalName } : f));
+                                              triggerSuccessMsg('Archivo renombrado con éxito');
+                                            }
+                                          }
+                                          setEditingFileId(null);
+                                        }}
+                                        className="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-white font-mono font-bold focus:outline-none focus:border-slate-500"
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                          if (e.key === 'Escape') setEditingFileId(null);
+                                        }}
+                                        autoFocus
+                                      />
+                                      <span className="text-slate-400 font-mono text-[11px] select-text shrink-0 font-normal pl-0.5">{ext}</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-0.5 min-w-0 flex-1">
+                                      <span 
+                                        onClick={() => {
+                                          setEditingFileId(item.id);
+                                          setEditingFileName(baseName);
+                                        }}
+                                        className="text-slate-100 hover:text-orange-400 cursor-pointer truncate transition-colors"
+                                        title="Haz clic para cambiar el nombre"
+                                      >
+                                        {baseName}
+                                      </span>
+                                      <span className="text-slate-400 font-mono text-[11px] select-text shrink-0 font-normal">
+                                        {ext}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* File Size Badge at top-right inside note header */}
+                                  <span className="text-[8.5px] text-slate-500 font-mono bg-slate-900/50 px-1.5 py-0.5 rounded shrink-0 border border-transparent">
+                                    {item.size ? `${(item.size / 1024).toFixed(1)} KB` : 'URL'}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Description Textarea integrated seamlessly (no resize handle) */}
+                            <textarea
+                              value={item.description || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setUploadedFiles(prev => prev.map(f => f.id === item.id ? { ...f, description: val } : f));
+                              }}
+                              placeholder="Escribe la descripción aquí..."
+                              rows={2}
+                              className="w-full flex-1 bg-transparent border-none p-0 text-[10.5px] text-slate-200 focus:outline-none leading-relaxed resize-none font-sans placeholder:italic placeholder:text-slate-600"
+                              title="Descripción de la imagen (se guarda automáticamente)"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 3. Right Column: Controls Sidebar (3 Icon-Only Buttons) */}
+                        <div className="w-10 shrink-0 border-l border-slate-800/50 pl-2 flex flex-col justify-center items-end min-h-[95px]">
+                          {/* 3 Icon-Only Action Buttons */}
+                          <div className="flex flex-col gap-1 w-full items-end">
+                            {/* 1. Seleccionar */}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSelectFile(item.id)}
+                              className={`w-full py-1.5 rounded transition-all cursor-pointer border flex items-center justify-center ${
+                                isSelected
+                                  ? 'bg-orange-500 border-orange-400 text-slate-950 font-black shadow-sm'
+                                  : 'bg-slate-950 border-transparent hover:border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
+                              }`}
+                              title={isSelected ? "Deseleccionar imagen para IA" : "Seleccionar imagen para IA"}
+                            >
+                              <Check className={`w-3.5 h-3.5 ${isSelected ? 'stroke-[3]' : ''}`} />
+                            </button>
+
+                            {/* 2. Copiar Sintaxis */}
+                            <button
+                              type="button"
+                              onClick={() => handleCopySnippet(item.name)}
+                              className="w-full py-1.5 rounded bg-slate-950 hover:bg-[#004080] border border-transparent hover:border-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center"
+                              title="Copiar sintaxis Markdown"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* 3. Insertar */}
+                            <button
+                              type="button"
+                              onClick={() => handleInsertImgTag(item.name)}
+                              className="w-full py-1.5 rounded bg-slate-950 hover:bg-[#004080] border border-transparent hover:border-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center"
+                              title="Insertar en último editor activo"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -2211,6 +2296,19 @@ Abril 2026 - Julio 2026
                 </div>
               )}
             </div>
+
+            {/* Copiar Nombres button positioned after images list */}
+            {uploadedFiles.length > 0 && (
+              <button
+                type="button"
+                onClick={handleCopyAllNames}
+                className="w-full py-2 px-3 rounded font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer border bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700 active:scale-95 shadow-sm"
+                title="Copiar los nombres de todas las imágenes (separados por salto de línea)"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copiar Nombres de las Imágenes</span>
+              </button>
+            )}
 
             {/* Instruction helper */}
             <div className="p-3 bg-slate-950 border border-slate-850 rounded text-slate-400 flex flex-col gap-2 text-[10.5px]">
@@ -2251,64 +2349,114 @@ Abril 2026 - Julio 2026
         </div>
       )}
 
-      {/* Selected Images Floating Popup List */}
-      {selectedImagesForAI.length > 0 && (
-        <div className="fixed bottom-6 right-6 z-[9999] bg-slate-900 border-2 border-orange-500 rounded-xl shadow-2xl p-4 w-[280px] sm:w-[320px] flex flex-col gap-3 animate-slide-up text-slate-200">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <div className="flex items-center gap-1.5 text-orange-500">
-              <Sparkles className="w-4 h-4 animate-pulse" />
-              <h4 className="font-extrabold text-[11px] uppercase tracking-wider text-slate-100">
-                Insertar con IA ({selectedImagesForAI.length})
-              </h4>
-            </div>
-            <button 
-              onClick={() => setSelectedImagesForAI([])}
-              className="text-slate-500 hover:text-white transition-colors cursor-pointer"
-              title="Cancelar selección"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Selected files list */}
-          <div className="flex flex-col gap-1.5 max-h-[150px] overflow-y-auto custom-scrollbar pr-0.5">
-            {selectedImagesForAI.map((file) => (
-              <div key={file.id} className="flex items-center justify-between gap-2 p-1.5 rounded bg-slate-950/60 border border-slate-850 text-xs">
-                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                  <div className="w-6 h-6 rounded bg-slate-900 border border-slate-800 shrink-0 overflow-hidden flex items-center justify-center">
-                    <img src={file.dataUrl} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                  </div>
-                  <span className="truncate font-medium text-[10.5px] text-slate-300 block">{file.name}</span>
-                </div>
-                <button 
-                  onClick={() => setSelectedImagesForAI(prev => prev.filter(f => f.id !== file.id))}
-                  className="text-slate-500 hover:text-red-400 p-0.5 transition-colors cursor-pointer shrink-0"
-                  title="Quitar de la lista"
-                >
-                  <X className="w-3 h-3" />
-                </button>
+      {/* AI Format Modal */}
+      {isAIFormatModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] select-text">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-orange-500">
+                <Sparkles className="w-5 h-5 animate-pulse" />
+                <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-100">
+                  Insertar Imágenes con IA ({selectedFileIds.length})
+                </h3>
               </div>
-            ))}
-          </div>
+              <button 
+                onClick={() => setIsAIFormatModalOpen(false)}
+                className="text-slate-500 hover:text-white cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-          {/* Primary Insert Button */}
-          <button
-            onClick={handleInsertAllSelectedWithAI}
-            disabled={isInsertingAI !== null}
-            className="w-full py-2 bg-orange-600 hover:bg-orange-500 disabled:bg-orange-950/40 text-white font-extrabold text-xs rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg active:scale-95"
-          >
-            {isInsertingAI ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Insertando con IA...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                <span>Insertar {selectedImagesForAI.length} Imagen(es)</span>
-              </>
-            )}
-          </button>
+            {/* Selected files preview thumbnails */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
+              {uploadedFiles.filter(f => selectedFileIds.includes(f.id)).map((file) => (
+                <div key={file.id} className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-950 border border-slate-800 shrink-0 text-[10px]">
+                  <img src={file.dataUrl} className="w-5 h-5 object-contain rounded" referrerPolicy="no-referrer" />
+                  <span className="font-mono text-slate-300 max-w-[100px] truncate">{file.name}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Natural Language Format Input */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[11px] font-bold text-slate-200">
+                Especifica el formato o sintaxis de inserción (lenguaje natural):
+              </label>
+              <textarea
+                value={customFormatInstruction}
+                onChange={(e) => setCustomFormatInstruction(e.target.value)}
+                placeholder="Ej: En formato HTML sin descripción y con tamaño de 400px..."
+                rows={3}
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-slate-200 text-xs focus:ring-1 focus:ring-orange-500 focus:outline-none font-sans leading-relaxed"
+              />
+
+              {/* Format Examples quick buttons */}
+              <div className="flex flex-col gap-1.5 mt-1">
+                <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">
+                  Ejemplos de referencia (haz clic para aplicar):
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCustomFormatInstruction('Formato APA 7 con título, id=fig-1 y nota al pie')}
+                    className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded text-[9.5px] text-orange-400 font-mono transition-colors cursor-pointer"
+                  >
+                    APA 7
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomFormatInstruction('Formato HTML simple sin nombre ni descripción, con tamaño especificado de 400px')}
+                    className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded text-[9.5px] text-orange-400 font-mono transition-colors cursor-pointer"
+                  >
+                    HTML (solo imagen)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomFormatInstruction('Solo nombre de la figura sin descripción ni nota')}
+                    className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded text-[9.5px] text-orange-400 font-mono transition-colors cursor-pointer"
+                  >
+                    Solo nombre
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomFormatInstruction('Solo la imagen sin nombre ni nada, con ancho del 80%')}
+                    className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded text-[9.5px] text-orange-400 font-mono transition-colors cursor-pointer"
+                  >
+                    Sin nada (solo imagen)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-800 pt-3 mt-1">
+              <button
+                type="button"
+                onClick={() => setIsAIFormatModalOpen(false)}
+                className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 text-slate-400 text-xs font-bold rounded transition-all cursor-pointer border border-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isInsertingAI !== null}
+                onClick={handleExecuteAIInsertion}
+                className="px-4 py-1.5 bg-orange-600 hover:bg-orange-500 disabled:opacity-40 text-white font-extrabold text-xs rounded transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95"
+              >
+                {isInsertingAI ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Insertando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Insertar Ahora con IA</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

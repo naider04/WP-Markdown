@@ -14,7 +14,7 @@ import { getAllUploadedFiles, saveUploadedFilesToDB, clearAllUploadedFilesDB } f
 import { BibliographyDrawer } from './components/BibliographyDrawer';
 import { MarginsDrawer } from './components/MarginsDrawer';
 import { parseBibtex, generateBibtexFromItems } from './utils/bibParser';
-import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2, Layout, ChevronLeft, ChevronRight, Key, X, List, Grid } from 'lucide-react';
+import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2, Layout, ChevronLeft, ChevronRight, Key, X, List, Grid, AlertTriangle, CheckCircle } from 'lucide-react';
 import { TemplatesDrawer } from './components/TemplatesDrawer';
 
 const DEFAULT_TEMPLATE_HTML = `<style>
@@ -111,7 +111,7 @@ const DEFAULT_TEMPLATE_HTML = `<style>
     <p class="template-example">"{{example}}"</p>
   </div>
   <div class="template-footer">
-    Universidad Estatal de Milagro • UNEMI
+    Universidad Estatal de Milagro • WP
   </div>
 </div>`;
 
@@ -134,7 +134,7 @@ const DEFAULT_TEMPLATE_JSON = `[
 ]`;
 
 const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) */
-.unemi-document-content h1 {
+.wp-document-content h1 {
   font-family: "Times New Roman", Times, Georgia, serif;
   font-size: 16px;
   font-weight: bold;
@@ -144,13 +144,15 @@ const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) 
   text-indent: 0px !important;
   margin-top: 24px;
   margin-bottom: 12px;
-  border-bottom: none;
+  border-bottom: 0px none transparent !important;
+  border-width: 0px !important;
+  border-style: none !important;
 }
-.unemi-document-content h1::after {
+.wp-document-content h1::after {
   display: none !important;
   content: none !important;
 }
-.unemi-document-content h2 {
+.wp-document-content h2 {
   font-family: "Times New Roman", Times, Georgia, serif;
   font-size: 16px;
   font-weight: bold;
@@ -160,7 +162,7 @@ const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) 
   margin-top: 18px;
   margin-bottom: 8px;
 }
-.unemi-document-content h3 {
+.wp-document-content h3 {
   font-family: "Times New Roman", Times, Georgia, serif;
   font-size: 16px;
   font-weight: bold;
@@ -171,7 +173,7 @@ const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) 
   margin-top: 14px;
   margin-bottom: 6px;
 }
-.unemi-document-content h4 {
+.wp-document-content h4 {
   font-family: "Times New Roman", Times, Georgia, serif;
   font-size: 16px;
   font-weight: bold;
@@ -181,7 +183,7 @@ const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) 
   margin-top: 10px;
   margin-bottom: 4px;
 }
-.unemi-document-content h5 {
+.wp-document-content h5 {
   font-family: "Times New Roman", Times, Georgia, serif;
   font-size: 16px;
   font-weight: bold;
@@ -194,44 +196,47 @@ const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) 
 }
 
 /* Estilo de Párrafos y Contenido General */
-.unemi-document-content p {
+.wp-document-content p {
   font-family: "Times New Roman", Times, Georgia, serif;
   font-size: 16px;
-  line-height: 1.8;
+  line-height: 200%;
   color: #000000;
-  text-align: justify;
+  text-align: left;
   text-indent: 0.5in; /* Indentación APA 7 */
   margin-top: 0;
-  margin-bottom: 12px;
+  margin-bottom: 0px;
+}
+.wp-document-content p:has(.apa-runin) {
+  text-indent: 0px !important;
 }`;
 
 const DEFAULT_BLOCK_HEADER = `/* Estilo del Encabezado Académico APA 7 */
-.unemi-academic-header {
+.wp-academic-header {
   font-size: 10px;
   color: #555555;
   text-transform: none;
   letter-spacing: 0.02em;
   border-bottom: none !important;
 }
-.unemi-academic-header .header-bar-orange,
-.unemi-academic-header .header-bar-blue {
+.wp-academic-header .header-bar-orange,
+.wp-academic-header .header-bar-blue {
   display: none !important; /* Remove colored header bars */
 }`;
 
 const DEFAULT_BLOCK_FOOTER = `/* Estilo del Pie de Página Académico APA 7 */
-.unemi-academic-footer {
+.wp-academic-footer {
   font-size: 10px;
   color: #555555;
 }
-.unemi-academic-footer .footer-line {
+.wp-academic-footer .footer-line {
   display: none !important; /* Remove colored footer lines */
 }
-.unemi-academic-footer .footer-dot {
+.wp-academic-footer .footer-dot {
   display: none !important;
 }`;
 
 const DEFAULT_BLOCK_PAGENUM = `/* Estilo de la Numeración de Página APA 7 */
-.unemi-page-num-indicator {
+.wp-page-num-indicator {
   font-family: "Times New Roman", Times, serif;
   font-weight: normal;
   color: #000000 !important;
@@ -272,7 +277,7 @@ const DEFAULT_BLOCK_TOC = `.toc-header {
 }`;
 
 const DEFAULT_BLOCK_TABLE = `/* Estilos de Tablas Académicas APA 7 */
-.unemi-document-content table {
+.wp-document-content table {
   width: 100% !important;
   border-collapse: collapse !important;
   margin-bottom: 24px !important;
@@ -281,7 +286,7 @@ const DEFAULT_BLOCK_TABLE = `/* Estilos de Tablas Académicas APA 7 */
   font-family: "Times New Roman", Times, Georgia, serif !important;
 }
 
-.unemi-document-content table th {
+.wp-document-content table th {
   background-color: transparent !important;
   color: #000000 !important;
   font-family: "Times New Roman", Times, Georgia, serif !important;
@@ -296,7 +301,7 @@ const DEFAULT_BLOCK_TABLE = `/* Estilos de Tablas Académicas APA 7 */
   border-right: none !important;
 }
 
-.unemi-document-content table td {
+.wp-document-content table td {
   font-size: 12px !important;
   color: #000000 !important;
   padding: 8px 12px !important;
@@ -307,42 +312,42 @@ const DEFAULT_BLOCK_TABLE = `/* Estilos de Tablas Académicas APA 7 */
   text-align: left !important;
 }
 
-.unemi-document-content table tbody tr td {
+.wp-document-content table tbody tr td {
   border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
 }
 
-.unemi-document-content table tbody tr:last-child td {
+.wp-document-content table tbody tr:last-child td {
   border-bottom: 2px solid #000000 !important; /* APA 7: Bottom border of the entire table */
 }
 
 /* Zebra alternating rows - disabled for pure APA 7 */
-.unemi-document-content table tbody tr:nth-child(even) {
+.wp-document-content table tbody tr:nth-child(even) {
   background-color: transparent !important;
 }
 
-.unemi-document-content table tbody tr:hover {
+.wp-document-content table tbody tr:hover {
   background-color: rgba(0, 0, 0, 0.02) !important;
 }`;
 
 const DEFAULT_BLOCK_LISTS = `/* Estilo de Listas Académicas */
-.unemi-document-content ul:not(.toc-list),
-.unemi-document-content ol {
+.wp-document-content ul:not(.toc-list),
+.wp-document-content ol {
   padding-left: 24px !important;
   margin-top: 0px !important;
   margin-bottom: 12px !important;
   text-indent: 0px !important;
 }
 
-.unemi-document-content ul:not(.toc-list) {
+.wp-document-content ul:not(.toc-list) {
   list-style-type: disc !important;
 }
 
-.unemi-document-content ol {
+.wp-document-content ol {
   list-style-type: decimal !important;
 }
 
-.unemi-document-content ul:not(.toc-list) li,
-.unemi-document-content ol li {
+.wp-document-content ul:not(.toc-list) li,
+.wp-document-content ol li {
   text-indent: 0px !important;
   margin-bottom: 6px !important;
   padding-left: 0px !important;
@@ -350,12 +355,12 @@ const DEFAULT_BLOCK_LISTS = `/* Estilo de Listas Académicas */
 }
 
 /* Evitar que párrafos y elementos directos de listas hereden indentación de texto (Compatible con Ecuaciones) */
-.unemi-document-content ul:not(.toc-list) li p,
-.unemi-document-content ol li p,
-.unemi-document-content ul:not(.toc-list) li > span:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
-.unemi-document-content ul:not(.toc-list) li > div:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
-.unemi-document-content ol li > span:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
-.unemi-document-content ol li > div:not(.math-expr):not([class*="mjx"]):not([class*="katex"]) {
+.wp-document-content ul:not(.toc-list) li p,
+.wp-document-content ol li p,
+.wp-document-content ul:not(.toc-list) li > span:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
+.wp-document-content ul:not(.toc-list) li > div:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
+.wp-document-content ol li > span:not(.math-expr):not([class*="mjx"]):not([class*="katex"]),
+.wp-document-content ol li > div:not(.math-expr):not([class*="mjx"]):not([class*="katex"]) {
   text-indent: 0px !important;
   margin: 0 !important;
   display: inline !important;
@@ -363,8 +368,8 @@ const DEFAULT_BLOCK_LISTS = `/* Estilo de Listas Académicas */
 
 const DEFAULT_MARGIN_ELEMENTS = [
   {
-    id: 'unemi-logo-margin',
-    name: 'Logo UNEMI',
+    id: 'wp-logo-margin',
+    name: 'Logo WP',
     code: '<img src="icon.png">',
     top: '37',
     right: '42',
@@ -372,7 +377,7 @@ const DEFAULT_MARGIN_ELEMENTS = [
     width: '120'
   },
   {
-    id: 'unemi-page-number-margin',
+    id: 'wp-page-number-margin',
     name: 'Número de página',
     code: `<span style="font-family: 'Times New Roman'; font-size: 16px;">
     {page}
@@ -382,7 +387,7 @@ const DEFAULT_MARGIN_ELEMENTS = [
     pagesPattern: '!first'
   },
   {
-    id: 'unemi-line-margin',
+    id: 'wp-line-margin',
     name: 'Linea',
     code: `<div
   class="w-full"
@@ -394,7 +399,7 @@ const DEFAULT_MARGIN_ELEMENTS = [
     pagesPattern: '!first'
   },
   {
-    id: 'unemi-cover-margin',
+    id: 'wp-cover-margin',
     name: 'Cover page',
     code: '<img src="cover.png">',
     top: '0',
@@ -404,9 +409,9 @@ const DEFAULT_MARGIN_ELEMENTS = [
     pagesPattern: '1'
   },
   {
-    id: 'unemi-footer-margin',
+    id: 'wp-footer-margin',
     name: 'Final footer',
-    code: '<img src="footer-unemi.png">',
+    code: '<img src="footer-wp.png">',
     bottom: '0',
     left: '0',
     width: '100%',
@@ -621,7 +626,7 @@ Abril 2026 - Julio 2026
 export default function App() {
   // 1. Initial Cover Page Metadata with localStorage fallback
   const [cover, setCover] = useState<CoverConfig>(() => {
-    const cached = localStorage.getItem('unemi_cover_config');
+    const cached = localStorage.getItem('wp_cover_config');
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
@@ -658,12 +663,19 @@ export default function App() {
     };
   });
 
+  const handleCoverChange = (field: keyof CoverConfig, value: any) => {
+    setCover((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
   // 1.5. Fullscreen indicator state
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   // 2. Page configuration settings with localStorage fallback
   const [settings, setSettings] = useState<PageSettings>(() => {
-    const cached = localStorage.getItem('unemi_page_settings');
+    const cached = localStorage.getItem('wp_page_settings');
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
@@ -774,11 +786,11 @@ export default function App() {
 
   // 2b. BibTeX references string state
   const [bibtex, setBibtex] = useState<string>(() => {
-    const savedBib = localStorage.getItem('unemi_bibtex');
+    const savedBib = localStorage.getItem('wp_bibtex');
     if (savedBib) return savedBib;
     
-    // Fallback migration: if there is an existing 'unemi_bibliography' array in localStorage, convert it to BibTeX
-    const savedItems = localStorage.getItem('unemi_bibliography');
+    // Fallback migration: if there is an existing 'wp_bibliography' array in localStorage, convert it to BibTeX
+    const savedItems = localStorage.getItem('wp_bibliography');
     if (savedItems) {
       try {
         const parsed = JSON.parse(savedItems);
@@ -790,28 +802,28 @@ export default function App() {
       }
     }
     
-    return `@book{unemi2025,
+    return `@book{wp2025,
   author    = {Universidad Estatal de Milagro},
   year      = {2025},
   title     = {Guía Metodológica para la Redacción de Trabajos Científicos},
-  publisher = {Editorial UNEMI},
-  url       = {https://www.unemi.edu.ec}
+  publisher = {Editorial WP},
+  url       = {https://www.wp.edu.ec}
 }
 
 @article{patino2024,
   author    = {Patiño, W.},
   year      = {2024},
   title     = {Arquitecturas de Software Orientadas a Servicios en la Educación Superior},
-  journal   = {Revista de Tecnología UNEMI},
+  journal   = {Revista de Tecnología WP},
   volume    = {15},
   number    = {2},
   pages     = {45-58},
-  url       = {https://ojs.unemi.edu.ec}
+  url       = {https://ojs.wp.edu.ec}
 }`;
   });
 
   useEffect(() => {
-    localStorage.setItem('unemi_bibtex', bibtex);
+    localStorage.setItem('wp_bibtex', bibtex);
   }, [bibtex]);
 
   // Derived bibliography array
@@ -826,12 +838,12 @@ export default function App() {
 
   // 3. Document HTML Content with localStorage fallback
   const [htmlContent, setHtmlContent] = useState<string>(() => {
-    return localStorage.getItem('unemi_html_content') || '';
+    return localStorage.getItem('wp_html_content') || '';
   });
 
   // 3b. HTML blocks (for multiple stacked renamable editors)
   const [htmlBlocks, setHtmlBlocks] = useState<HTMLBlock[]>(() => {
-    const cached = localStorage.getItem('unemi_html_blocks');
+    const cached = localStorage.getItem('wp_html_blocks');
     if (cached) {
       try {
         const blocks = JSON.parse(cached);
@@ -844,7 +856,7 @@ export default function App() {
     }
     
     // Fallback: If there are no blocks but there is single htmlContent in localStorage from previous session, convert it to a block!
-    const singleContent = localStorage.getItem('unemi_html_content') || '';
+    const singleContent = localStorage.getItem('wp_html_content') || '';
     return [{
       id: 'block_default',
       name: 'Bloque Principal',
@@ -874,9 +886,13 @@ export default function App() {
     }
   }, [settings.pageSize, activeDrawerType, settings.showTOC, settings.showBibliography]);
 
-  const [autoCompile, setAutoCompile] = useState<boolean>(() => {
-    const cached = localStorage.getItem('unemi_auto_compile');
-    return cached !== 'false';
+  const [staticSyncDelay, setStaticSyncDelay] = useState<number>(() => {
+    const cached = localStorage.getItem('wp_static_sync_delay');
+    return cached ? parseInt(cached, 10) : 300;
+  });
+  const [interactiveSyncDelay, setInteractiveSyncDelay] = useState<number>(() => {
+    const cached = localStorage.getItem('wp_interactive_sync_delay');
+    return cached ? parseInt(cached, 10) : 700;
   });
   const [isCompiling, setIsCompiling] = useState<boolean>(false);
 
@@ -917,18 +933,18 @@ export default function App() {
 
   // 4. Tracking if user has customized the document locally to protect their changes
   const [isLocallyEdited, setIsLocallyEdited] = useState<boolean>(() => {
-    return localStorage.getItem('unemi_is_locally_edited') === 'true';
+    return localStorage.getItem('wp_is_locally_edited') === 'true';
   });
 
   // 5. Sidebar width custom size state
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
-    const cachedWidth = localStorage.getItem('unemi_sidebar_width');
+    const cachedWidth = localStorage.getItem('wp_sidebar_width');
     return cachedWidth ? parseInt(cachedWidth, 10) : 430;
   });
 
   // 6. Custom download file name state (without extension)
   const [exportFileName, setExportFileName] = useState<string>(() => {
-    return localStorage.getItem('unemi_export_filename') || '';
+    return localStorage.getItem('wp_export_filename') || '';
   });
 
   // 7. List of uploaded files
@@ -955,6 +971,159 @@ export default function App() {
   const isResizingRef = useRef<boolean>(false);
   const [isResizing, setIsResizing] = useState<boolean>(false);
 
+  // Global Drag-and-Drop state & effect
+  const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
+  const [dragFileType, setDragFileType] = useState<'image' | 'bib' | 'mixed' | 'generic'>('generic');
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const dragCounterRef = useRef<number>(0);
+
+  // Auto-clear toast notification
+  useEffect(() => {
+    if (toastMsg) {
+      const timer = setTimeout(() => setToastMsg(null), 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMsg]);
+
+  useEffect(() => {
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current += 1;
+
+      if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
+        let hasImage = false;
+        let hasBib = false;
+
+        if (e.dataTransfer.items) {
+          for (let i = 0; i < e.dataTransfer.items.length; i++) {
+            const item = e.dataTransfer.items[i];
+            const type = (item.type || '').toLowerCase();
+            if (type.startsWith('image/')) {
+              hasImage = true;
+            } else if (type.includes('bib') || type.includes('bibtex')) {
+              hasBib = true;
+            }
+          }
+        }
+
+        if (hasImage && hasBib) {
+          setDragFileType('mixed');
+        } else if (hasImage) {
+          setDragFileType('image');
+        } else if (hasBib) {
+          setDragFileType('bib');
+        } else {
+          setDragFileType('generic');
+        }
+
+        setIsDraggingOver(true);
+      }
+    };
+
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current -= 1;
+      if (dragCounterRef.current <= 0) {
+        dragCounterRef.current = 0;
+        setIsDraggingOver(false);
+      }
+    };
+
+    const handleDrop = async (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current = 0;
+      setIsDraggingOver(false);
+
+      if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) {
+        return;
+      }
+
+      const files = Array.from(e.dataTransfer.files);
+
+      const imageFiles = files.filter(f => 
+        f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(f.name)
+      );
+
+      const bibFiles = files.filter(f => 
+        f.name.toLowerCase().endsWith('.bib') || f.type.includes('bibtex') || f.type.includes('bib')
+      );
+
+      let messages: string[] = [];
+
+      // 1. Process Images
+      if (imageFiles.length > 0) {
+        const newUploadedFiles: UploadedFile[] = await Promise.all(
+          imageFiles.map(file => new Promise<UploadedFile>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              resolve({
+                id: 'file_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+                name: file.name,
+                type: file.type || 'image',
+                size: file.size,
+                dataUrl: event.target?.result as string,
+                uploadedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                description: ''
+              });
+            };
+            reader.readAsDataURL(file);
+          }))
+        );
+
+        setUploadedFiles(prev => [...prev, ...newUploadedFiles]);
+        messages.push(
+          imageFiles.length === 1 
+            ? `Imagen "${imageFiles[0].name}" agregada con éxito a tus recursos.` 
+            : `${imageFiles.length} imágenes agregadas con éxito a tus recursos.`
+        );
+      }
+
+      // 2. Process .bib file
+      if (bibFiles.length > 0) {
+        const bibFile = bibFiles[0];
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target?.result as string;
+          if (text) {
+            setBibtex(text);
+            setToastMsg(`Bibliografía actual eliminada y reemplazada con éxito por el archivo "${bibFile.name}".`);
+          }
+        };
+        reader.readAsText(bibFile);
+        if (imageFiles.length > 0) {
+          messages.push(`Bibliografía .bib reemplazada.`);
+        }
+      }
+
+      if (messages.length > 0 && bibFiles.length === 0) {
+        setToastMsg(messages.join(' '));
+      }
+    };
+
+    window.addEventListener('dragenter', handleDragEnter);
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('dragleave', handleDragLeave);
+    window.addEventListener('drop', handleDrop);
+
+    return () => {
+      window.removeEventListener('dragenter', handleDragEnter);
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('drop', handleDrop);
+    };
+  }, []);
+
   // Compiled states for frozen preview
   const [compiledCover, setCompiledCover] = useState<CoverConfig>(cover);
   const [compiledSettings, setCompiledSettings] = useState<PageSettings>(settings);
@@ -963,24 +1132,24 @@ export default function App() {
   const [compiledUploadedFiles, setCompiledUploadedFiles] = useState<UploadedFile[]>(uploadedFiles);
   const [compiledHtmlContent, setCompiledHtmlContent] = useState<string>(htmlContent);
 
-  // Save autoCompile setting
+  // Save sync delays setting
   useEffect(() => {
-    localStorage.setItem('unemi_auto_compile', String(autoCompile));
-  }, [autoCompile]);
+    localStorage.setItem('wp_static_sync_delay', String(staticSyncDelay));
+  }, [staticSyncDelay]);
 
-  // Handle manual compilation
+  useEffect(() => {
+    localStorage.setItem('wp_interactive_sync_delay', String(interactiveSyncDelay));
+  }, [interactiveSyncDelay]);
+
+  // Handle instant manual sync (Ctrl+S)
   const handleCompile = () => {
-    if (isCompiling) return;
-    setIsCompiling(true);
-    setTimeout(() => {
-      setCompiledCover(JSON.parse(JSON.stringify(cover)));
-      setCompiledSettings(JSON.parse(JSON.stringify(settings)));
-      setCompiledHtmlBlocks(JSON.parse(JSON.stringify(htmlBlocks)));
-      setCompiledBibliography(JSON.parse(JSON.stringify(bibliography)));
-      setCompiledUploadedFiles(JSON.parse(JSON.stringify(uploadedFiles)));
-      setCompiledHtmlContent(htmlContent);
-      setIsCompiling(false);
-    }, 800);
+    setCompiledCover(JSON.parse(JSON.stringify(cover)));
+    setCompiledSettings(JSON.parse(JSON.stringify(settings)));
+    setCompiledHtmlBlocks(JSON.parse(JSON.stringify(htmlBlocks)));
+    setCompiledBibliography(JSON.parse(JSON.stringify(bibliography)));
+    setCompiledUploadedFiles(JSON.parse(JSON.stringify(uploadedFiles)));
+    setCompiledHtmlContent(htmlContent);
+    setIsCompiling(false);
   };
 
   // Keyboard shortcut listener for Ctrl+S / Cmd+S manual compilation
@@ -995,7 +1164,7 @@ export default function App() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [cover, settings, htmlBlocks, bibliography, uploadedFiles, htmlContent, isCompiling]);
+  }, [cover, settings, htmlBlocks, bibliography, uploadedFiles, htmlContent]);
 
   // Click outside detector for export & archivo dropdowns
   useEffect(() => {
@@ -1015,47 +1184,78 @@ export default function App() {
     };
   }, []);
 
-  // Sync automatically if autoCompile is true
+  // Global static pages sync effect debounced by staticSyncDelay
   useEffect(() => {
-    if (autoCompile) {
+    const isDifferent =
+      JSON.stringify(cover) !== JSON.stringify(compiledCover) ||
+      JSON.stringify(settings) !== JSON.stringify(compiledSettings) ||
+      JSON.stringify(htmlBlocks) !== JSON.stringify(compiledHtmlBlocks) ||
+      JSON.stringify(bibliography) !== JSON.stringify(compiledBibliography) ||
+      JSON.stringify(uploadedFiles) !== JSON.stringify(compiledUploadedFiles) ||
+      htmlContent !== compiledHtmlContent;
+
+    if (!isDifferent) {
+      setIsCompiling(false);
+      return;
+    }
+
+    setIsCompiling(true);
+    const timer = setTimeout(() => {
       setCompiledCover(cover);
       setCompiledSettings(settings);
       setCompiledHtmlBlocks(htmlBlocks);
       setCompiledBibliography(bibliography);
       setCompiledUploadedFiles(uploadedFiles);
       setCompiledHtmlContent(htmlContent);
-    }
-  }, [autoCompile, cover, settings, htmlBlocks, bibliography, uploadedFiles, htmlContent]);
+      setIsCompiling(false);
+    }, staticSyncDelay);
+
+    return () => clearTimeout(timer);
+  }, [
+    staticSyncDelay,
+    cover,
+    settings,
+    htmlBlocks,
+    bibliography,
+    uploadedFiles,
+    htmlContent,
+    compiledCover,
+    compiledSettings,
+    compiledHtmlBlocks,
+    compiledBibliography,
+    compiledUploadedFiles,
+    compiledHtmlContent
+  ]);
 
   // Sync state changes back to localStorage
   useEffect(() => {
-    localStorage.setItem('unemi_cover_config', JSON.stringify(cover));
+    localStorage.setItem('wp_cover_config', JSON.stringify(cover));
   }, [cover]);
 
   useEffect(() => {
-    localStorage.setItem('unemi_page_settings', JSON.stringify(settings));
+    localStorage.setItem('wp_page_settings', JSON.stringify(settings));
   }, [settings]);
 
   // Synchronize htmlBlocks changes and serialize them inside computed htmlContent
   useEffect(() => {
-    localStorage.setItem('unemi_html_blocks', JSON.stringify(htmlBlocks));
+    localStorage.setItem('wp_html_blocks', JSON.stringify(htmlBlocks));
     const merged = htmlBlocks.map(b => {
       return `<!-- ===BLOCK_START=== name="${b.name}" collapsed="${b.collapsed}"${b.isMarkdown ? ' isMarkdown="true"' : ''} -->\n${b.code}\n<!-- ===BLOCK_END=== -->`;
     }).join('\n\n');
     setHtmlContent(merged);
-    localStorage.setItem('unemi_html_content', merged);
+    localStorage.setItem('wp_html_content', merged);
   }, [htmlBlocks]);
 
   useEffect(() => {
-    localStorage.setItem('unemi_is_locally_edited', String(isLocallyEdited));
+    localStorage.setItem('wp_is_locally_edited', String(isLocallyEdited));
   }, [isLocallyEdited]);
 
   useEffect(() => {
-    localStorage.setItem('unemi_sidebar_width', String(sidebarWidth));
+    localStorage.setItem('wp_sidebar_width', String(sidebarWidth));
   }, [sidebarWidth]);
 
   useEffect(() => {
-    localStorage.setItem('unemi_export_filename', exportFileName);
+    localStorage.setItem('wp_export_filename', exportFileName);
   }, [exportFileName]);
 
   // Sync main tab document.title with the custom filename or cover title
@@ -1070,7 +1270,7 @@ export default function App() {
   // Initialize and load files from IndexedDB or migrate from localStorage
   useEffect(() => {
     async function loadFiles() {
-      const cached = localStorage.getItem('unemi_uploaded_files');
+      const cached = localStorage.getItem('wp_uploaded_files');
       if (cached) {
         try {
           const files = JSON.parse(cached);
@@ -1078,7 +1278,7 @@ export default function App() {
             setUploadedFiles(files);
             await saveUploadedFilesToDB(files);
           }
-          localStorage.removeItem('unemi_uploaded_files');
+          localStorage.removeItem('wp_uploaded_files');
         } catch (e) {
           console.error('Error migrating files from localStorage:', e);
         }
@@ -1207,14 +1407,14 @@ export default function App() {
   // Complete Reset of all settings and contents to start from 0
   const handleResetAllToZero = async () => {
     if (window.confirm('¿Está seguro de que desea eliminar TODOS los cambios (portada, margen, estilos, imágenes y contenido html) y empezar desde cero? Esta acción no se puede deshacer.')) {
-      localStorage.removeItem('unemi_cover_config');
-      localStorage.removeItem('unemi_page_settings');
-      localStorage.removeItem('unemi_html_content');
-      localStorage.removeItem('unemi_html_blocks');
-      localStorage.removeItem('unemi_is_locally_edited');
-      localStorage.removeItem('unemi_sidebar_width');
-      localStorage.removeItem('unemi_export_filename');
-      localStorage.removeItem('unemi_uploaded_files');
+      localStorage.removeItem('wp_cover_config');
+      localStorage.removeItem('wp_page_settings');
+      localStorage.removeItem('wp_html_content');
+      localStorage.removeItem('wp_html_blocks');
+      localStorage.removeItem('wp_is_locally_edited');
+      localStorage.removeItem('wp_sidebar_width');
+      localStorage.removeItem('wp_export_filename');
+      localStorage.removeItem('wp_uploaded_files');
       
       try {
         await clearAllUploadedFilesDB();
@@ -1350,18 +1550,21 @@ export default function App() {
 }
 `;
 
-    const coverElement = document.getElementById('unemi-cover-page');
+    const coverElement = document.getElementById('wp-cover-page');
     const pageElements = document.querySelectorAll('[name^="document-page-"]');
 
-    if (!coverElement || pageElements.length === 0) {
+    const hasCover = settings.pageSize !== 'continuous' && cover.enabled !== false;
+    if ((hasCover && !coverElement) || pageElements.length === 0) {
       alert('Error: Por favor, asegúrese de que el previsualizador haya cargado las páginas antes de exportar.');
       return;
     }
 
     // Capture pages markup
     let pagesHTML = '';
-    // Append cover
-    pagesHTML += `<div class="print-page-boundary">${coverElement.outerHTML}</div>\n`;
+    // Append cover if enabled
+    if (hasCover && coverElement) {
+      pagesHTML += `<div class="print-page-boundary">${coverElement.outerHTML}</div>\n`;
+    }
     // Append each page structure
     pageElements.forEach((el) => {
       const clone = el.cloneNode(true) as HTMLElement;
@@ -1375,16 +1578,21 @@ export default function App() {
 
     const isLetterSize = settings.pageSize === 'letter';
     const isA4 = settings.pageSize === 'a4';
+    const isContinuous = settings.pageSize === 'continuous';
     const isPortrait = (settings.orientation || 'portrait') === 'portrait';
     
     // Base physical dimensions for layout (swapped if Landscape orientation is selected)
-    const paperWidth = isPortrait 
-      ? (isLetterSize ? '816px' : isA4 ? '794px' : '630px')
-      : (isLetterSize ? '1056px' : isA4 ? '1123px' : '1120px');
+    const paperWidth = isContinuous
+      ? '794px'
+      : isPortrait 
+        ? (isLetterSize ? '816px' : isA4 ? '794px' : '630px')
+        : (isLetterSize ? '1056px' : isA4 ? '1123px' : '1120px');
       
-    const paperHeight = isPortrait 
-      ? (isLetterSize ? '1056px' : isA4 ? '1123px' : '1120px')
-      : (isLetterSize ? '816px' : isA4 ? '794px' : '630px');
+    const paperHeight = isContinuous
+      ? 'auto'
+      : isPortrait 
+        ? (isLetterSize ? '1056px' : isA4 ? '1123px' : '1120px')
+        : (isLetterSize ? '816px' : isA4 ? '794px' : '630px');
 
     const topMargin = settings.marginTop !== undefined ? settings.marginTop : 96;
     const bottomMargin = settings.marginBottom !== undefined ? settings.marginBottom : 96;
@@ -1405,7 +1613,7 @@ export default function App() {
       
       // H1
       if (settings.h1Size || settings.h1Font || settings.h1Align || settings.h1LineHeight || settings.h1Indent !== undefined || settings.h1Bold !== undefined || settings.h1Italic !== undefined || settings.h1Color) {
-        css += `\n.unemi-document-content h1 {`;
+        css += `\n.wp-document-content h1 {`;
         if (settings.h1Size) css += ` font-size: ${settings.h1Size} !important;`;
         if (settings.h1Font) css += ` font-family: "${settings.h1Font}", sans-serif !important;`;
         if (settings.h1Align) css += ` text-align: ${settings.h1Align} !important;`;
@@ -1419,7 +1627,7 @@ export default function App() {
 
       // H2
       if (settings.h2Size || settings.h2Font || settings.h2Align || settings.h2LineHeight || settings.h2Indent !== undefined || settings.h2Bold !== undefined || settings.h2Italic !== undefined || settings.h2Color) {
-        css += `\n.unemi-document-content h2 {`;
+        css += `\n.wp-document-content h2 {`;
         if (settings.h2Size) css += ` font-size: ${settings.h2Size} !important;`;
         if (settings.h2Font) css += ` font-family: "${settings.h2Font}", sans-serif !important;`;
         if (settings.h2Align) css += ` text-align: ${settings.h2Align} !important;`;
@@ -1433,7 +1641,7 @@ export default function App() {
 
       // P
       if (settings.pSize || settings.pFont || settings.pAlign || settings.pLineHeight || settings.pIndent !== undefined || settings.pBold !== undefined || settings.pItalic !== undefined || settings.pColor) {
-        css += `\n.unemi-document-content, .unemi-document-content p, .unemi-document-content div:not(.unemi-academic-header):not(.unemi-academic-footer):not(.toc-container):not(.note):not(.math-expr) {`;
+        css += `\n.wp-document-content, .wp-document-content p, .wp-document-content div:not(.wp-academic-header):not(.wp-academic-footer):not(.toc-container):not(.note):not(.math-expr) {`;
         if (settings.pSize) css += ` font-size: ${settings.pSize} !important;`;
         if (settings.pFont) css += ` font-family: "${settings.pFont}", sans-serif !important;`;
         if (settings.pAlign) css += ` text-align: ${settings.pAlign} !important;`;
@@ -1448,14 +1656,14 @@ export default function App() {
       // Tablas
       if (settings.tableFontSize || settings.tableHeaderBg || settings.tableHeaderColor || settings.tableBorderColor || settings.tableCellPadding || settings.tableStriped || settings.tableBorderWidth) {
         css += `\n/* Table Formatting Rules */`;
-        css += `\n.unemi-document-content table {`;
+        css += `\n.wp-document-content table {`;
         css += `  word-wrap: break-word !important;`;
         css += `  border-collapse: collapse !important;`;
         if (settings.tableFontSize) css += ` font-size: ${settings.tableFontSize} !important;`;
         if (settings.tableBorderColor) css += ` border-color: ${settings.tableBorderColor} !important;`;
         css += ` }`;
 
-        css += `\n.unemi-document-content table th, .unemi-document-content table td {`;
+        css += `\n.wp-document-content table th, .wp-document-content table td {`;
         if (settings.tableCellPadding) {
           css += ` padding: ${settings.tableCellPadding} !important;`;
         }
@@ -1468,13 +1676,13 @@ export default function App() {
         }
         css += ` }`;
 
-        css += `\n.unemi-document-content table th, .unemi-document-content table thead tr, .unemi-document-content table tr[bgcolor] {`;
+        css += `\n.wp-document-content table th, .wp-document-content table thead tr, .wp-document-content table tr[bgcolor] {`;
         if (settings.tableHeaderBg) css += ` background-color: ${settings.tableHeaderBg} !important;`;
         if (settings.tableHeaderColor) css += ` color: ${settings.tableHeaderColor} !important;`;
         css += ` }`;
 
         if (settings.tableStriped) {
-          css += `\n.unemi-document-content table tbody tr:nth-child(even) {`;
+          css += `\n.wp-document-content table tbody tr:nth-child(even) {`;
           css += ` background-color: rgba(0, 0, 0, 0.03) !important;`;
           css += ` }`;
         }
@@ -1488,19 +1696,19 @@ export default function App() {
       const rawInlineSize = settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px';
       const inlineSize = formatFontSize(rawInlineSize, '12px');
 
-      css += `\n.unemi-document-content pre, .unemi-document-content pre * {`;
+      css += `\n.wp-document-content pre, .wp-document-content pre * {`;
       css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
       css += ` font-size: ${blockSize} !important;`;
       css += ` text-indent: 0px !important;`;
       css += ` }`;
 
-      css += `\n.unemi-document-content code:not(pre code) {`;
+      css += `\n.wp-document-content code:not(pre code) {`;
       css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
       css += ` font-size: ${inlineSize} !important;`;
       css += ` text-indent: 0px !important;`;
       css += ` }`;
       
-      css += `\n.unemi-document-content pre {`;
+      css += `\n.wp-document-content pre {`;
       css += ` padding: 12px 16px !important;`;
       css += ` margin: 16px 0 !important;`;
       css += ` border-radius: 6px !important;`;
@@ -1540,7 +1748,7 @@ export default function App() {
         inlineBorder = '#cbd5e1';
       }
 
-      css += `\n.unemi-document-content code:not(pre code) {`;
+      css += `\n.wp-document-content code:not(pre code) {`;
       css += ` background-color: ${inlineBg} !important;`;
       css += ` color: ${inlineColor} !important;`;
       css += ` padding: 2px 5px !important;`;
@@ -1554,60 +1762,60 @@ export default function App() {
       css += ` }`;
       
       if (blockTheme === 'dracula') {
-        css += `\n.unemi-document-content pre { background-color: #282a36 !important; border: 1px solid #44475a !important; color: #f8f8f2 !important; }`;
-        css += `\n.unemi-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
-        css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #6272a4 !important; font-style: italic !important; }`;
-        css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #ff79c6 !important; }`;
-        css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #f1fa8c !important; }`;
-        css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #50fa7b !important; }`;
-        css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #bd93f9 !important; }`;
-        css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #f8f8f2 !important; }`;
+        css += `\n.wp-document-content pre { background-color: #282a36 !important; border: 1px solid #44475a !important; color: #f8f8f2 !important; }`;
+        css += `\n.wp-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
+        css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #6272a4 !important; font-style: italic !important; }`;
+        css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #ff79c6 !important; }`;
+        css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #f1fa8c !important; }`;
+        css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #50fa7b !important; }`;
+        css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #bd93f9 !important; }`;
+        css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #f8f8f2 !important; }`;
       } else if (blockTheme === 'monokai') {
-        css += `\n.unemi-document-content pre { background-color: #272822 !important; border: 1px solid #3e3d32 !important; color: #f8f8f2 !important; }`;
-        css += `\n.unemi-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
-        css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #75715e !important; font-style: italic !important; }`;
-        css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #f92672 !important; }`;
-        css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #e6db74 !important; }`;
-        css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #a6e22e !important; }`;
-        css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #ae81ff !important; }`;
-        css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #f8f8f2 !important; }`;
+        css += `\n.wp-document-content pre { background-color: #272822 !important; border: 1px solid #3e3d32 !important; color: #f8f8f2 !important; }`;
+        css += `\n.wp-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
+        css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #75715e !important; font-style: italic !important; }`;
+        css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #f92672 !important; }`;
+        css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #e6db74 !important; }`;
+        css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #a6e22e !important; }`;
+        css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #ae81ff !important; }`;
+        css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #f8f8f2 !important; }`;
       } else if (blockTheme === 'github-light') {
-        css += `\n.unemi-document-content pre { background-color: #f6f8fa !important; border: 1px solid #d0d7de !important; color: #24292f !important; }`;
-        css += `\n.unemi-document-content pre code { color: #24292f !important; background-color: transparent !important; padding: 0 !important; }`;
-        css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #6e7781 !important; font-style: italic !important; }`;
-        css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #cf222e !important; font-weight: bold !important; }`;
-        css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #0a3069 !important; }`;
-        css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #8250df !important; }`;
-        css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #0550ae !important; }`;
-        css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #24292f !important; }`;
+        css += `\n.wp-document-content pre { background-color: #f6f8fa !important; border: 1px solid #d0d7de !important; color: #24292f !important; }`;
+        css += `\n.wp-document-content pre code { color: #24292f !important; background-color: transparent !important; padding: 0 !important; }`;
+        css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #6e7781 !important; font-style: italic !important; }`;
+        css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #cf222e !important; font-weight: bold !important; }`;
+        css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #0a3069 !important; }`;
+        css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #8250df !important; }`;
+        css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #0550ae !important; }`;
+        css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #24292f !important; }`;
       } else if (blockTheme === 'solarized-light') {
-        css += `\n.unemi-document-content pre { background-color: #fdf6e3 !important; border: 1px solid #efe8d4 !important; color: #657b83 !important; }`;
-        css += `\n.unemi-document-content pre code { color: #657b83 !important; background-color: transparent !important; padding: 0 !important; }`;
-        css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #93a1a1 !important; font-style: italic !important; }`;
-        css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #859900 !important; }`;
-        css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #2aa198 !important; }`;
-        css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #268bd2 !important; }`;
-        css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #d33682 !important; }`;
-        css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #586e75 !important; }`;
+        css += `\n.wp-document-content pre { background-color: #fdf6e3 !important; border: 1px solid #efe8d4 !important; color: #657b83 !important; }`;
+        css += `\n.wp-document-content pre code { color: #657b83 !important; background-color: transparent !important; padding: 0 !important; }`;
+        css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #93a1a1 !important; font-style: italic !important; }`;
+        css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #859900 !important; }`;
+        css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #2aa198 !important; }`;
+        css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #268bd2 !important; }`;
+        css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #d33682 !important; }`;
+        css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #586e75 !important; }`;
       } else if (blockTheme === 'nord') {
-        css += `\n.unemi-document-content pre { background-color: #2e3440 !important; border: 1px solid #3b4252 !important; color: #d8dee9 !important; }`;
-        css += `\n.unemi-document-content pre code { color: #d8dee9 !important; background-color: transparent !important; padding: 0 !important; }`;
-        css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #4c566a !important; font-style: italic !important; }`;
-        css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #81a1c1 !important; }`;
-        css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #a3be8c !important; }`;
-        css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #88c0d0 !important; }`;
-        css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #b48ead !important; }`;
-        css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #eceff4 !important; }`;
+        css += `\n.wp-document-content pre { background-color: #2e3440 !important; border: 1px solid #3b4252 !important; color: #d8dee9 !important; }`;
+        css += `\n.wp-document-content pre code { color: #d8dee9 !important; background-color: transparent !important; padding: 0 !important; }`;
+        css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #4c566a !important; font-style: italic !important; }`;
+        css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #81a1c1 !important; }`;
+        css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #a3be8c !important; }`;
+        css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #88c0d0 !important; }`;
+        css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #b48ead !important; }`;
+        css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #eceff4 !important; }`;
       } else {
         // academic / default
-        css += `\n.unemi-document-content pre { background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; }`;
-        css += `\n.unemi-document-content pre code { color: #0f172a !important; background-color: transparent !important; padding: 0 !important; }`;
-        css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #64748b !important; font-style: italic !important; }`;
-        css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #0f172a !important; font-weight: bold !important; }`;
-        css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #0f172a !important; font-style: italic !important; }`;
-        css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #0f172a !important; }`;
-        css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #0f172a !important; }`;
-        css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #0f172a !important; }`;
+        css += `\n.wp-document-content pre { background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; }`;
+        css += `\n.wp-document-content pre code { color: #0f172a !important; background-color: transparent !important; padding: 0 !important; }`;
+        css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #64748b !important; font-style: italic !important; }`;
+        css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #0f172a !important; font-weight: bold !important; }`;
+        css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #0f172a !important; font-style: italic !important; }`;
+        css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #0f172a !important; }`;
+        css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #0f172a !important; }`;
+        css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #0f172a !important; }`;
       }
       
       return css;
@@ -1672,7 +1880,7 @@ export default function App() {
       height: ${paperHeight} !important;
     }
 
-    #unemi-cover-page {
+    #wp-cover-page {
       position: relative !important;
       background-color: #ffffff !important;
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
@@ -1691,8 +1899,30 @@ export default function App() {
     /* Position wrappers */
     .absolute { position: absolute !important; }
     
-    /* UNEMI Typography core blocks rules */
-    .unemi-document-content {
+    /* WP Typography core blocks rules */
+    .wp-document-content *:not(.katex):not(.katex *):not(table):not(thead):not(tbody):not(tr):not(th):not(td):not(figure):not(.note):not(hr),
+    .wp-document-content *::before,
+    .wp-document-content *::after,
+    .wp-template-content *:not(.katex):not(.katex *):not(table):not(thead):not(tbody):not(tr):not(th):not(td):not(figure):not(.note):not(hr),
+    .wp-template-content *::before,
+    .wp-template-content *::after,
+    .document-rendered-container *:not(.katex):not(.katex *):not(table):not(thead):not(tbody):not(tr):not(th):not(td):not(figure):not(.note):not(hr),
+    .continuous-page-boundary {
+      border: 0px none transparent !important;
+      border-width: 0px !important;
+      border-style: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
+    .katex .frac-line {
+      border-bottom-style: solid !important;
+      border-bottom-width: 0.04em !important;
+      border-bottom-color: currentColor !important;
+      display: inline-block !important;
+    }
+
+    .wp-document-content {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       line-height: 1.8 !important;
@@ -1700,7 +1930,7 @@ export default function App() {
       text-align: left !important;
     }
 
-    .unemi-document-content h1 {
+    .wp-document-content h1 {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
@@ -1711,16 +1941,18 @@ export default function App() {
       margin-top: 24px !important;
       margin-bottom: 12px !important;
       padding-bottom: 0 !important;
-      border-bottom: none !important;
+      border-bottom: 0px none transparent !important;
+      border-width: 0px !important;
+      border-style: none !important;
       position: relative !important;
     }
 
-    .unemi-document-content h1::after {
+    .wp-document-content h1::after {
       display: none !important;
       content: none !important;
     }
 
-    .unemi-document-content h2 {
+    .wp-document-content h2 {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
@@ -1731,7 +1963,7 @@ export default function App() {
       margin-bottom: 8px !important;
     }
 
-    .unemi-document-content h3 {
+    .wp-document-content h3 {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
@@ -1743,7 +1975,7 @@ export default function App() {
       margin-bottom: 6px !important;
     }
 
-    .unemi-document-content h4 {
+    .wp-document-content h4 {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
@@ -1754,7 +1986,7 @@ export default function App() {
       margin-bottom: 4px !important;
     }
 
-    .unemi-document-content h5 {
+    .wp-document-content h5 {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
@@ -1766,43 +1998,54 @@ export default function App() {
       margin-bottom: 4px !important;
     }
 
-    .unemi-document-content p {
+    .wp-document-content p {
       margin-top: 0 !important;
-      margin-bottom: 12px !important;
-      line-height: 1.8 !important;
+      margin-bottom: 0px !important;
+      line-height: 200% !important;
+      text-indent: 0.5in !important;
+      text-align: left !important;
+      border: 0px none transparent !important;
+      border-width: 0px !important;
+      border-style: none !important;
+      outline: none !important;
+      box-shadow: none !important;
     }
 
-    .unemi-document-content ul:not(.toc-list) {
+    .wp-document-content p:has(.apa-runin) {
+      text-indent: 0px !important;
+    }
+
+    .wp-document-content ul:not(.toc-list) {
       list-style-type: disc !important;
       padding-left: 0.5in !important;
       margin-bottom: 12px !important;
     }
 
-    .unemi-document-content ul:not(.toc-list) li:not(.toc-item) {
+    .wp-document-content ul:not(.toc-list) li:not(.toc-item) {
       position: relative !important;
       margin-bottom: 6px !important;
       line-height: 1.8 !important;
       font-size: 12px !important;
     }
 
-    .unemi-document-content ul:not(.toc-list) li:not(.toc-item)::before {
+    .wp-document-content ul:not(.toc-list) li:not(.toc-item)::before {
       display: none;
       content: none;
     }
 
-    .unemi-document-content ol {
+    .wp-document-content ol {
       list-style-type: decimal !important;
       padding-left: 0.5in !important;
       margin-bottom: 12px !important;
     }
 
-    .unemi-document-content ol li {
+    .wp-document-content ol li {
       margin-bottom: 6px !important;
       line-height: 1.8 !important;
       font-size: 12px !important;
     }
 
-    .unemi-document-content .note {
+    .wp-document-content .note {
       border-left: 3px solid #000000 !important;
       background-color: #f8fafc !important;
       padding: 12px 14px !important;
@@ -1813,7 +2056,7 @@ export default function App() {
       color: #000000 !important;
     }
 
-    .unemi-document-content blockquote {
+    .wp-document-content blockquote {
       border-left: none !important;
       background-color: transparent !important;
       padding: 0 !important;
@@ -1825,7 +2068,7 @@ export default function App() {
     }
 
     /* Figure and academic Thumbnail/Image formatting */
-    .unemi-document-content figure {
+    .wp-document-content figure {
       display: block !important;
       margin: 16px auto !important;
       border: 1px solid #e2e8f0 !important;
@@ -1836,8 +2079,8 @@ export default function App() {
       box-sizing: border-box !important;
     }
 
-    .unemi-document-content figure.mw-default-size,
-    .unemi-document-content figure[class*="thumb"] {
+    .wp-document-content figure.mw-default-size,
+    .wp-document-content figure[class*="thumb"] {
       float: right !important;
       margin-left: 18px !important;
       margin-top: 4px !important;
@@ -1845,7 +2088,7 @@ export default function App() {
       width: 220px !important;
     }
 
-    .unemi-document-content figcaption {
+    .wp-document-content figcaption {
       font-family: "Inter", sans-serif !important;
       font-size: 10.5px !important;
       color: #64748b !important;
@@ -1855,8 +2098,8 @@ export default function App() {
       font-style: italic !important;
     }
 
-    .unemi-document-content img,
-    .unemi-document-content .mw-file-element {
+    .wp-document-content img,
+    .wp-document-content .mw-file-element {
       max-width: 100% !important;
       height: auto !important;
       display: block !important;
@@ -1865,7 +2108,7 @@ export default function App() {
     }
 
     /* Absolute running elements styling */
-    .unemi-academic-header {
+    .wp-academic-header {
       position: absolute !important;
       top: ${Math.max(10, topMargin - 60)}px !important;
       left: ${leftMargin}px !important;
@@ -1879,7 +2122,7 @@ export default function App() {
       z-index: 10 !important;
     }
     
-    .unemi-academic-footer {
+    .wp-academic-footer {
       position: absolute !important;
       bottom: ${Math.max(10, bottomMargin - 50)}px !important;
       left: ${leftMargin}px !important;
@@ -1895,7 +2138,7 @@ export default function App() {
 
     /* Print styling rules */
     @media print {
-      #unemi-academic-toolbar, .print\:hidden, .print-hidden {
+      #wp-academic-toolbar, .print\:hidden, .print-hidden {
         display: none !important;
         opacity: 0 !important;
         visibility: hidden !important;
@@ -1930,7 +2173,7 @@ export default function App() {
         page-break-after: avoid !important;
         break-after: avoid !important;
       }
-      #unemi-cover-page {
+      #wp-cover-page {
         box-shadow: none !important;
         border: none !important;
         page-break-after: always !important;
@@ -1967,54 +2210,47 @@ export default function App() {
     ${settings.autoNumberHeadings ? `
     /* Numeración automática de títulos */
     body, .document-rendered-container {
-      counter-reset: unemi-h1-counter !important;
+      counter-reset: wp-h1-counter !important;
     }
-    .unemi-document-content h1 {
-      counter-reset: unemi-h2-counter !important;
-      counter-increment: unemi-h1-counter !important;
+    .wp-document-content h1 {
+      counter-reset: wp-h2-counter !important;
+      counter-increment: wp-h1-counter !important;
     }
-    .unemi-document-content h1::before {
-      content: counter(unemi-h1-counter) ". " !important;
+    .wp-document-content h1::before {
+      content: counter(wp-h1-counter) ". " !important;
     }
-    .unemi-document-content h2 {
-      counter-reset: unemi-h3-counter !important;
-      counter-increment: unemi-h2-counter !important;
+    .wp-document-content h2 {
+      counter-reset: wp-h3-counter !important;
+      counter-increment: wp-h2-counter !important;
     }
-    .unemi-document-content h2::before {
-      content: counter(unemi-h1-counter) "." counter(unemi-h2-counter) " " !important;
+    .wp-document-content h2::before {
+      content: counter(wp-h1-counter) "." counter(wp-h2-counter) " " !important;
     }
-    .unemi-document-content h3 {
-      counter-increment: unemi-h3-counter !important;
+    .wp-document-content h3 {
+      counter-increment: wp-h3-counter !important;
     }
-    .unemi-document-content h3::before {
-      content: counter(unemi-h1-counter) "." counter(unemi-h2-counter) "." counter(unemi-h3-counter) " " !important;
+    .wp-document-content h3::before {
+      content: counter(wp-h1-counter) "." counter(wp-h2-counter) "." counter(wp-h3-counter) " " !important;
     }
     ` : ''}
   </style>
 </head>
 <body>
   <!-- Floating Academic Toolbar (Omitted when printing) -->
-  <div id="unemi-academic-toolbar" class="fixed top-4 right-4 z-50 print:hidden flex items-center gap-2 bg-slate-900/95 text-slate-300 px-2.5 py-1.5 border border-slate-800 rounded-lg shadow-xl backdrop-blur-sm select-none">
+  <div id="wp-academic-toolbar" class="fixed top-4 right-4 z-50 print:hidden flex items-center gap-2 bg-slate-900/95 text-slate-300 px-2.5 py-1.5 border border-slate-800 rounded-lg shadow-xl backdrop-blur-sm select-none">
     <!-- Zoom Out -->
-    <button id="unemi-zoom-out" title="Reducir" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
+    <button id="wp-zoom-out" title="Reducir" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <line x1="5" y1="12" x2="19" y2="12"></line>
       </svg>
     </button>
     <!-- Zoom indicator/reset -->
-    <span id="unemi-zoom-indicator" title="Restablecer zoom" class="text-[11px] font-mono font-medium min-w-[36px] text-center cursor-pointer hover:text-white">100%</span>
+    <span id="wp-zoom-indicator" title="Restablecer zoom" class="text-[11px] font-mono font-medium min-w-[36px] text-center cursor-pointer hover:text-white">100%</span>
     <!-- Zoom In -->
-    <button id="unemi-zoom-in" title="Aumentar" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
+    <button id="wp-zoom-in" title="Aumentar" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <line x1="12" y1="5" x2="12" y2="19"></line>
         <line x1="5" y1="12" x2="19" y2="12"></line>
-      </svg>
-    </button>
-    <div class="h-3 w-[1px] bg-slate-800"></div>
-    <!-- Play presentation -->
-    <button id="unemi-start-presentation" title="Iniciar Presentación" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer text-orange-400 flex items-center justify-center">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="6 4 20 12 6 20 6 4" fill="currentColor"></polygon>
       </svg>
     </button>
     <div class="h-3 w-[1px] bg-slate-800"></div>
@@ -2130,330 +2366,22 @@ export default function App() {
     });
   </script>
 
-  <!-- Presentation Mode Logic -->
   <script>
     document.addEventListener("DOMContentLoaded", function() {
-      var inPresentationMode = false;
-      var currentPageIndex = 0;
-      var pages = Array.from(document.querySelectorAll('#unemi-cover-page, div[name^="document-page-"]'));
-      var container = document.querySelector('.document-rendered-container');
-      var hudTimeout = null;
-      var presentationScale = 1.0;
+      var pages = Array.from(document.querySelectorAll('#wp-cover-page, div[name^="document-page-"]'));
 
-      function updatePageVisibility() {
-        if (!inPresentationMode) return;
-        var viewportWidth = window.innerWidth;
-        var viewportHeight = window.innerHeight;
-
-        pages.forEach(function(page, idx) {
-          if (idx === currentPageIndex) {
-            page.style.setProperty('display', 'flex', 'important');
-            
-            // Medir las dimensiones de maquetación nativas de la hoja (p. ej. 816x1056 o similar)
-            var pageWidth = page.offsetWidth || 816;
-            var pageHeight = page.offsetHeight || 1056;
-
-            // Dejamos un margen del 6% (94% de la pantalla) para conservar aire estético elegante a los lados
-            var maxWidth = viewportWidth * 0.94;
-            var maxHeight = viewportHeight * 0.94;
-
-            var scaleX = maxWidth / pageWidth;
-            var scaleY = maxHeight / pageHeight;
-
-            // Se toma el factor mínimo para asegurar que entre completa en la pantalla (Ajuste/Fit)
-            var fitScale = Math.min(scaleX, scaleY);
-
-            page.style.setProperty('transform', 'scale(' + (fitScale * presentationScale) + ')', 'important');
-            page.style.setProperty('transform-origin', 'center center', 'important');
-            page.style.setProperty('margin', '0 auto', 'important');
-          } else {
-            page.style.setProperty('display', 'none', 'important');
-          }
-        });
-        window.scrollTo({ top: 0, left: 0 });
-        if (container) {
-          container.scrollTop = 0;
-          container.scrollLeft = 0;
-        }
-      }
-
-      function startPresentation() {
-        inPresentationMode = true;
-        currentPageIndex = 0;
-        presentationScale = 1.0;
-        
-        // Hide the floating academic toolbar
-        var toolbar = document.getElementById('unemi-academic-toolbar');
-        if (toolbar) toolbar.style.setProperty('display', 'none', 'important');
-        
-        container.classList.remove('gap-12', 'p-12', 'gap-8', 'p-8', 'gap-32', 'p-24');
-        container.classList.add('bg-slate-950', 'w-screen', 'h-screen', 'fixed', 'inset-0', 'z-40', 'overflow-hidden', 'flex', 'justify-center', 'items-center', 'p-4');
-        
-        container.style.setProperty('gap', '0px', 'important');
-        container.style.setProperty('padding', '0px', 'important');
-        container.style.setProperty('display', 'flex', 'important');
-        container.style.setProperty('align-items', 'center', 'important');
-        container.style.setProperty('justify-content', 'center', 'important');
-        
-        // Request fullscreen on document
-        try {
-          var de = document.documentElement;
-          if (de.requestFullscreen) {
-            de.requestFullscreen();
-          } else if (de.webkitRequestFullscreen) {
-            de.webkitRequestFullscreen();
-          } else if (de.msRequestFullscreen) {
-            de.msRequestFullscreen();
-          }
-        } catch (err) {
-          console.error("Fullscreen request failed:", err);
-        }
-        
-        // Create or show the temporary info HUD banner
-        var hud = document.getElementById('unemi-presentation-hud');
-        if (!hud) {
-          hud = document.createElement('div');
-          hud.id = 'unemi-presentation-hud';
-          hud.style.cssText = 'position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.95); border: 1.5px solid #FF6600; padding: 12px 24px; border-radius: 12px; color: #ffffff; font-family: "Inter", system-ui, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.75px; text-transform: uppercase; display: flex; align-items: center; gap: 18px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); z-index: 10000; transition: opacity 0.5s ease; pointer-events: none;';
-          hud.innerHTML = \`
-            <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #FF6600; font-family: monospace;">[CLICK / ESPACIO / &rarr;]</span> Siguiente</span>
-            <span style="opacity: 0.3;">|</span>
-            <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #FF6600; font-family: monospace;">[&larr;]</span> Anterior</span>
-            <span style="opacity: 0.3;">|</span>
-            <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #FF6600; font-family: monospace;">[RUEDA / PINCH]</span> Zoom</span>
-            <span style="opacity: 0.3;">|</span>
-            <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #FF6600; font-family: monospace;">[ESC]</span> Salir</span>
-          \`;
-          document.body.appendChild(hud);
-        }
-        hud.style.opacity = '1';
-        
-        // Fade out indicator automatically after 2.5 seconds
-        if (hudTimeout) clearTimeout(hudTimeout);
-        hudTimeout = setTimeout(function() {
-          hud.style.opacity = '0';
-        }, 3000);
-
-        updatePageVisibility();
-      }
-
-      function stopPresentation() {
-        inPresentationMode = false;
-        presentationScale = 1.0;
-        
-        // Exit fullscreen if active
-        try {
-          if (document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement) {
-            if (document.exitFullscreen) {
-              document.exitFullscreen();
-            } else if (document.webkitExitFullscreen) {
-              document.webkitExitFullscreen();
-            } else if (document.msExitFullscreen) {
-              document.msExitFullscreen();
-            }
-          }
-        } catch (err) {
-          console.error("Fullscreen exit failed:", err);
-        }
-        
-        // Show the hovering academic toolbar again
-        var toolbar = document.getElementById('unemi-academic-toolbar');
-        if (toolbar) toolbar.style.setProperty('display', 'flex', 'important');
-        
-        var hud = document.getElementById('unemi-presentation-hud');
-        if (hud) hud.style.opacity = '0';
-        
-        pages.forEach(function(page) {
-          page.style.removeProperty('display');
-          page.style.removeProperty('transform');
-          page.style.removeProperty('transform-origin');
-          page.style.removeProperty('margin');
-        });
-        
-        container.style.removeProperty('gap');
-        container.style.removeProperty('padding');
-        container.style.removeProperty('display');
-        container.style.removeProperty('align-items');
-        container.style.removeProperty('justify-content');
-        
-        container.classList.remove('bg-slate-950', 'w-screen', 'h-screen', 'fixed', 'inset-0', 'z-40', 'overflow-hidden', 'flex', 'justify-center', 'items-center', 'p-4');
-        container.classList.add('p-12', 'gap-8');
-      }
-
-      function nextPage() {
-        if (currentPageIndex < pages.length - 1) {
-          currentPageIndex++;
-          // Persist exact zoom factor across page navigation
-          updatePageVisibility();
-        }
-      }
-
-      function prevPage() {
-        if (currentPageIndex > 0) {
-          currentPageIndex--;
-          // Persist exact zoom factor across page navigation
-          updatePageVisibility();
-        }
-      }
-
-      var startBtn = document.getElementById('unemi-start-presentation');
-      if (startBtn) startBtn.addEventListener('click', startPresentation);
-
-      // Force-hide academic floating toolbar during program-triggered and OS/browser-triggered printing
       window.addEventListener('beforeprint', function() {
-        var toolbar = document.getElementById('unemi-academic-toolbar');
+        var toolbar = document.getElementById('wp-academic-toolbar');
         if (toolbar) {
           toolbar.style.setProperty('display', 'none', 'important');
         }
       });
       window.addEventListener('afterprint', function() {
-        var toolbar = document.getElementById('unemi-academic-toolbar');
-        if (toolbar && !inPresentationMode) {
+        var toolbar = document.getElementById('wp-academic-toolbar');
+        if (toolbar) {
           toolbar.style.setProperty('display', 'flex', 'important');
         }
       });
-
-      // Handle custom zooming actions: Mouse wheel & trackpad scroll gestures
-      window.addEventListener('wheel', function(e) {
-        if (!inPresentationMode) return;
-        
-        e.preventDefault();
-        
-        // Damp the input directly based on e.deltaY to dynamically support trackpads
-        // and traditional wheel mice safely without sudden jumps
-        var delta = -e.deltaY;
-        var baseFactor = e.ctrlKey ? 0.0008 : 0.0003;
-        var scaleChange = delta * baseFactor;
-        
-        // Clamp the instantaneous step change to prevent sudden visual jumps
-        scaleChange = Math.min(Math.max(scaleChange, -0.05), 0.05);
-        
-        presentationScale = Math.min(Math.max(presentationScale + scaleChange, 0.3), 4.0);
-        updatePageVisibility();
-      }, { passive: false });
-
-      // Handle multi-touch pinch to zoom gesture calculation (for mobile and touchscreens)
-      var initialTouchDist = null;
-      var startPinchScale = 1.0;
-
-      function getTouchDistance(touches) {
-        var dx = touches[0].clientX - touches[1].clientX;
-        var dy = touches[0].clientY - touches[1].clientY;
-        return Math.sqrt(dx * dx + dy * dy);
-      }
-
-      window.addEventListener('touchstart', function(e) {
-        if (!inPresentationMode) return;
-        if (e.touches.length === 2) {
-          initialTouchDist = getTouchDistance(e.touches);
-          startPinchScale = presentationScale;
-          e.preventDefault();
-        }
-      }, { passive: false });
-
-      window.addEventListener('touchmove', function(e) {
-        if (!inPresentationMode) return;
-        if (e.touches.length === 2 && initialTouchDist !== null) {
-          e.preventDefault();
-          var dist = getTouchDistance(e.touches);
-          var ratio = dist / initialTouchDist;
-          
-          // Applying a light softening damping filter of 0.15 to keep scaling natural, smooth and precise
-          var smoothRatio = 1.0 + (ratio - 1.0) * 0.15;
-          presentationScale = Math.min(Math.max(startPinchScale * smoothRatio, 0.3), 4.0);
-          updatePageVisibility();
-        }
-      }, { passive: false });
-
-      window.addEventListener('touchend', function(e) {
-        if (!inPresentationMode) return;
-        if (e.touches.length < 2) {
-          initialTouchDist = null;
-        }
-      });
-
-      // Handle standard keys
-      window.addEventListener('keydown', function(e) {
-        if (!inPresentationMode) return;
-        if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {
-          nextPage();
-          e.preventDefault();
-        } else if (e.key === 'ArrowLeft' || e.key === 'Backspace') {
-          prevPage();
-          e.preventDefault();
-        } else if (e.key === 'Escape') {
-          stopPresentation();
-          e.preventDefault();
-        }
-      });
-
-      // Synchronize with external fullscreen gestures (such as ESC or browser tools)
-      function onFullscreenChange() {
-        var isFS = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
-        if (!isFS && inPresentationMode) {
-          stopPresentation();
-        }
-      }
-      document.addEventListener('fullscreenchange', onFullscreenChange);
-      document.addEventListener('webkitfullscreenchange', onFullscreenChange);
-      document.addEventListener('msfullscreenchange', onFullscreenChange);
-
-      // Recalcular la escala del documento para ajustarse a las proporciones de pantalla al redimensionar
-      window.addEventListener('resize', function() {
-        if (inPresentationMode) {
-          updatePageVisibility();
-        }
-      });
-
-      function syncIframes() {
-        pages.forEach(function(page, idx) {
-          var blocks = page.querySelectorAll('.unemi-functional-block');
-          blocks.forEach(function(block) {
-            var template = block.querySelector('.unemi-functional-template');
-            if (!template) return;
-            
-            var isPageActive = !inPresentationMode || (idx === currentPageIndex);
-            var existingIframe = block.querySelector('iframe');
-            
-            if (isPageActive) {
-              if (!existingIframe) {
-                var iframe = document.createElement('iframe');
-                iframe.title = 'functional-block-' + block.getAttribute('data-block-id');
-                iframe.sandbox = 'allow-scripts allow-modals allow-same-origin';
-                iframe.style.cssText = 'width: 100%; height: 100%; border: none; overflow: hidden; display: block; flex: 1;';
-                iframe.scrolling = 'no';
-                
-                block.appendChild(iframe);
-                
-                var doc = iframe.contentDocument || iframe.contentWindow.document;
-                if (doc) {
-                  doc.open();
-                  doc.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><style>html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow: hidden !important; background-color: transparent !important; }</style></head><body>' + template.innerHTML + '</body></html>');
-                  doc.close();
-                }
-              }
-            } else {
-              if (existingIframe) {
-                existingIframe.remove();
-              }
-            }
-          });
-        });
-      }
-
-      var originalUpdatePageVisibility = updatePageVisibility;
-      updatePageVisibility = function() {
-        originalUpdatePageVisibility();
-        syncIframes();
-      };
-
-      var originalStopPresentation = stopPresentation;
-      stopPresentation = function() {
-        originalStopPresentation();
-        syncIframes();
-      };
-
-      syncIframes();
     });
   </script>
   ${settings.customAddedJs ? `
@@ -2959,39 +2887,56 @@ read -p "Presione [Enter] para salir..."`;
             </div>
           </div>
 
-          {/* Middle part: COMPILE & AUTO-COMPILE SELECTOR */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCompile}
-              disabled={autoCompile || isCompiling}
-              className={`px-3.5 py-1.5 rounded text-[11px] font-extrabold tracking-wider uppercase transition-all flex items-center gap-1.5 shadow-md ${
-                autoCompile
-                  ? 'bg-slate-900 text-slate-500 border border-slate-800/80 cursor-not-allowed opacity-40 select-none'
-                  : isCompiling
-                  ? 'bg-orange-700 text-slate-200 border border-orange-600 cursor-not-allowed select-none animate-pulse'
-                  : 'bg-orange-600 hover:bg-orange-500 text-white border border-orange-500 cursor-pointer active:scale-95'
-              }`}
-              title={
-                autoCompile
-                  ? "Compilación automática activa (se recompila al escribir)"
-                  : isCompiling
-                  ? "Compilando cambios..."
-                  : "Haz clic para compilar los cambios actuales y actualizar la vista previa"
-              }
+          {/* Middle part: GLOBAL SYNCHRONIZATION DELAY INPUTS */}
+          <div className="flex items-center gap-2.5 bg-slate-950/80 px-3 py-1 rounded-md border border-slate-800/80 shadow-inner">
+            {/* Input 1: Retraso Sincronización Hojas Estáticas */}
+            <div
+              className="flex items-center gap-1.5"
+              title="Retraso en milisegundos para sincronizar cualquier cambio (portada, márgenes, estilos, gráficos, bibliografía, texto) con las hojas estáticas"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isCompiling ? 'animate-spin' : ''}`} style={isCompiling ? { animationDuration: '1.5s' } : undefined} />
-              <span>{isCompiling ? 'Compilando' : 'Compilar'}</span>
-            </button>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
+                Sinc. Estática:
+              </span>
+              <input
+                type="number"
+                min="0"
+                max="5000"
+                step="50"
+                value={staticSyncDelay}
+                onChange={(e) => setStaticSyncDelay(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                className="w-14 h-6 px-1 bg-slate-900 border border-slate-700 text-slate-100 text-[10.5px] rounded font-mono font-bold text-center focus:outline-none focus:border-orange-500 transition-colors"
+              />
+              <span className="text-[9px] text-slate-400 font-mono font-bold select-none">ms</span>
+            </div>
 
-            <select
-              value={autoCompile ? "auto" : "manual"}
-              onChange={(e) => setAutoCompile(e.target.value === "auto")}
-              className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-[10px] text-slate-200 font-extrabold uppercase tracking-wider focus:outline-none focus:border-orange-500 cursor-pointer text-center"
-              title="Modo de compilación de la vista previa"
+            <div className="w-[1px] h-4 bg-slate-800/90"></div>
+
+            {/* Input 2: Retraso Vista Interactiva / Compilación */}
+            <div
+              className="flex items-center gap-1.5"
+              title="Retraso en milisegundos para compilar y actualizar la vista previa interactiva del documento"
             >
-              <option value="auto">Auto-Compilar</option>
-              <option value="manual">Compilar Manual</option>
-            </select>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
+                Vista Interactiva:
+              </span>
+              <input
+                type="number"
+                min="0"
+                max="5000"
+                step="50"
+                value={interactiveSyncDelay}
+                onChange={(e) => setInteractiveSyncDelay(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                className="w-14 h-6 px-1 bg-slate-900 border border-slate-700 text-slate-100 text-[10.5px] rounded font-mono font-bold text-center focus:outline-none focus:border-orange-500 transition-colors"
+              />
+              <span className="text-[9px] text-slate-400 font-mono font-bold select-none">ms</span>
+            </div>
+
+            {/* Syncing Indicator */}
+            {isCompiling && (
+              <div className="flex items-center gap-1 ml-0.5 text-orange-400 animate-pulse" title="Sincronizando cambios...">
+                <RefreshCw className="w-3 h-3 animate-spin text-orange-500" />
+              </div>
+            )}
           </div>
 
           {/* Right part: API Key Connection Button only (Export was moved to ARCHIVO) */}
@@ -3022,6 +2967,31 @@ read -p "Presione [Enter] para salir..."`;
             {/* 1. Left Toolbar Sidebar (Narrow vertical navigation bar with stacked buttons) */}
             <div className="w-[76px] shrink-0 bg-slate-950 border-r border-slate-800/80 flex flex-col items-center py-4 gap-3 h-full print:hidden select-none animate-fade-in">
               <button
+                disabled={settings.pageSize === 'continuous'}
+                onClick={() => {
+                  if (activeDrawerType === 'cover') {
+                    setActiveDrawerType(null);
+                  } else {
+                    setActiveDrawerType('cover');
+                  }
+                }}
+                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center relative ${
+                  settings.pageSize === 'continuous'
+                    ? 'opacity-30 cursor-not-allowed text-slate-600'
+                    : activeDrawerType === 'cover'
+                      ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)] cursor-pointer'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 cursor-pointer'
+                }`}
+                title={settings.pageSize === 'continuous' ? "Portada deshabilitada en Tira Continua" : cover.enabled === false ? "Configurar Portada (Desactivada)" : "Configurar Portada"}
+              >
+                <Layers className="w-5 h-5 shrink-0" />
+                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Portada</span>
+                {cover.enabled === false && settings.pageSize !== 'continuous' && (
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500 border border-slate-950" title="Portada desactivada" />
+                )}
+              </button>
+
+              <button
                 onClick={() => setActiveDrawerType(null)}
                 className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
                   activeDrawerType === null
@@ -3032,28 +3002,6 @@ read -p "Presione [Enter] para salir..."`;
               >
                 <Code className="w-5 h-5 shrink-0" />
                 <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Contenido</span>
-              </button>
-
-              <button
-                disabled={settings.pageSize === 'continuous'}
-                onClick={() => {
-                  if (activeDrawerType === 'cover') {
-                    setActiveDrawerType(null);
-                  } else {
-                    setActiveDrawerType('cover');
-                  }
-                }}
-                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center gap-1 transition-all text-center ${
-                  settings.pageSize === 'continuous'
-                    ? 'opacity-30 cursor-not-allowed text-slate-600'
-                    : activeDrawerType === 'cover'
-                      ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)] cursor-pointer'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 cursor-pointer'
-                }`}
-                title={settings.pageSize === 'continuous' ? "Portada deshabilitada en Tira Continua" : "Configurar Portada"}
-              >
-                <Layers className="w-5 h-5 shrink-0" />
-                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Portada</span>
               </button>
 
               <button
@@ -3126,10 +3074,10 @@ read -p "Presione [Enter] para salir..."`;
                     ? 'bg-[#004080] text-white border border-[#FF6600]/80 shadow-[0_0_12px_rgba(255,102,0,0.15)]'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                 }`}
-                title="Configurar Elementos del Margen"
+                title="Configurar Elementos de Hoja"
               >
                 <Layout className="w-5 h-5 shrink-0" />
-                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Elementos del Margen</span>
+                <span className="text-[9px] font-bold tracking-tight leading-tight mt-0.5">Elementos de Hoja</span>
               </button>
 
               <button
@@ -3276,10 +3224,12 @@ read -p "Presione [Enter] para salir..."`;
             onExportZIP={() => handleExport('project')}
             isFullscreen={isFullscreen}
             setIsFullscreen={setIsFullscreen}
+            onCoverChange={handleCoverChange}
             uploadedFiles={uploadedFiles}
             htmlBlocks={htmlBlocks}
             bibliography={bibliography}
             isCompiling={isCompiling}
+            interactiveSyncDelay={interactiveSyncDelay}
             compiledCover={compiledCover}
             compiledSettings={compiledSettings}
             compiledHtmlContent={compiledHtmlContent}
@@ -3370,6 +3320,98 @@ read -p "Presione [Enter] para salir..."`;
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Global Drag and Drop Overlay */}
+      {isDraggingOver && (
+        <div className="fixed inset-0 z-[10000] bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 select-none animate-fade-in pointer-events-none">
+          <div className="max-w-lg w-full bg-slate-900/95 border-2 border-dashed border-orange-500 rounded-2xl p-8 flex flex-col items-center text-center gap-5 shadow-2xl ring-4 ring-orange-500/20">
+            {dragFileType === 'bib' ? (
+              <>
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-lg animate-bounce">
+                  <BookOpen className="w-8 h-8" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-[10px] font-black tracking-widest text-amber-400 uppercase bg-amber-950/80 border border-amber-800/80 px-3 py-1 rounded-full self-center">
+                    📚 Archivo .bib Detectado
+                  </span>
+                  <h2 className="text-xl font-extrabold text-white tracking-wide">
+                    Suelta el archivo .bib aquí
+                  </h2>
+                  <div className="mt-2 bg-amber-950/40 border border-amber-800/60 rounded-xl p-3 text-left flex items-start gap-2.5">
+                    <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-200 leading-relaxed font-medium">
+                      <strong>Atención:</strong> Tu bibliografía actual se eliminará y será reemplazada por las citas de este archivo <strong>.bib</strong>.
+                    </p>
+                  </div>
+                </div>
+              </>
+            ) : dragFileType === 'image' ? (
+              <>
+                <div className="w-16 h-16 rounded-2xl bg-orange-500/20 border border-orange-500/40 flex items-center justify-center text-[#FF6600] shadow-lg animate-bounce">
+                  <Image className="w-8 h-8" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-[10px] font-black tracking-widest text-[#FF6600] uppercase bg-orange-950/80 border border-orange-800/80 px-3 py-1 rounded-full self-center">
+                    📸 Imagen Detectada
+                  </span>
+                  <h2 className="text-xl font-extrabold text-white tracking-wide">
+                    Suelta la imagen para agregarla a tus recursos
+                  </h2>
+                  <p className="text-xs text-slate-300 max-w-sm leading-relaxed">
+                    Se guardará en tus archivos multimedia del proyecto para usarla libremente en el documento.
+                  </p>
+                </div>
+              </>
+            ) : dragFileType === 'mixed' ? (
+              <>
+                <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-lg animate-bounce">
+                  <Upload className="w-8 h-8" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-[10px] font-black tracking-widest text-emerald-400 uppercase bg-emerald-950/80 border border-emerald-800/80 px-3 py-1 rounded-full self-center">
+                    📁 Archivos Múltiples
+                  </span>
+                  <h2 className="text-xl font-extrabold text-white tracking-wide">
+                    Suelta los archivos para procesarlos
+                  </h2>
+                  <div className="mt-1 bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-left flex flex-col gap-1.5 text-xs text-slate-300">
+                    <p>• <strong>Imágenes:</strong> Se agregarán a tus recursos multimedia.</p>
+                    <p className="text-amber-300">• <strong>Archivo .bib:</strong> Reemplazará tu bibliografía actual.</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 rounded-2xl bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-sky-400 shadow-lg animate-bounce">
+                  <Upload className="w-8 h-8" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <h2 className="text-xl font-extrabold text-white tracking-wide">
+                    Suelta tu archivo aquí
+                  </h2>
+                  <p className="text-xs text-slate-300 max-w-sm leading-relaxed">
+                    Las <strong>imágenes</strong> se agregarán a tus recursos y los archivos <strong>.bib</strong> reemplazarán tu bibliografía actual.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification Banner */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-[10001] bg-slate-900 border border-emerald-500/80 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-fade-in text-xs font-medium max-w-md select-text">
+          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span className="flex-1 leading-relaxed text-slate-100">{toastMsg}</span>
+          <button 
+            onClick={() => setToastMsg(null)}
+            className="text-slate-400 hover:text-white p-1 cursor-pointer transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>

@@ -65,8 +65,8 @@ markdownParser.use({
       const level = token.depth;
       let text = token.text || '';
       
-      // Access current UNEMI settings globally
-      const settings = (typeof window !== 'undefined' && (window as any).currentUnemiSettings) || {};
+      // Access current WP settings globally
+      const settings = (typeof window !== 'undefined' && ((window as any).currentWpSettings || (window as any).currentUnemiSettings)) || {};
       const defaultLineBreak = level <= 3;
       const configKey = `h${level}LineBreak`;
       const lineBreak = settings[configKey] !== undefined ? !!settings[configKey] : defaultLineBreak;

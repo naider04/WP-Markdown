@@ -115,7 +115,7 @@ export default function CoverPage({
 
   return (
     <div
-      id="unemi-cover-page"
+      id="wp-cover-page"
       className="relative bg-white text-gray-800 shadow-xl border border-gray-100 overflow-hidden shrink-0 select-none break-after-page"
       style={{ 
         boxSizing: 'border-box', 
@@ -152,11 +152,12 @@ export default function CoverPage({
       />
       {/* Margin-bypassing Elements */}
       {marginElements && marginElements.map((el) => {
+        if (el.hidden) return null;
         if (!shouldShowOnPage(el.pagesPattern, 1, totalPages)) return null;
         return (
           <div
             key={el.id}
-            className="unemi-margin-element"
+            className="wp-margin-element"
             style={{
               position: 'absolute',
               top: formatCoordinate(el.top),

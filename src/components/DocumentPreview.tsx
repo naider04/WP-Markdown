@@ -6,12 +6,13 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { markdownParser } from '../utils/markdownParser';
 import katex from 'katex';
+import { mathmlToOmml } from '../lib/ommlConverter';
 import { CoverConfig, PageSettings, UploadedFile, HTMLBlock, BibliographyItem } from '../types';
 import CoverPage from './CoverPage';
 import PageTemplate from './PageTemplate';
 import { getAPALastNames, formatAPABibliographyItem, extractAPAYear } from '../utils/apaFormatter';
 import { formatFontSize } from '../utils/fontUtils';
-import { FileText, Layers, RefreshCw, ZoomIn, ZoomOut, FolderArchive, Maximize2, Minimize2, Copy, Check, ExternalLink } from 'lucide-react';
+import { FileText, Layers, RefreshCw, ZoomIn, ZoomOut, FolderArchive, Maximize2, Minimize2, Copy, Check, ExternalLink, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 interface DocumentPreviewProps {
   cover: CoverConfig;
@@ -21,10 +22,12 @@ interface DocumentPreviewProps {
   onExportZIP: () => void;
   isFullscreen: boolean;
   setIsFullscreen: (v: boolean) => void;
+  onCoverChange?: (field: keyof CoverConfig, val: any) => void;
   uploadedFiles?: UploadedFile[];
   htmlBlocks?: HTMLBlock[];
   bibliography?: BibliographyItem[];
   isCompiling?: boolean;
+  interactiveSyncDelay?: number;
   compiledCover?: CoverConfig;
   compiledSettings?: PageSettings;
   compiledHtmlContent?: string;
@@ -82,60 +85,6 @@ const BASE_TOC_CSS = `
 }
 `;
 
-// Functional Block IFrame component with standard sandboxing
-function FunctionalIframe({ code, blockId }: { code: string; blockId: string }) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!doc) return;
-
-    doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html lang="es">
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            html, body {
-              margin: 0 !important;
-              padding: 0 !important;
-              width: 100% !important;
-              height: 100% !important;
-              overflow: hidden !important;
-              background-color: transparent !important;
-            }
-          </style>
-        </head>
-        <body>
-          ${code}
-        </body>
-      </html>
-    `);
-    doc.close();
-  }, [code]);
-
-  return (
-    <iframe
-      ref={iframeRef}
-      title={`functional-block-${blockId}`}
-      sandbox="allow-scripts allow-modals allow-same-origin"
-      style={{
-        width: '100%',
-        height: '100%',
-        border: 'none',
-        overflow: 'hidden',
-        display: 'block',
-        flex: 1
-      }}
-      scrolling="no"
-    />
-  );
-}
-
 function escapeHtml(unsafe: string): string {
   return unsafe
     .replace(/&/g, "&amp;")
@@ -145,7 +94,42 @@ function escapeHtml(unsafe: string): string {
     .replace(/'/g, "&#039;");
 }
 
-function parseTextAndRenderMath(text: string): string {
+function renderKaTeXWithOMML(mathContent: string, isDisplay: boolean, isContinuous = false): string {
+  let rendered = "";
+  try {
+    rendered = katex.renderToString(mathContent, {
+      displayMode: isDisplay,
+      throwOnError: false
+    });
+  } catch (err) {
+    return `<span class="text-red-500 font-mono text-[10px]" title="${escapeHtml(String(err))}">[Math Error: ${escapeHtml(mathContent)}]</span>`;
+  }
+
+  if (isContinuous) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(rendered, 'text/html');
+      const mathEl = doc.querySelector('math');
+      if (mathEl) {
+        const ommlXml = mathmlToOmml(mathEl.outerHTML, isDisplay);
+        if (ommlXml) {
+          const katexSpan = doc.querySelector('.katex');
+          if (katexSpan) {
+            const commentStr = `<!--[if gte msEquation 12]>${ommlXml}<![endif]-->`;
+            katexSpan.insertAdjacentHTML('afterbegin', commentStr);
+            rendered = doc.body.innerHTML;
+          }
+        }
+      }
+    } catch (e) {
+      // Fallback
+    }
+  }
+
+  return rendered;
+}
+
+function parseTextAndRenderMath(text: string, isContinuous = false): string {
   let result = "";
   let index = 0;
   
@@ -231,15 +215,7 @@ function parseTextAndRenderMath(text: string): string {
       result += escapeHtml(text.slice(minIdx, minIdx + step));
       index = minIdx + step;
     } else {
-      try {
-        const rendered = katex.renderToString(mathContent, {
-          displayMode: isDisplay,
-          throwOnError: false
-        });
-        result += rendered;
-      } catch (err) {
-        result += `<span class="text-red-500 font-mono text-[10px]" title="${escapeHtml(String(err))}">[Math Error: ${escapeHtml(mathContent)}]</span>`;
-      }
+      result += renderKaTeXWithOMML(mathContent, isDisplay, isContinuous);
       index = nextIndex;
     }
   }
@@ -247,7 +223,7 @@ function parseTextAndRenderMath(text: string): string {
   return result;
 }
 
-function renderMathInHtml(html: string): string {
+function renderMathInHtml(html: string, isContinuous = false): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   
@@ -262,7 +238,7 @@ function renderMathInHtml(html: string): string {
         
         const text = node.nodeValue || '';
         if (text.includes('$') || text.includes('\\(') || text.includes('\\[') || text.includes('\\\\(') || text.includes('\\\\[')) {
-          const renderedHtml = parseTextAndRenderMath(text);
+          const renderedHtml = parseTextAndRenderMath(text, isContinuous);
           if (renderedHtml !== escapeHtml(text)) {
             const template = document.createElement('template');
             template.innerHTML = renderedHtml;
@@ -327,7 +303,7 @@ function renderMathInHtml(html: string): string {
   return doc.body.innerHTML;
 }
 
-function extractAndRenderMathPlaceholders(text: string): { cleanText: string; placeholders: Map<string, string> } {
+function extractAndRenderMathPlaceholders(text: string, isContinuous = false): { cleanText: string; placeholders: Map<string, string> } {
   const placeholders = new Map<string, string>();
   let result = "";
   let index = 0;
@@ -415,16 +391,7 @@ function extractAndRenderMathPlaceholders(text: string): { cleanText: string; pl
       index = minIdx + step;
     } else {
       const placeholderKey = `MATHPLACEHOLDER_${placeholderCounter++}_` + Math.random().toString(36).substring(2, 8);
-      let rendered = "";
-      try {
-        rendered = katex.renderToString(mathContent, {
-          displayMode: isDisplay,
-          throwOnError: false
-        });
-      } catch (err) {
-        rendered = `<span class="text-red-500 font-mono text-[10px]" title="${escapeHtml(String(err))}">[Math Error: ${escapeHtml(mathContent)}]</span>`;
-      }
-      
+      const rendered = renderKaTeXWithOMML(mathContent, isDisplay, isContinuous);
       placeholders.set(placeholderKey, rendered);
       result += placeholderKey;
       index = nextIndex;
@@ -440,12 +407,13 @@ function compileAndProcessMarkdown(
   figureMap: Map<string, number>,
   tableMap: Map<string, number>,
   figureCounterRef: { val: number },
-  tableCounterRef: { val: number }
+  tableCounterRef: { val: number },
+  isContinuous = false
 ): string {
   if (!isMarkdown) return text;
 
   // Pre-extract and render all math expressions to shield them from markdown parser
-  const { cleanText, placeholders } = extractAndRenderMathPlaceholders(text);
+  const { cleanText, placeholders } = extractAndRenderMathPlaceholders(text, isContinuous);
   let code = cleanText;
   const generatedFigures = new Map<string, string>();
   const generatedTables = new Map<string, string>();
@@ -538,7 +506,7 @@ function compileAndProcessMarkdown(
     // Line 3: Image
     // Line 4: Note underneath (flush left, no indent, with Nota. in italics)
     const figHtml = `
-<div id="${idVal}" class="unemi-rendered-figure" style="${containerStyle}">
+<div id="${idVal}" class="wp-rendered-figure" style="${containerStyle}">
   <div style="text-align: left !important; margin-bottom: 8px; font-family: 'Times New Roman', Times, serif; width: 100% !important; display: block !important; text-indent: 0 !important; margin-left: 0 !important; padding-left: 0 !important;">
     <strong style="display: block !important; font-weight: bold !important; font-size: 16px !important; margin-bottom: 2px !important; color: #000 !important; text-align: left !important; text-indent: 0 !important; margin-left: 0 !important;">Figura ${figNumber}</strong>
     <em style="display: block !important; font-style: italic !important; font-size: 16px !important; margin-bottom: 8px !important; color: #000 !important; text-align: left !important; text-indent: 0 !important; margin-left: 0 !important;">${captionVal}</em>
@@ -609,27 +577,20 @@ function compileAndProcessMarkdown(
 }
 
 const toolbarHTML_Preview = `<!-- Floating Academic Toolbar (Omitted when printing) -->
-  <div id="unemi-academic-toolbar" class="fixed top-4 right-4 z-50 print:hidden flex items-center gap-2 bg-slate-900/95 text-slate-300 px-2.5 py-1.5 border border-slate-800 rounded-lg shadow-xl backdrop-blur-sm select-none">
+  <div id="wp-academic-toolbar" class="fixed top-4 right-4 z-50 print:hidden flex items-center gap-2 bg-slate-900/95 text-slate-300 px-2.5 py-1.5 border border-slate-800 rounded-lg shadow-xl backdrop-blur-sm select-none">
     <!-- Zoom Out -->
-    <button id="unemi-zoom-out" title="Reducir" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
+    <button id="wp-zoom-out" title="Reducir" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <line x1="5" y1="12" x2="19" y2="12"></line>
       </svg>
     </button>
     <!-- Zoom indicator/reset -->
-    <span id="unemi-zoom-indicator" title="Restablecer zoom" class="text-[11px] font-mono font-medium min-w-[36px] text-center cursor-pointer hover:text-white">100%</span>
+    <span id="wp-zoom-indicator" title="Restablecer zoom" class="text-[11px] font-mono font-medium min-w-[36px] text-center cursor-pointer hover:text-white">100%</span>
     <!-- Zoom In -->
-    <button id="unemi-zoom-in" title="Aumentar" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
+    <button id="wp-zoom-in" title="Aumentar" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer flex items-center justify-center">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <line x1="12" y1="5" x2="12" y2="19"></line>
         <line x1="5" y1="12" x2="19" y2="12"></line>
-      </svg>
-    </button>
-    <div class="h-3 w-[1px] bg-slate-800"></div>
-    <!-- Play presentation -->
-    <button id="unemi-start-presentation" title="Iniciar Presentación" class="hover:bg-slate-800 hover:text-white p-1.5 rounded transition-all active:scale-95 cursor-pointer text-orange-400 flex items-center justify-center">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="6 4 20 12 6 20 6 4" fill="currentColor"></polygon>
       </svg>
     </button>
     <div class="h-3 w-[1px] bg-slate-800"></div>
@@ -649,10 +610,12 @@ export default function DocumentPreview({
   onExportZIP,
   isFullscreen,
   setIsFullscreen,
+  onCoverChange,
   uploadedFiles = [],
   htmlBlocks = [],
   bibliography = [],
   isCompiling = false,
+  interactiveSyncDelay = 700,
   compiledCover,
   compiledSettings,
   compiledHtmlContent,
@@ -744,10 +707,11 @@ export default function DocumentPreview({
   const [previewMode, setPreviewMode] = useState<'paged' | 'server'>('server');
 
   const handleOpenPreview = async () => {
-    const coverPage = document.getElementById('unemi-cover-page');
+    const coverPage = document.getElementById('wp-cover-page');
     const docPages = document.querySelectorAll('[name^="document-page-"]');
 
-    if (settings.pageSize !== 'continuous' && !coverPage) {
+    const hasCover = settings.pageSize !== 'continuous' && resolvedCover.enabled !== false;
+    if (hasCover && !coverPage) {
       alert('Por favor, espere a que el documento se compile en el visor principal.');
       return;
     }
@@ -775,12 +739,9 @@ export default function DocumentPreview({
         pageClone.style.border = 'none';
         pageClone.style.margin = '0 auto';
 
-        const guideOverlay = pageClone.querySelector('.absolute.inset-0.pointer-events-none');
-        if (guideOverlay && (guideOverlay.innerHTML.includes('Guía:') || guideOverlay.innerHTML.includes('Márgenes'))) {
-          guideOverlay.remove();
-        }
-
-        pagesHTML += `<div class="print-page-boundary mb-8">${pageClone.outerHTML}</div>\n`;
+        const isContinuousMode = settings.pageSize === 'continuous';
+        const pageBoundaryClass = isContinuousMode ? 'continuous-page-boundary' : 'print-page-boundary mb-8';
+        pagesHTML += `<div class="${pageBoundaryClass}">${pageClone.outerHTML}</div>\n`;
       });
 
       const isLetterSize = settings.pageSize === 'letter';
@@ -816,7 +777,7 @@ export default function DocumentPreview({
         let css = '';
         
         if (settings.h1Size || settings.h1Font || settings.h1Align || settings.h1LineHeight || settings.h1Indent !== undefined || settings.h1Bold !== undefined || settings.h1Italic !== undefined || settings.h1Color) {
-          css += `\n.unemi-document-content h1 {`;
+          css += `\n.wp-document-content h1 {`;
           if (settings.h1Size) css += ` font-size: ${settings.h1Size} !important;`;
           if (settings.h1Font) css += ` font-family: "${settings.h1Font}", sans-serif !important;`;
           if (settings.h1Align) css += ` text-align: ${settings.h1Align} !important;`;
@@ -829,7 +790,7 @@ export default function DocumentPreview({
         }
 
         if (settings.h2Size || settings.h2Font || settings.h2Align || settings.h2LineHeight || settings.h2Indent !== undefined || settings.h2Bold !== undefined || settings.h2Italic !== undefined || settings.h2Color) {
-          css += `\n.unemi-document-content h2 {`;
+          css += `\n.wp-document-content h2 {`;
           if (settings.h2Size) css += ` font-size: ${settings.h2Size} !important;`;
           if (settings.h2Font) css += ` font-family: "${settings.h2Font}", sans-serif !important;`;
           if (settings.h2Align) css += ` text-align: ${settings.h2Align} !important;`;
@@ -842,7 +803,7 @@ export default function DocumentPreview({
         }
 
         if (settings.pSize || settings.pFont || settings.pAlign || settings.pLineHeight || settings.pIndent !== undefined || settings.pBold !== undefined || settings.pItalic !== undefined || settings.pColor) {
-          css += `\n.unemi-document-content, .unemi-document-content p, .unemi-document-content div:not(.unemi-academic-header):not(.unemi-academic-footer):not(.toc-container):not(.note):not(.math-expr):not(.unemi-bibliography-item):not(.unemi-bibliography-title) {`;
+          css += `\n.wp-document-content, .wp-document-content p, .wp-document-content div:not(.wp-academic-header):not(.wp-academic-footer):not(.toc-container):not(.note):not(.math-expr):not(.wp-bibliography-item):not(.wp-bibliography-title) {`;
           if (settings.pSize) css += ` font-size: ${settings.pSize} !important;`;
           if (settings.pFont) css += ` font-family: "${settings.pFont}", sans-serif !important;`;
           if (settings.pAlign) css += ` text-align: ${settings.pAlign} !important;`;
@@ -854,16 +815,22 @@ export default function DocumentPreview({
           css += ` }`;
         }
 
-        if (settings.tableFontSize || settings.tableHeaderBg || settings.tableHeaderColor || settings.tableBorderColor || settings.tableCellPadding || settings.tableStriped || settings.tableBorderWidth) {
+        if (settings.tableFontSize || settings.tableHeaderBg || settings.tableHeaderColor || settings.tableBorderColor || settings.tableCellPadding || settings.tableStriped || settings.tableBorderWidth || settings.repeatTableHeader !== undefined) {
           css += `\n/* Table Formatting Rules */`;
-          css += `\n.unemi-document-content table {`;
+          css += `\n.wp-document-content table {`;
           css += `  word-wrap: break-word !important;`;
           css += `  border-collapse: collapse !important;`;
           if (settings.tableFontSize) css += ` font-size: ${settings.tableFontSize} !important;`;
           if (settings.tableBorderColor) css += ` border-color: ${settings.tableBorderColor} !important;`;
           css += ` }`;
 
-          css += `\n.unemi-document-content table th, .unemi-document-content table td {`;
+          if (settings.repeatTableHeader === false) {
+            css += `\n.wp-document-content table thead { display: table-row-group !important; }`;
+          } else {
+            css += `\n.wp-document-content table thead { display: table-header-group !important; }`;
+          }
+
+          css += `\n.wp-document-content table th, .wp-document-content table td {`;
           if (settings.tableCellPadding) {
             css += ` padding: ${settings.tableCellPadding} !important;`;
           }
@@ -876,13 +843,13 @@ export default function DocumentPreview({
           }
           css += ` }`;
 
-          css += `\n.unemi-document-content table th, .unemi-document-content table thead tr, .unemi-document-content table tr[bgcolor] {`;
+          css += `\n.wp-document-content table th, .wp-document-content table thead tr, .wp-document-content table tr[bgcolor] {`;
           if (settings.tableHeaderBg) css += ` background-color: ${settings.tableHeaderBg} !important;`;
           if (settings.tableHeaderColor) css += ` color: ${settings.tableHeaderColor} !important;`;
           css += ` }`;
 
           if (settings.tableStriped) {
-            css += `\n.unemi-document-content table tbody tr:nth-child(even) {`;
+            css += `\n.wp-document-content table tbody tr:nth-child(even) {`;
             css += ` background-color: rgba(0, 0, 0, 0.03) !important;`;
             css += ` }`;
           }
@@ -896,19 +863,19 @@ export default function DocumentPreview({
         const rawInlineSize = settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px';
         const inlineSize = formatFontSize(rawInlineSize, '12px');
 
-        css += `\n.unemi-document-content pre, .unemi-document-content pre * {`;
+        css += `\n.wp-document-content pre, .wp-document-content pre * {`;
         css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
         css += ` font-size: ${blockSize} !important;`;
         css += ` text-indent: 0px !important;`;
         css += ` }`;
 
-        css += `\n.unemi-document-content code:not(pre code) {`;
+        css += `\n.wp-document-content code:not(pre code) {`;
         css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
         css += ` font-size: ${inlineSize} !important;`;
         css += ` text-indent: 0px !important;`;
         css += ` }`;
         
-        css += `\n.unemi-document-content pre {`;
+        css += `\n.wp-document-content pre {`;
         css += ` padding: 12px 16px !important;`;
         css += ` margin: 16px 0 !important;`;
         css += ` border-radius: 6px !important;`;
@@ -948,7 +915,7 @@ export default function DocumentPreview({
           inlineBorder = '#cbd5e1';
         }
 
-        css += `\n.unemi-document-content code:not(pre code) {`;
+        css += `\n.wp-document-content code:not(pre code) {`;
         css += ` background-color: ${inlineBg} !important;`;
         css += ` color: ${inlineColor} !important;`;
         css += ` padding: 2px 5px !important;`;
@@ -962,65 +929,65 @@ export default function DocumentPreview({
         css += ` }`;
         
         if (blockTheme === 'dracula') {
-          css += `\n.unemi-document-content pre { background-color: #282a36 !important; border: 1px solid #44475a !important; color: #f8f8f2 !important; }`;
-          css += `\n.unemi-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
-          css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #6272a4 !important; font-style: italic !important; }`;
-          css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #ff79c6 !important; }`;
-          css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #f1fa8c !important; }`;
-          css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #50fa7b !important; }`;
-          css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #bd93f9 !important; }`;
-          css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #f8f8f2 !important; }`;
+          css += `\n.wp-document-content pre { background-color: #282a36 !important; border: 1px solid #44475a !important; color: #f8f8f2 !important; }`;
+          css += `\n.wp-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
+          css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #6272a4 !important; font-style: italic !important; }`;
+          css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #ff79c6 !important; }`;
+          css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #f1fa8c !important; }`;
+          css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #50fa7b !important; }`;
+          css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #bd93f9 !important; }`;
+          css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #f8f8f2 !important; }`;
         } else if (blockTheme === 'monokai') {
-          css += `\n.unemi-document-content pre { background-color: #272822 !important; border: 1px solid #3e3d32 !important; color: #f8f8f2 !important; }`;
-          css += `\n.unemi-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
-          css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #75715e !important; font-style: italic !important; }`;
-          css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #f92672 !important; }`;
-          css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #e6db74 !important; }`;
-          css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #a6e22e !important; }`;
-          css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #ae81ff !important; }`;
-          css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #f8f8f2 !important; }`;
+          css += `\n.wp-document-content pre { background-color: #272822 !important; border: 1px solid #3e3d32 !important; color: #f8f8f2 !important; }`;
+          css += `\n.wp-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
+          css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #75715e !important; font-style: italic !important; }`;
+          css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #f92672 !important; }`;
+          css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #e6db74 !important; }`;
+          css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #a6e22e !important; }`;
+          css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #ae81ff !important; }`;
+          css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #f8f8f2 !important; }`;
         } else if (blockTheme === 'github-light') {
-          css += `\n.unemi-document-content pre { background-color: #f6f8fa !important; border: 1px solid #d0d7de !important; color: #24292f !important; }`;
-          css += `\n.unemi-document-content pre code { color: #24292f !important; background-color: transparent !important; padding: 0 !important; }`;
-          css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #6e7781 !important; font-style: italic !important; }`;
-          css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #cf222e !important; font-weight: bold !important; }`;
-          css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #0a3069 !important; }`;
-          css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #8250df !important; }`;
-          css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #0550ae !important; }`;
-          css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #24292f !important; }`;
+          css += `\n.wp-document-content pre { background-color: #f6f8fa !important; border: 1px solid #d0d7de !important; color: #24292f !important; }`;
+          css += `\n.wp-document-content pre code { color: #24292f !important; background-color: transparent !important; padding: 0 !important; }`;
+          css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #6e7781 !important; font-style: italic !important; }`;
+          css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #cf222e !important; font-weight: bold !important; }`;
+          css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #0a3069 !important; }`;
+          css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #8250df !important; }`;
+          css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #0550ae !important; }`;
+          css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #24292f !important; }`;
         } else if (blockTheme === 'solarized-light') {
-          css += `\n.unemi-document-content pre { background-color: #fdf6e3 !important; border: 1px solid #efe8d4 !important; color: #657b83 !important; }`;
-          css += `\n.unemi-document-content pre code { color: #657b83 !important; background-color: transparent !important; padding: 0 !important; }`;
-          css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #93a1a1 !important; font-style: italic !important; }`;
-          css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #859900 !important; }`;
-          css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #2aa198 !important; }`;
-          css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #268bd2 !important; }`;
-          css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #d33682 !important; }`;
-          css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #586e75 !important; }`;
+          css += `\n.wp-document-content pre { background-color: #fdf6e3 !important; border: 1px solid #efe8d4 !important; color: #657b83 !important; }`;
+          css += `\n.wp-document-content pre code { color: #657b83 !important; background-color: transparent !important; padding: 0 !important; }`;
+          css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #93a1a1 !important; font-style: italic !important; }`;
+          css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #859900 !important; }`;
+          css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #2aa198 !important; }`;
+          css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #268bd2 !important; }`;
+          css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #d33682 !important; }`;
+          css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #586e75 !important; }`;
         } else if (blockTheme === 'nord') {
-          css += `\n.unemi-document-content pre { background-color: #2e3440 !important; border: 1px solid #3b4252 !important; color: #d8dee9 !important; }`;
-          css += `\n.unemi-document-content pre code { color: #d8dee9 !important; background-color: transparent !important; padding: 0 !important; }`;
-          css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #4c566a !important; font-style: italic !important; }`;
-          css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #81a1c1 !important; }`;
-          css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #a3be8c !important; }`;
-          css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #88c0d0 !important; }`;
-          css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #b48ead !important; }`;
-          css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #eceff4 !important; }`;
+          css += `\n.wp-document-content pre { background-color: #2e3440 !important; border: 1px solid #3b4252 !important; color: #d8dee9 !important; }`;
+          css += `\n.wp-document-content pre code { color: #d8dee9 !important; background-color: transparent !important; padding: 0 !important; }`;
+          css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #4c566a !important; font-style: italic !important; }`;
+          css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #81a1c1 !important; }`;
+          css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #a3be8c !important; }`;
+          css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #88c0d0 !important; }`;
+          css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #b48ead !important; }`;
+          css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #eceff4 !important; }`;
         } else {
           // academic / default
-          css += `\n.unemi-document-content pre { background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; }`;
-          css += `\n.unemi-document-content pre code { color: #0f172a !important; background-color: transparent !important; padding: 0 !important; }`;
-          css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #64748b !important; font-style: italic !important; }`;
-          css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #0f172a !important; font-weight: bold !important; }`;
-          css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #0f172a !important; font-style: italic !important; }`;
-          css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #0f172a !important; }`;
-          css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #0f172a !important; }`;
-          css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #0f172a !important; }`;
+          css += `\n.wp-document-content pre { background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; }`;
+          css += `\n.wp-document-content pre code { color: #0f172a !important; background-color: transparent !important; padding: 0 !important; }`;
+          css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #64748b !important; font-style: italic !important; }`;
+          css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #0f172a !important; font-weight: bold !important; }`;
+          css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #0f172a !important; font-style: italic !important; }`;
+          css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #0f172a !important; }`;
+          css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #0f172a !important; }`;
+          css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #0f172a !important; }`;
         }
 
         // Bibliography styling
         css += `
-        .unemi-bibliography-item {
+        .wp-bibliography-item {
           padding-left: 0.5in !important;
           text-indent: -0.5in !important;
           line-height: 2.0 !important;
@@ -1029,7 +996,7 @@ export default function DocumentPreview({
           text-align: left !important;
           display: block !important;
         }
-        .unemi-bibliography-title {
+        .wp-bibliography-title {
           font-family: 'Times New Roman', Times, serif !important;
           font-size: 16px !important;
           font-weight: bold !important;
@@ -1038,7 +1005,7 @@ export default function DocumentPreview({
           margin-bottom: 24px !important;
           display: block !important;
         }
-        .unemi-margin-element img {
+        .wp-margin-element img {
           width: 100% !important;
           height: 100% !important;
           object-fit: fill !important;
@@ -1049,12 +1016,12 @@ export default function DocumentPreview({
       };
 
       const cleanHTML_PreviewMode = `<!DOCTYPE html>
-<html lang="es" data-unemi-preview="v1">
+<html lang="es" data-wp-preview="v1">
 <head>
   <!-- PREVIEW_MODE_V1 -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${exportFileName || cover.title || 'Plantilla de Documento UNEMI'}</title>
+  <title>${exportFileName || cover.title || 'Plantilla de Documento WP'}</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -1064,8 +1031,29 @@ export default function DocumentPreview({
   <!-- PrismJS tomorrow dark theme for code blocks -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
  
-  <style id="unemi-preview-style-v1">` + `
+  <style id="wp-preview-style-v1">` + `
     /* UNIQUE_PREVIEW_V1 */
+    .wp-document-content *:not(.katex):not(.katex *):not(table):not(thead):not(tbody):not(tr):not(th):not(td):not(figure):not(.note):not(hr),
+    .wp-document-content *::before,
+    .wp-document-content *::after,
+    .wp-template-content *:not(.katex):not(.katex *):not(table):not(thead):not(tbody):not(tr):not(th):not(td):not(figure):not(.note):not(hr),
+    .wp-template-content *::before,
+    .wp-template-content *::after,
+    .document-rendered-container *:not(.katex):not(.katex *):not(table):not(thead):not(tbody):not(tr):not(th):not(td):not(figure):not(.note):not(hr),
+    .continuous-page-boundary {
+      border: 0px none transparent !important;
+      border-width: 0px !important;
+      border-style: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
+    .katex .frac-line {
+      border-bottom-style: solid !important;
+      border-bottom-width: 0.04em !important;
+      border-bottom-color: currentColor !important;
+      display: inline-block !important;
+    }
     /* PREVIEW_MODE_V1_STYLE_START */` + `
     /* PREVIEW_MODE_V1_CSS_BODY */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');` + `
@@ -1093,7 +1081,7 @@ export default function DocumentPreview({
     }
 
     /* APA 7 Run-in (inline) Headings */
-    .unemi-document-content .apa-runin {
+    .wp-document-content .apa-runin {
       display: inline !important;
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
@@ -1101,25 +1089,25 @@ export default function DocumentPreview({
       line-height: 1.8 !important;
     }
 
-    .unemi-document-content .apa-runin.apa-level1 {
+    .wp-document-content .apa-runin.apa-level1 {
       font-weight: bold !important;
     }
 
-    .unemi-document-content .apa-runin.apa-level2 {
+    .wp-document-content .apa-runin.apa-level2 {
       font-weight: bold !important;
     }
 
-    .unemi-document-content .apa-runin.apa-level3 {
+    .wp-document-content .apa-runin.apa-level3 {
       font-weight: bold !important;
       font-style: italic !important;
     }
 
-    .unemi-document-content .apa-runin.apa-level4 {
+    .wp-document-content .apa-runin.apa-level4 {
       font-weight: bold !important;
       padding-left: 0px !important;
     }
 
-    .unemi-document-content .apa-runin.apa-level5 {
+    .wp-document-content .apa-runin.apa-level5 {
       font-weight: bold !important;
       font-style: italic !important;
       padding-left: 0px !important;
@@ -1144,7 +1132,7 @@ export default function DocumentPreview({
       height: ${paperHeight} !important;
     }
 
-    #unemi-cover-page {
+    #wp-cover-page {
       position: relative !important;
       background-color: #ffffff !important;
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
@@ -1162,15 +1150,15 @@ export default function DocumentPreview({
 
     .absolute { position: absolute !important; }
     
-    .unemi-document-content {
+    .wp-document-content {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
-      line-height: 1.8 !important;
+      line-height: 200% !important;
       color: #000000 !important;
       text-align: left !important;
     }
 
-    .unemi-document-content h1 {
+    .wp-document-content h1 {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
@@ -1178,30 +1166,34 @@ export default function DocumentPreview({
       text-transform: none !important;
       text-align: center !important;
       text-indent: 0px !important;
-      margin-top: 24px !important;
-      margin-bottom: 12px !important;
+      margin-top: 0px !important;
+      margin-bottom: 0px !important;
+      line-height: 200% !important;
       padding-bottom: 0 !important;
-      border-bottom: none !important;
+      border-bottom: 0px none transparent !important;
+      border-width: 0px !important;
+      border-style: none !important;
       position: relative !important;
     }
 
-    .unemi-document-content h1::after {
+    .wp-document-content h1::after {
       display: none !important;
       content: none !important;
     }
 
-    .unemi-document-content h2 {
+    .wp-document-content h2 {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
       color: #000000 !important;
       text-align: left !important;
       text-indent: 0px !important;
-      margin-top: 18px !important;
-      margin-bottom: 8px !important;
+      margin-top: 0px !important;
+      margin-bottom: 0px !important;
+      line-height: 200% !important;
     }
 
-    .unemi-document-content h3 {
+    .wp-document-content h3 {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
@@ -1209,22 +1201,24 @@ export default function DocumentPreview({
       color: #000000 !important;
       text-align: left !important;
       text-indent: 0px !important;
-      margin-top: 12px !important;
-      margin-bottom: 6px !important;
+      margin-top: 0px !important;
+      margin-bottom: 0px !important;
+      line-height: 200% !important;
     }
 
-    .unemi-document-content h4 {
+    .wp-document-content h4 {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
       color: #000000 !important;
       text-align: left !important;
       text-indent: 0.5in !important;
-      margin-top: 10px !important;
-      margin-bottom: 4px !important;
+      margin-top: 0px !important;
+      margin-bottom: 0px !important;
+      line-height: 200% !important;
     }
 
-    .unemi-document-content h5 {
+    .wp-document-content h5 {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
@@ -1232,45 +1226,57 @@ export default function DocumentPreview({
       color: #000000 !important;
       text-align: left !important;
       text-indent: 0.5in !important;
-      margin-top: 10px !important;
-      margin-bottom: 4px !important;
+      margin-top: 0px !important;
+      margin-bottom: 0px !important;
+      line-height: 200% !important;
     }
 
-    .unemi-document-content p {
+    .wp-document-content p {
       margin-top: 0 !important;
-      margin-bottom: 12px !important;
-      line-height: 1.8 !important;
+      margin-bottom: 0px !important;
+      line-height: 200% !important;
+      text-indent: 0.5in !important;
+      text-align: left !important;
+      border: 0px none transparent !important;
+      border-width: 0px !important;
+      border-style: none !important;
+      outline: none !important;
+      box-shadow: none !important;
     }
 
-    .unemi-document-content ul:not(.toc-list) {
+    .wp-document-content p:has(.apa-runin) {
+      text-indent: 0px !important;
+    }
+
+    .wp-document-content ul:not(.toc-list) {
       list-style-type: disc !important;
       padding-left: 0.5in !important;
       margin-bottom: 12px !important;
     }
 
-    .unemi-document-content ul:not(.toc-list) li:not(.toc-item) {
+    .wp-document-content ul:not(.toc-list) li:not(.toc-item) {
       position: relative !important;
       margin-bottom: 6px !important;
       line-height: 1.8 !important;
     }
 
-    .unemi-document-content ul:not(.toc-list) li:not(.toc-item)::before {
+    .wp-document-content ul:not(.toc-list) li:not(.toc-item)::before {
       display: none;
       content: none;
     }
 
-    .unemi-document-content ol {
+    .wp-document-content ol {
       list-style-type: decimal !important;
       padding-left: 0.5in !important;
       margin-bottom: 12px !important;
     }
 
-    .unemi-document-content ol li {
+    .wp-document-content ol li {
       margin-bottom: 6px !important;
       line-height: 1.8 !important;
     }
 
-    .unemi-document-content .note {
+    .wp-document-content .note {
       border-left: 3px solid #000000 !important;
       background-color: #f8fafc !important;
       padding: 12px 14px !important;
@@ -1281,7 +1287,7 @@ export default function DocumentPreview({
       color: #000000 !important;
     }
 
-    .unemi-document-content blockquote {
+    .wp-document-content blockquote {
       border-left: none !important;
       background-color: transparent !important;
       padding: 0 !important;
@@ -1291,7 +1297,7 @@ export default function DocumentPreview({
       color: #000000 !important;
     }
 
-    .unemi-document-content figure {
+    .wp-document-content figure {
       display: block !important;
       margin: 16px auto !important;
       border: 1px solid #e2e8f0 !important;
@@ -1302,8 +1308,8 @@ export default function DocumentPreview({
       box-sizing: border-box !important;
     }
 
-    .unemi-document-content figure.mw-default-size,
-    .unemi-document-content figure[class*="thumb"] {
+    .wp-document-content figure.mw-default-size,
+    .wp-document-content figure[class*="thumb"] {
       float: right !important;
       margin-left: 18px !important;
       margin-top: 4px !important;
@@ -1311,7 +1317,7 @@ export default function DocumentPreview({
       width: 220px !important;
     }
 
-    .unemi-document-content figcaption {
+    .wp-document-content figcaption {
       font-family: "Inter", sans-serif !important;
       font-size: 10.5px !important;
       color: #64748b !important;
@@ -1321,8 +1327,8 @@ export default function DocumentPreview({
       font-style: italic !important;
     }
 
-    .unemi-document-content img,
-    .unemi-document-content .mw-file-element {
+    .wp-document-content img,
+    .wp-document-content .mw-file-element {
       max-width: 100% !important;
       height: auto !important;
       display: block !important;
@@ -1330,7 +1336,7 @@ export default function DocumentPreview({
       border-radius: 2px !important;
     }
 
-    .unemi-academic-header {
+    .wp-academic-header {
       position: absolute !important;
       top: ${Math.max(10, topMargin - 60)}px !important;
       left: ${leftMargin}px !important;
@@ -1344,7 +1350,7 @@ export default function DocumentPreview({
       z-index: 10 !important;
     }
     
-    .unemi-academic-footer {
+    .wp-academic-footer {
       position: absolute !important;
       bottom: ${Math.max(10, bottomMargin - 50)}px !important;
       left: ${leftMargin}px !important;
@@ -1359,7 +1365,7 @@ export default function DocumentPreview({
     }
 
     @media print {
-      #unemi-academic-toolbar, .print\:hidden, .print-hidden {
+      #wp-academic-toolbar, .print\:hidden, .print-hidden {
         display: none !important;
         opacity: 0 !important;
         visibility: hidden !important;
@@ -1394,7 +1400,7 @@ export default function DocumentPreview({
         page-break-after: avoid !important;
         break-after: avoid !important;
       }
-      #unemi-cover-page {
+      #wp-cover-page {
         box-shadow: none !important;
         border: none !important;
         page-break-after: always !important;
@@ -1430,27 +1436,27 @@ export default function DocumentPreview({
     
     ${settings.autoNumberHeadings ? `
     body, .document-rendered-container {
-      counter-reset: unemi-h1-counter !important;
+      counter-reset: wp-h1-counter !important;
     }
-    .unemi-document-content h1 {
-      counter-reset: unemi-h2-counter !important;
-      counter-increment: unemi-h1-counter !important;
+    .wp-document-content h1 {
+      counter-reset: wp-h2-counter !important;
+      counter-increment: wp-h1-counter !important;
     }
-    .unemi-document-content h1::before {
-      content: counter(unemi-h1-counter) ". " !important;
+    .wp-document-content h1::before {
+      content: counter(wp-h1-counter) ". " !important;
     }
-    .unemi-document-content h2 {
-      counter-reset: unemi-h3-counter !important;
-      counter-increment: unemi-h2-counter !important;
+    .wp-document-content h2 {
+      counter-reset: wp-h3-counter !important;
+      counter-increment: wp-h2-counter !important;
     }
-    .unemi-document-content h2::before {
-      content: counter(unemi-h1-counter) "." counter(unemi-h2-counter) " " !important;
+    .wp-document-content h2::before {
+      content: counter(wp-h1-counter) "." counter(wp-h2-counter) " " !important;
     }
-    .unemi-document-content h3 {
-      counter-increment: unemi-h3-counter !important;
+    .wp-document-content h3 {
+      counter-increment: wp-h3-counter !important;
     }
-    .unemi-document-content h3::before {
-      content: counter(unemi-h1-counter) "." counter(unemi-h2-counter) "." counter(unemi-h3-counter) " " !important;
+    .wp-document-content h3::before {
+      content: counter(wp-h1-counter) "." counter(wp-h2-counter) "." counter(wp-h3-counter) " " !important;
     }
     ` : ''}
   </style>
@@ -1462,307 +1468,22 @@ export default function DocumentPreview({
     ${pagesHTML}
   </div>
 
-  <!-- Presentation Mode Logic -->
   <script>
     document.addEventListener("DOMContentLoaded", function() {
-      var inPresentationMode = false;
-      var currentPageIndex = 0;
-      var pages = Array.from(document.querySelectorAll('#unemi-cover-page, div[name^="document-page-"]'));
-      var container = document.querySelector('.document-rendered-container');
-      var hudTimeout = null;
-      var presentationScale = 1.0;
-
-      function updatePageVisibility() {
-        if (!inPresentationMode) return;
-        var viewportWidth = window.innerWidth;
-        var viewportHeight = window.innerHeight;
-
-        pages.forEach(function(page, idx) {
-          if (idx === currentPageIndex) {
-            page.style.setProperty('display', 'flex', 'important');
-            var pageWidth = page.offsetWidth || 816;
-            var pageHeight = page.offsetHeight || 1056;
-
-            var maxWidth = viewportWidth * 0.94;
-            var maxHeight = viewportHeight * 0.94;
-
-            var scaleX = maxWidth / pageWidth;
-            var scaleY = maxHeight / pageHeight;
-
-            var fitScale = Math.min(scaleX, scaleY);
-
-            page.style.setProperty('transform', 'scale(' + (fitScale * presentationScale) + ')', 'important');
-            page.style.setProperty('transform-origin', 'center center', 'important');
-            page.style.setProperty('margin', '0 auto', 'important');
-          } else {
-            page.style.setProperty('display', 'none', 'important');
-          }
-        });
-        window.scrollTo({ top: 0, left: 0 });
-        if (container) {
-          container.scrollTop = 0;
-          container.scrollLeft = 0;
-        }
-      }
-
-      function startPresentation() {
-        inPresentationMode = true;
-        currentPageIndex = 0;
-        presentationScale = 1.0;
-        
-        var toolbar = document.getElementById('unemi-academic-toolbar');
-        if (toolbar) toolbar.style.setProperty('display', 'none', 'important');
-        
-        container.classList.add('bg-slate-950', 'w-screen', 'h-screen', 'fixed', 'inset-0', 'z-40', 'overflow-hidden', 'flex', 'justify-center', 'items-center', 'p-4');
-        
-        container.style.setProperty('gap', '0px', 'important');
-        container.style.setProperty('padding', '0px', 'important');
-        container.style.setProperty('display', 'flex', 'important');
-        container.style.setProperty('align-items', 'center', 'important');
-        container.style.setProperty('justify-content', 'center', 'important');
-        
-        try {
-          var de = document.documentElement;
-          if (de.requestFullscreen) {
-            de.requestFullscreen();
-          } else if (de.webkitRequestFullscreen) {
-            de.webkitRequestFullscreen();
-          } else if (de.msRequestFullscreen) {
-            de.msRequestFullscreen();
-          }
-        } catch (err) {
-          console.error("Fullscreen request failed:", err);
-        }
-        
-        var hud = document.getElementById('unemi-presentation-hud');
-        if (!hud) {
-          hud = document.createElement('div');
-          hud.id = 'unemi-presentation-hud';
-          hud.style.cssText = 'position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.95); border: 1.5px solid #FF6600; padding: 12px 24px; border-radius: 12px; color: #ffffff; font-family: "Inter", system-ui, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.75px; text-transform: uppercase; display: flex; align-items: center; gap: 18px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); z-index: 10000; transition: opacity 0.5s ease; pointer-events: none;';
-          hud.innerHTML = \`
-            <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #FF6600; font-family: monospace;">[CLICK / ESPACIO / &rarr;]</span> Siguiente</span>
-            <span style="opacity: 0.3;">|</span>
-            <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #FF6600; font-family: monospace;">[&larr;]</span> Anterior</span>
-            <span style="opacity: 0.3;">|</span>
-            <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #FF6600; font-family: monospace;">[RUEDA / PINCH]</span> Zoom</span>
-            <span style="opacity: 0.3;">|</span>
-            <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #FF6600; font-family: monospace;">[ESC]</span> Salir</span>
-          \`;
-          document.body.appendChild(hud);
-        }
-        hud.style.opacity = '1';
-        
-        if (hudTimeout) clearTimeout(hudTimeout);
-        hudTimeout = setTimeout(function() {
-          hud.style.opacity = '0';
-        }, 3000);
-
-        updatePageVisibility();
-      }
-
-      function stopPresentation() {
-        inPresentationMode = false;
-        presentationScale = 1.0;
-        
-        try {
-          if (document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement) {
-            if (document.exitFullscreen) {
-              document.exitFullscreen();
-            } else if (document.webkitExitFullscreen) {
-              document.webkitExitFullscreen();
-            } else if (document.msExitFullscreen) {
-              document.msExitFullscreen();
-            }
-          }
-        } catch (err) {
-          console.error("Fullscreen exit failed:", err);
-        }
-        
-        var toolbar = document.getElementById('unemi-academic-toolbar');
-        if (toolbar) toolbar.style.setProperty('display', 'flex', 'important');
-        
-        var hud = document.getElementById('unemi-presentation-hud');
-        if (hud) hud.style.opacity = '0';
-        
-        pages.forEach(function(page) {
-          page.style.removeProperty('display');
-          page.style.removeProperty('transform');
-          page.style.removeProperty('transform-origin');
-          page.style.removeProperty('margin');
-        });
-        
-        container.style.removeProperty('gap');
-        container.style.removeProperty('padding');
-        container.style.removeProperty('display');
-        container.style.removeProperty('align-items');
-        container.style.removeProperty('justify-content');
-        
-        container.classList.remove('bg-slate-950', 'w-screen', 'h-screen', 'fixed', 'inset-0', 'z-40', 'overflow-hidden', 'flex', 'justify-center', 'items-center', 'p-4');
-      }
-
-      function nextPage() {
-        if (currentPageIndex < pages.length - 1) {
-          currentPageIndex++;
-          updatePageVisibility();
-        }
-      }
-
-      function prevPage() {
-        if (currentPageIndex > 0) {
-          currentPageIndex--;
-          updatePageVisibility();
-        }
-      }
-
-      var startBtn = document.getElementById('unemi-start-presentation');
-      if (startBtn) startBtn.addEventListener('click', startPresentation);
-
-      window.addEventListener('click', function(e) {
-        if (!inPresentationMode) return;
-        if (e.target === container || e.target === document.documentElement || e.target === document.body) {
-          nextPage();
-        }
-      });
+      var pages = Array.from(document.querySelectorAll('#wp-cover-page, div[name^="document-page-"]'));
 
       window.addEventListener('beforeprint', function() {
-        var toolbar = document.getElementById('unemi-academic-toolbar');
+        var toolbar = document.getElementById('wp-academic-toolbar');
         if (toolbar) {
           toolbar.style.setProperty('display', 'none', 'important');
         }
       });
       window.addEventListener('afterprint', function() {
-        var toolbar = document.getElementById('unemi-academic-toolbar');
-        if (toolbar && !inPresentationMode) {
+        var toolbar = document.getElementById('wp-academic-toolbar');
+        if (toolbar) {
           toolbar.style.setProperty('display', 'flex', 'important');
         }
       });
-
-      window.addEventListener('wheel', function(e) {
-        if (!inPresentationMode) return;
-        e.preventDefault();
-        var delta = -e.deltaY;
-        var baseFactor = e.ctrlKey ? 0.0008 : 0.0003;
-        var scaleChange = delta * baseFactor;
-        scaleChange = Math.min(Math.max(scaleChange, -0.05), 0.05);
-        presentationScale = Math.min(Math.max(presentationScale + scaleChange, 0.3), 4.0);
-        updatePageVisibility();
-      }, { passive: false });
-
-      var initialTouchDist = null;
-      var startPinchScale = 1.0;
-
-      function getTouchDistance(touches) {
-        var dx = touches[0].clientX - touches[1].clientX;
-        var dy = touches[0].clientY - touches[1].clientY;
-        return Math.sqrt(dx * dx + dy * dy);
-      }
-
-      window.addEventListener('touchstart', function(e) {
-        if (!inPresentationMode) return;
-        if (e.touches.length === 2) {
-          initialTouchDist = getTouchDistance(e.touches);
-          startPinchScale = presentationScale;
-          e.preventDefault();
-        }
-      }, { passive: false });
-
-      window.addEventListener('touchmove', function(e) {
-        if (!inPresentationMode) return;
-        if (e.touches.length === 2 && initialTouchDist !== null) {
-          e.preventDefault();
-          var dist = getTouchDistance(e.touches);
-          var ratio = dist / initialTouchDist;
-          var smoothRatio = 1.0 + (ratio - 1.0) * 0.15;
-          presentationScale = Math.min(Math.max(startPinchScale * smoothRatio, 0.3), 4.0);
-          updatePageVisibility();
-        }
-      }, { passive: false });
-
-      window.addEventListener('touchend', function(e) {
-        if (!inPresentationMode) return;
-        if (e.touches.length < 2) {
-          initialTouchDist = null;
-        }
-      });
-
-      window.addEventListener('keydown', function(e) {
-        if (!inPresentationMode) return;
-        if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {
-          nextPage();
-          e.preventDefault();
-        } else if (e.key === 'ArrowLeft' || e.key === 'Backspace') {
-          prevPage();
-          e.preventDefault();
-        } else if (e.key === 'Escape') {
-          stopPresentation();
-          e.preventDefault();
-        }
-      });
-
-      function onFullscreenChange() {
-        var isFS = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
-        if (!isFS && inPresentationMode) {
-          stopPresentation();
-        }
-      }
-      document.addEventListener('fullscreenchange', onFullscreenChange);
-      document.addEventListener('webkitfullscreenchange', onFullscreenChange);
-      document.addEventListener('msfullscreenchange', onFullscreenChange);
-
-      window.addEventListener('resize', function() {
-        if (inPresentationMode) {
-          updatePageVisibility();
-        }
-      });
-
-      function syncIframes() {
-        pages.forEach(function(page, idx) {
-          var blocks = page.querySelectorAll('.unemi-functional-block');
-          blocks.forEach(function(block) {
-            var template = block.querySelector('.unemi-functional-template');
-            if (!template) return;
-            
-            var isPageActive = !inPresentationMode || (idx === currentPageIndex);
-            var existingIframe = block.querySelector('iframe');
-            
-            if (isPageActive) {
-              var srcDocContent = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><style>html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow: hidden !important; background-color: transparent !important; }</style></head><body>' + template.innerHTML + '</body></html>';
-              
-              if (!existingIframe) {
-                var iframe = document.createElement('iframe');
-                iframe.title = 'functional-block-' + block.getAttribute('data-block-id');
-                iframe.setAttribute('sandbox', 'allow-scripts allow-modals allow-same-origin');
-                iframe.style.cssText = 'width: 100%; height: 100%; border: none; overflow: hidden; display: block; flex: 1;';
-                iframe.setAttribute('scrolling', 'no');
-                iframe.srcdoc = srcDocContent;
-                block.appendChild(iframe);
-              } else {
-                if (existingIframe.srcdoc !== srcDocContent) {
-                  existingIframe.srcdoc = srcDocContent;
-                }
-              }
-            } else {
-              if (existingIframe) {
-                existingIframe.remove();
-              }
-            }
-          });
-        });
-      }
-
-      var originalUpdatePageVisibility = updatePageVisibility;
-      updatePageVisibility = function() {
-        originalUpdatePageVisibility();
-        syncIframes();
-      };
-
-      var originalStopPresentation = stopPresentation;
-      stopPresentation = function() {
-        originalStopPresentation();
-        syncIframes();
-      };
-
-      syncIframes();
     });
   </script>
 </body>
@@ -1817,10 +1538,11 @@ export default function DocumentPreview({
       });
 
       // 2. Obtener los elementos de portada y páginas del DOM actual
-      const coverPage = document.getElementById('unemi-cover-page');
+      const coverPage = document.getElementById('wp-cover-page');
       const docPages = document.querySelectorAll('[name^="document-page-"]');
 
-      if (settings.pageSize !== 'continuous' && (!coverPage || docPages.length === 0)) {
+      const hasCover = settings.pageSize !== 'continuous' && resolvedCover.enabled !== false;
+      if (hasCover && !coverPage) {
         alert('Por favor, espere a que el documento se compile en el visor.');
         return;
       }
@@ -1893,7 +1615,7 @@ export default function DocumentPreview({
         formatSize = [widthInMm, heightInMm];
       }
 
-      const cleanTitle = (cover.title || 'documento_unemi')
+      const cleanTitle = (cover.title || 'documento_wp')
         .slice(0, 30)
         .trim()
         .toLowerCase()
@@ -1937,13 +1659,15 @@ export default function DocumentPreview({
   const resolvedHtmlContent = React.useMemo(() => {
     // Set settings globally so the markdownParser can read it
     if (typeof window !== 'undefined') {
-      (window as any).currentUnemiSettings = settings;
+      (window as any).currentWpSettings = settings;
     }
 
     const figureMap = new Map<string, number>();
     const tableMap = new Map<string, number>();
     const figureCounterRef = { val: 1 };
     const tableCounterRef = { val: 1 };
+
+    const isContinuousMode = settings.pageSize === 'continuous';
 
     // 1. Compile blocks (HTML vs Markdown)
     let selectHtml = "";
@@ -1955,7 +1679,8 @@ export default function DocumentPreview({
           figureMap,
           tableMap,
           figureCounterRef,
-          tableCounterRef
+          tableCounterRef,
+          isContinuousMode
         );
       }).join('\n\n');
     } else {
@@ -1966,7 +1691,8 @@ export default function DocumentPreview({
         figureMap,
         tableMap,
         figureCounterRef,
-        tableCounterRef
+        tableCounterRef,
+        isContinuousMode
       );
     }
 
@@ -2038,14 +1764,14 @@ export default function DocumentPreview({
       const bibTitle = settings.bibliographyTitle || 'Referencias Bibliográficas';
       
       let bibHtml = `
-        <h1 class="unemi-bibliography-title" style="font-family: 'Times New Roman', Times, serif; font-size: 16px; font-weight: bold; text-align: center; margin-top: 24px; margin-bottom: 24px;">
+        <h1 class="wp-bibliography-title" style="font-family: 'Times New Roman', Times, serif; font-size: 16px; font-weight: bold; text-align: center; margin-top: 24px; margin-bottom: 24px;">
           ${bibTitle}
         </h1>
       `;
 
       sortedBib.forEach(item => {
         bibHtml += `
-          <div style="padding-left: 0.5in !important; text-indent: -0.5in !important; line-height: 2.0 !important; font-size: 16px !important; font-family: 'Times New Roman', Times, serif !important; text-align: left !important; display: block !important;" class="unemi-bibliography-item">
+          <div style="padding-left: 0.5in !important; text-indent: -0.5in !important; line-height: 2.0 !important; font-size: 16px !important; font-family: 'Times New Roman', Times, serif !important; text-align: left !important; display: block !important;" class="wp-bibliography-item">
             ${formatAPABibliographyItem(item)}
           </div>
         `;
@@ -2134,14 +1860,14 @@ export default function DocumentPreview({
       // We append elements as flat sibling nodes so the paginator can cleanly slice them across pages!
       let bibHtml = `
         <div class="page-break"></div>
-        <h1 class="unemi-bibliography-title" style="font-family: 'Times New Roman', Times, serif; font-size: 16px; font-weight: bold; text-align: center; margin-top: 24px; margin-bottom: 24px;">
+        <h1 class="wp-bibliography-title" style="font-family: 'Times New Roman', Times, serif; font-size: 16px; font-weight: bold; text-align: center; margin-top: 24px; margin-bottom: 24px;">
           ${bibTitle}
         </h1>
       `;
 
       sortedBib.forEach(item => {
         bibHtml += `
-          <div style="padding-left: 0.5in !important; text-indent: -0.5in !important; line-height: 2.0 !important; font-size: 16px !important; font-family: 'Times New Roman', Times, serif !important; text-align: left !important; display: block !important;" class="unemi-bibliography-item">
+          <div style="padding-left: 0.5in !important; text-indent: -0.5in !important; line-height: 2.0 !important; font-size: 16px !important; font-family: 'Times New Roman', Times, serif !important; text-align: left !important; display: block !important;" class="wp-bibliography-item">
             ${formatAPABibliographyItem(item)}
           </div>
         `;
@@ -2150,8 +1876,8 @@ export default function DocumentPreview({
       selectHtml += bibHtml;
     }
 
-    return renderMathInHtml(selectHtml);
-  }, [htmlContent, htmlBlocks, uploadedFiles, bibliography, settings.showBibliography, settings.bibliographyTitle, settings.showOnlyCitedBibliography, settings.tocTitle, settings.h1LineBreak, settings.h2LineBreak, settings.h3LineBreak, settings.h4LineBreak, settings.h5LineBreak]);
+    return renderMathInHtml(selectHtml, isContinuousMode);
+  }, [htmlContent, htmlBlocks, uploadedFiles, bibliography, settings.pageSize, settings.showBibliography, settings.bibliographyTitle, settings.showOnlyCitedBibliography, settings.tocTitle, settings.h1LineBreak, settings.h2LineBreak, settings.h3LineBreak, settings.h4LineBreak, settings.h5LineBreak]);
 
   const resolvedCover = React.useMemo(() => {
     let selectCover = { ...cover };
@@ -2182,11 +1908,11 @@ export default function DocumentPreview({
     const settings = compiledSettings || liveSettings;
 
     const timer = setTimeout(async () => {
-      setIsSyncingServer(true);
       try {
-        const coverPage = document.getElementById('unemi-cover-page');
+        const coverPage = document.getElementById('wp-cover-page');
         const docPages = document.querySelectorAll('[name^="document-page-"]');
-        if (settings.pageSize !== 'continuous' && !coverPage) return;
+        const hasCover = settings.pageSize !== 'continuous' && resolvedCover.enabled !== false;
+        if (hasCover && !coverPage) return;
         if (docPages.length === 0) return;
 
         let pagesHTML = '';
@@ -2198,7 +1924,7 @@ export default function DocumentPreview({
           coverClone.style.margin = '0 auto';
           
           // Remove toolbar from coverClone if any
-          const coverToolbar = coverClone.querySelector('#unemi-academic-toolbar');
+          const coverToolbar = coverClone.querySelector('#wp-academic-toolbar');
           if (coverToolbar) coverToolbar.remove();
 
           pagesHTML += `<div class="print-page-boundary mb-8">${coverClone.outerHTML}</div>\n`;
@@ -2215,7 +1941,9 @@ export default function DocumentPreview({
             guideOverlay.remove();
           }
 
-          pagesHTML += `<div class="print-page-boundary mb-8">${pageClone.outerHTML}</div>\n`;
+          const isContinuousMode = settings.pageSize === 'continuous';
+          const pageBoundaryClass = isContinuousMode ? 'continuous-page-boundary' : 'print-page-boundary mb-8';
+          pagesHTML += `<div class="${pageBoundaryClass}">${pageClone.outerHTML}</div>\n`;
         });
 
         const isLetterSize = settings.pageSize === 'letter';
@@ -2251,7 +1979,7 @@ export default function DocumentPreview({
           let css = '';
           
           if (settings.h1Size || settings.h1Font || settings.h1Align || settings.h1LineHeight || settings.h1Indent !== undefined || settings.h1Bold !== undefined || settings.h1Italic !== undefined || settings.h1Color) {
-            css += `\n.unemi-document-content h1 {`;
+            css += `\n.wp-document-content h1 {`;
             if (settings.h1Size) css += ` font-size: ${settings.h1Size} !important;`;
             if (settings.h1Font) css += ` font-family: "${settings.h1Font}", sans-serif !important;`;
             if (settings.h1Align) css += ` text-align: ${settings.h1Align} !important;`;
@@ -2264,7 +1992,7 @@ export default function DocumentPreview({
           }
 
           if (settings.h2Size || settings.h2Font || settings.h2Align || settings.h2LineHeight || settings.h2Indent !== undefined || settings.h2Bold !== undefined || settings.h2Italic !== undefined || settings.h2Color) {
-            css += `\n.unemi-document-content h2 {`;
+            css += `\n.wp-document-content h2 {`;
             if (settings.h2Size) css += ` font-size: ${settings.h2Size} !important;`;
             if (settings.h2Font) css += ` font-family: "${settings.h2Font}", sans-serif !important;`;
             if (settings.h2Align) css += ` text-align: ${settings.h2Align} !important;`;
@@ -2277,7 +2005,7 @@ export default function DocumentPreview({
           }
 
           if (settings.pSize || settings.pFont || settings.pAlign || settings.pLineHeight || settings.pIndent !== undefined || settings.pBold !== undefined || settings.pItalic !== undefined || settings.pColor) {
-            css += `\n.unemi-document-content, .unemi-document-content p, .unemi-document-content div:not(.unemi-academic-header):not(.unemi-academic-footer):not(.toc-container):not(.note):not(.math-expr):not(.unemi-bibliography-item):not(.unemi-bibliography-title) {`;
+            css += `\n.wp-document-content, .wp-document-content p, .wp-document-content div:not(.wp-academic-header):not(.wp-academic-footer):not(.toc-container):not(.note):not(.math-expr):not(.wp-bibliography-item):not(.wp-bibliography-title) {`;
             if (settings.pSize) css += ` font-size: ${settings.pSize} !important;`;
             if (settings.pFont) css += ` font-family: "${settings.pFont}", sans-serif !important;`;
             if (settings.pAlign) css += ` text-align: ${settings.pAlign} !important;`;
@@ -2289,16 +2017,22 @@ export default function DocumentPreview({
             css += ` }`;
           }
 
-          if (settings.tableFontSize || settings.tableHeaderBg || settings.tableHeaderColor || settings.tableBorderColor || settings.tableCellPadding || settings.tableStriped || settings.tableBorderWidth) {
+          if (settings.tableFontSize || settings.tableHeaderBg || settings.tableHeaderColor || settings.tableBorderColor || settings.tableCellPadding || settings.tableStriped || settings.tableBorderWidth || settings.repeatTableHeader !== undefined) {
             css += `\n/* Table Formatting Rules */`;
-            css += `\n.unemi-document-content table {`;
+            css += `\n.wp-document-content table {`;
             css += `  word-wrap: break-word !important;`;
             css += `  border-collapse: collapse !important;`;
             if (settings.tableFontSize) css += ` font-size: ${settings.tableFontSize} !important;`;
             if (settings.tableBorderColor) css += ` border-color: ${settings.tableBorderColor} !important;`;
             css += ` }`;
 
-            css += `\n.unemi-document-content table th, .unemi-document-content table td {`;
+            if (settings.repeatTableHeader === false) {
+              css += `\n.wp-document-content table thead { display: table-row-group !important; }`;
+            } else {
+              css += `\n.wp-document-content table thead { display: table-header-group !important; }`;
+            }
+
+            css += `\n.wp-document-content table th, .wp-document-content table td {`;
             if (settings.tableCellPadding) {
               css += ` padding: ${settings.tableCellPadding} !important;`;
             }
@@ -2311,13 +2045,13 @@ export default function DocumentPreview({
             }
             css += ` }`;
 
-            css += `\n.unemi-document-content table th, .unemi-document-content table thead tr, .unemi-document-content table tr[bgcolor] {`;
+            css += `\n.wp-document-content table th, .wp-document-content table thead tr, .wp-document-content table tr[bgcolor] {`;
             if (settings.tableHeaderBg) css += ` background-color: ${settings.tableHeaderBg} !important;`;
             if (settings.tableHeaderColor) css += ` color: ${settings.tableHeaderColor} !important;`;
             css += ` }`;
 
             if (settings.tableStriped) {
-              css += `\n.unemi-document-content table tbody tr:nth-child(even) {`;
+              css += `\n.wp-document-content table tbody tr:nth-child(even) {`;
               css += ` background-color: rgba(0, 0, 0, 0.03) !important;`;
               css += ` }`;
             }
@@ -2331,19 +2065,19 @@ export default function DocumentPreview({
           const rawInlineSize = settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px';
           const inlineSize = formatFontSize(rawInlineSize, '12px');
 
-          css += `\n.unemi-document-content pre, .unemi-document-content pre * {`;
+          css += `\n.wp-document-content pre, .wp-document-content pre * {`;
           css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
           css += ` font-size: ${blockSize} !important;`;
           css += ` text-indent: 0px !important;`;
           css += ` }`;
 
-          css += `\n.unemi-document-content code:not(pre code) {`;
+          css += `\n.wp-document-content code:not(pre code) {`;
           css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
           css += ` font-size: ${inlineSize} !important;`;
           css += ` text-indent: 0px !important;`;
           css += ` }`;
           
-          css += `\n.unemi-document-content pre {`;
+          css += `\n.wp-document-content pre {`;
           css += ` padding: 12px 16px !important;`;
           css += ` margin: 16px 0 !important;`;
           css += ` border-radius: 6px !important;`;
@@ -2383,7 +2117,7 @@ export default function DocumentPreview({
             inlineBorder = '#cbd5e1';
           }
 
-          css += `\n.unemi-document-content code:not(pre code) {`;
+          css += `\n.wp-document-content code:not(pre code) {`;
           css += ` background-color: ${inlineBg} !important;`;
           css += ` color: ${inlineColor} !important;`;
           css += ` padding: 2px 5px !important;`;
@@ -2397,64 +2131,64 @@ export default function DocumentPreview({
           css += ` }`;
           
           if (blockTheme === 'dracula') {
-            css += `\n.unemi-document-content pre { background-color: #282a36 !important; border: 1px solid #44475a !important; color: #f8f8f2 !important; }`;
-            css += `\n.unemi-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
-            css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #6272a4 !important; font-style: italic !important; }`;
-            css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #ff79c6 !important; }`;
-            css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #f1fa8c !important; }`;
-            css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #50fa7b !important; }`;
-            css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #bd93f9 !important; }`;
-            css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #f8f8f2 !important; }`;
+            css += `\n.wp-document-content pre { background-color: #282a36 !important; border: 1px solid #44475a !important; color: #f8f8f2 !important; }`;
+            css += `\n.wp-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
+            css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #6272a4 !important; font-style: italic !important; }`;
+            css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #ff79c6 !important; }`;
+            css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #f1fa8c !important; }`;
+            css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #50fa7b !important; }`;
+            css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #bd93f9 !important; }`;
+            css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #f8f8f2 !important; }`;
           } else if (blockTheme === 'monokai') {
-            css += `\n.unemi-document-content pre { background-color: #272822 !important; border: 1px solid #3e3d32 !important; color: #f8f8f2 !important; }`;
-            css += `\n.unemi-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
-            css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #75715e !important; font-style: italic !important; }`;
-            css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #f92672 !important; }`;
-            css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #e6db74 !important; }`;
-            css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #a6e22e !important; }`;
-            css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #ae81ff !important; }`;
-            css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #f8f8f2 !important; }`;
+            css += `\n.wp-document-content pre { background-color: #272822 !important; border: 1px solid #3e3d32 !important; color: #f8f8f2 !important; }`;
+            css += `\n.wp-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
+            css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #75715e !important; font-style: italic !important; }`;
+            css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #f92672 !important; }`;
+            css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #e6db74 !important; }`;
+            css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #a6e22e !important; }`;
+            css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #ae81ff !important; }`;
+            css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #f8f8f2 !important; }`;
           } else if (blockTheme === 'github-light') {
-            css += `\n.unemi-document-content pre { background-color: #f6f8fa !important; border: 1px solid #d0d7de !important; color: #24292f !important; }`;
-            css += `\n.unemi-document-content pre code { color: #24292f !important; background-color: transparent !important; padding: 0 !important; }`;
-            css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #6e7781 !important; font-style: italic !important; }`;
-            css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #cf222e !important; font-weight: bold !important; }`;
-            css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #0a3069 !important; }`;
-            css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #8250df !important; }`;
-            css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #0550ae !important; }`;
-            css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #24292f !important; }`;
+            css += `\n.wp-document-content pre { background-color: #f6f8fa !important; border: 1px solid #d0d7de !important; color: #24292f !important; }`;
+            css += `\n.wp-document-content pre code { color: #24292f !important; background-color: transparent !important; padding: 0 !important; }`;
+            css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #6e7781 !important; font-style: italic !important; }`;
+            css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #cf222e !important; font-weight: bold !important; }`;
+            css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #0a3069 !important; }`;
+            css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #8250df !important; }`;
+            css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #0550ae !important; }`;
+            css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #24292f !important; }`;
           } else if (blockTheme === 'solarized-light') {
-            css += `\n.unemi-document-content pre { background-color: #fdf6e3 !important; border: 1px solid #efe8d4 !important; color: #657b83 !important; }`;
-            css += `\n.unemi-document-content pre code { color: #657b83 !important; background-color: transparent !important; padding: 0 !important; }`;
-            css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #93a1a1 !important; font-style: italic !important; }`;
-            css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #859900 !important; }`;
-            css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #2aa198 !important; }`;
-            css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #268bd2 !important; }`;
-            css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #d33682 !important; }`;
-            css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #586e75 !important; }`;
+            css += `\n.wp-document-content pre { background-color: #fdf6e3 !important; border: 1px solid #efe8d4 !important; color: #657b83 !important; }`;
+            css += `\n.wp-document-content pre code { color: #657b83 !important; background-color: transparent !important; padding: 0 !important; }`;
+            css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #93a1a1 !important; font-style: italic !important; }`;
+            css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #859900 !important; }`;
+            css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #2aa198 !important; }`;
+            css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #268bd2 !important; }`;
+            css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #d33682 !important; }`;
+            css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #586e75 !important; }`;
           } else if (blockTheme === 'nord') {
-            css += `\n.unemi-document-content pre { background-color: #2e3440 !important; border: 1px solid #3b4252 !important; color: #d8dee9 !important; }`;
-            css += `\n.unemi-document-content pre code { color: #d8dee9 !important; background-color: transparent !important; padding: 0 !important; }`;
-            css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #4c566a !important; font-style: italic !important; }`;
-            css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #81a1c1 !important; }`;
-            css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #a3be8c !important; }`;
-            css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #88c0d0 !important; }`;
-            css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #b48ead !important; }`;
-            css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #eceff4 !important; }`;
+            css += `\n.wp-document-content pre { background-color: #2e3440 !important; border: 1px solid #3b4252 !important; color: #d8dee9 !important; }`;
+            css += `\n.wp-document-content pre code { color: #d8dee9 !important; background-color: transparent !important; padding: 0 !important; }`;
+            css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #4c566a !important; font-style: italic !important; }`;
+            css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #81a1c1 !important; }`;
+            css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #a3be8c !important; }`;
+            css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #88c0d0 !important; }`;
+            css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #b48ead !important; }`;
+            css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #eceff4 !important; }`;
           } else {
             // academic / default
-            css += `\n.unemi-document-content pre { background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; }`;
-            css += `\n.unemi-document-content pre code { color: #0f172a !important; background-color: transparent !important; padding: 0 !important; }`;
-            css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #64748b !important; font-style: italic !important; }`;
-            css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #0f172a !important; font-weight: bold !important; }`;
-            css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #0f172a !important; font-style: italic !important; }`;
-            css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #0f172a !important; }`;
-            css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #0f172a !important; }`;
-            css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #0f172a !important; }`;
+            css += `\n.wp-document-content pre { background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; }`;
+            css += `\n.wp-document-content pre code { color: #0f172a !important; background-color: transparent !important; padding: 0 !important; }`;
+            css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #64748b !important; font-style: italic !important; }`;
+            css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #0f172a !important; font-weight: bold !important; }`;
+            css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #0f172a !important; font-style: italic !important; }`;
+            css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #0f172a !important; }`;
+            css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #0f172a !important; }`;
+            css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #0f172a !important; }`;
           }
 
           css += `
-          .unemi-margin-element img {
+          .wp-margin-element img {
             width: 100% !important;
             height: 100% !important;
             object-fit: fill !important;
@@ -2468,7 +2202,7 @@ export default function DocumentPreview({
   <!-- SYNCED_MODE_V2 -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${exportFileName || cover.title || 'Plantilla de Documento UNEMI'}</title>
+  <title>${exportFileName || cover.title || 'Plantilla de Documento WP'}</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -2478,8 +2212,29 @@ export default function DocumentPreview({
   <!-- PrismJS tomorrow dark theme for code blocks -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
  
-  <style id="unemi-preview-style-v2">` + `
+  <style id="wp-preview-style-v2">` + `
     /* UNIQUE_SYNCED_V2 */
+    .wp-document-content *:not(.katex):not(.katex *):not(table):not(thead):not(tbody):not(tr):not(th):not(td):not(figure):not(.note):not(hr),
+    .wp-document-content *::before,
+    .wp-document-content *::after,
+    .wp-template-content *:not(.katex):not(.katex *):not(table):not(thead):not(tbody):not(tr):not(th):not(td):not(figure):not(.note):not(hr),
+    .wp-template-content *::before,
+    .wp-template-content *::after,
+    .document-rendered-container *:not(.katex):not(.katex *):not(table):not(thead):not(tbody):not(tr):not(th):not(td):not(figure):not(.note):not(hr),
+    .continuous-page-boundary {
+      border: 0px none transparent !important;
+      border-width: 0px !important;
+      border-style: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
+    .katex .frac-line {
+      border-bottom-style: solid !important;
+      border-bottom-width: 0.04em !important;
+      border-bottom-color: currentColor !important;
+      display: inline-block !important;
+    }
     /* SYNCED_MODE_V2_STYLE_START */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
     
@@ -2488,7 +2243,7 @@ export default function DocumentPreview({
     }
 
     /* APA 7 Run-in (inline) Headings */
-    .unemi-document-content .apa-runin {
+    .wp-document-content .apa-runin {
       display: inline !important;
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
@@ -2496,25 +2251,25 @@ export default function DocumentPreview({
       line-height: 1.8 !important;
     }
 
-    .unemi-document-content .apa-runin.apa-level1 {
+    .wp-document-content .apa-runin.apa-level1 {
       font-weight: bold !important;
     }
 
-    .unemi-document-content .apa-runin.apa-level2 {
+    .wp-document-content .apa-runin.apa-level2 {
       font-weight: bold !important;
     }
 
-    .unemi-document-content .apa-runin.apa-level3 {
+    .wp-document-content .apa-runin.apa-level3 {
       font-weight: bold !important;
       font-style: italic !important;
     }
 
-    .unemi-document-content .apa-runin.apa-level4 {
+    .wp-document-content .apa-runin.apa-level4 {
       font-weight: bold !important;
       padding-left: 0px !important;
     }
 
-    .unemi-document-content .apa-runin.apa-level5 {
+    .wp-document-content .apa-runin.apa-level5 {
       font-weight: bold !important;
       font-style: italic !important;
       padding-left: 0px !important;
@@ -2557,7 +2312,7 @@ export default function DocumentPreview({
       height: ${paperHeight} !important;
     }
 
-    #unemi-cover-page {
+    #wp-cover-page {
       position: relative !important;
       background-color: #ffffff !important;
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
@@ -2575,112 +2330,133 @@ export default function DocumentPreview({
 
     .absolute { position: absolute !important; }
     
-    .unemi-document-content {
+    .wp-document-content {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
-      line-height: 1.8 !important;
+      line-height: 200% !important;
       color: #000000 !important;
       text-align: left !important;
     }
 
-    .unemi-document-content h1 {
+    .wp-document-content h1 {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
       color: #000000 !important;
       text-transform: none !important;
       text-align: center !important;
-      margin-top: 24px !important;
-      margin-bottom: 12px !important;
+      text-indent: 0px !important;
+      margin-top: 0px !important;
+      margin-bottom: 0px !important;
+      line-height: 200% !important;
       padding-bottom: 0 !important;
-      border-bottom: none !important;
+      border-bottom: 0px none transparent !important;
+      border-width: 0px !important;
+      border-style: none !important;
       position: relative !important;
     }
 
-    .unemi-document-content h1::after {
+    .wp-document-content h1::after {
       display: none !important;
       content: none !important;
     }
 
-    .unemi-document-content h2 {
+    .wp-document-content h2 {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
       color: #000000 !important;
       text-align: left !important;
-      margin-top: 18px !important;
-      margin-bottom: 8px !important;
+      text-indent: 0px !important;
+      margin-top: 0px !important;
+      margin-bottom: 0px !important;
+      line-height: 200% !important;
     }
 
-    .unemi-document-content h3 {
-      font-family: "Times New Roman", Times, Georgia, serif !important;
-      font-size: 16px !important;
-      font-weight: bold !important;
-      font-style: italic !important;
-      color: #000000 !important;
-      text-align: left !important;
-      margin-top: 12px !important;
-      margin-bottom: 6px !important;
-    }
-
-    .unemi-document-content h4 {
-      font-family: "Times New Roman", Times, Georgia, serif !important;
-      font-size: 16px !important;
-      font-weight: bold !important;
-      color: #000000 !important;
-      text-align: left !important;
-      text-indent: 0.5in !important;
-      margin-top: 10px !important;
-      margin-bottom: 4px !important;
-    }
-
-    .unemi-document-content h5 {
+    .wp-document-content h3 {
       font-family: "Times New Roman", Times, Georgia, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
       font-style: italic !important;
       color: #000000 !important;
       text-align: left !important;
-      text-indent: 0.5in !important;
-      margin-top: 10px !important;
-      margin-bottom: 4px !important;
+      text-indent: 0px !important;
+      margin-top: 0px !important;
+      margin-bottom: 0px !important;
+      line-height: 200% !important;
     }
 
-    .unemi-document-content p {
+    .wp-document-content h4 {
+      font-family: "Times New Roman", Times, Georgia, serif !important;
+      font-size: 16px !important;
+      font-weight: bold !important;
+      color: #000000 !important;
+      text-align: left !important;
+      text-indent: 0.5in !important;
+      margin-top: 0px !important;
+      margin-bottom: 0px !important;
+      line-height: 200% !important;
+    }
+
+    .wp-document-content h5 {
+      font-family: "Times New Roman", Times, Georgia, serif !important;
+      font-size: 16px !important;
+      font-weight: bold !important;
+      font-style: italic !important;
+      color: #000000 !important;
+      text-align: left !important;
+      text-indent: 0.5in !important;
+      margin-top: 0px !important;
+      margin-bottom: 0px !important;
+      line-height: 200% !important;
+    }
+
+    .wp-document-content p {
       margin-top: 0 !important;
-      margin-bottom: 12px !important;
-      line-height: 1.8 !important;
+      margin-bottom: 0px !important;
+      line-height: 200% !important;
+      text-indent: 0.5in !important;
+      text-align: left !important;
+      border: 0px none transparent !important;
+      border-width: 0px !important;
+      border-style: none !important;
+      outline: none !important;
+      box-shadow: none !important;
     }
 
-    .unemi-document-content ul:not(.toc-list) {
+    .wp-document-content p:has(.apa-runin) {
+      text-indent: 0px !important;
+    }
+
+    .wp-document-content ul:not(.toc-list) {
       list-style-type: disc !important;
       padding-left: 0.5in !important;
       margin-bottom: 12px !important;
     }
 
-    .unemi-document-content ul:not(.toc-list) li:not(.toc-item) {
+    .wp-document-content ul:not(.toc-list) li:not(.toc-item) {
       position: relative !important;
       margin-bottom: 6px !important;
       line-height: 1.8 !important;
     }
 
-    .unemi-document-content ul:not(.toc-list) li:not(.toc-item)::before {
+    .wp-document-content ul:not(.toc-list) li:not(.toc-item)::before {
       display: none;
       content: none;
     }
 
-    .unemi-document-content ol {
+    .wp-document-content ol {
       list-style-type: decimal !important;
       padding-left: 0.5in !important;
       margin-bottom: 12px !important;
     }
 
-    .unemi-document-content ol li {
+    .wp-document-content ol li {
       margin-bottom: 6px !important;
       line-height: 1.8 !important;
     }
 
-    .unemi-document-content .note {
+    .wp-document-content .note {
       border-left: 3px solid #000000 !important;
       background-color: #f8fafc !important;
       padding: 12px 14px !important;
@@ -2691,7 +2467,7 @@ export default function DocumentPreview({
       color: #000000 !important;
     }
 
-    .unemi-document-content blockquote {
+    .wp-document-content blockquote {
       border-left: none !important;
       background-color: transparent !important;
       padding: 0 !important;
@@ -2701,7 +2477,7 @@ export default function DocumentPreview({
       color: #000000 !important;
     }
 
-    .unemi-document-content figure {
+    .wp-document-content figure {
       display: block !important;
       margin: 16px auto !important;
       border: 1px solid #e2e8f0 !important;
@@ -2712,8 +2488,8 @@ export default function DocumentPreview({
       box-sizing: border-box !important;
     }
 
-    .unemi-document-content figure.mw-default-size,
-    .unemi-document-content figure[class*="thumb"] {
+    .wp-document-content figure.mw-default-size,
+    .wp-document-content figure[class*="thumb"] {
       float: right !important;
       margin-left: 18px !important;
       margin-top: 4px !important;
@@ -2721,7 +2497,7 @@ export default function DocumentPreview({
       width: 220px !important;
     }
 
-    .unemi-document-content figcaption {
+    .wp-document-content figcaption {
       font-family: "Inter", sans-serif !important;
       font-size: 10.5px !important;
       color: #64748b !important;
@@ -2731,8 +2507,8 @@ export default function DocumentPreview({
       font-style: italic !important;
     }
 
-    .unemi-document-content img,
-    .unemi-document-content .mw-file-element {
+    .wp-document-content img,
+    .wp-document-content .mw-file-element {
       max-width: 100% !important;
       height: auto !important;
       display: block !important;
@@ -2740,7 +2516,7 @@ export default function DocumentPreview({
       border-radius: 2px !important;
     }
 
-    .unemi-academic-header {
+    .wp-academic-header {
       position: absolute !important;
       top: ${Math.max(10, topMargin - 60)}px !important;
       left: ${leftMargin}px !important;
@@ -2754,7 +2530,7 @@ export default function DocumentPreview({
       z-index: 10 !important;
     }
     
-    .unemi-academic-footer {
+    .wp-academic-footer {
       position: absolute !important;
       text-align: center !important;
       bottom: ${Math.max(10, bottomMargin - 50)}px !important;
@@ -2770,7 +2546,7 @@ export default function DocumentPreview({
     }
 
     @media print {
-      #unemi-academic-toolbar, .print\:hidden, .print-hidden {
+      #wp-academic-toolbar, .print\:hidden, .print-hidden {
         display: none !important;
         opacity: 0 !important;
         visibility: hidden !important;
@@ -2805,7 +2581,7 @@ export default function DocumentPreview({
         page-break-after: avoid !important;
         break-after: avoid !important;
       }
-      #unemi-cover-page {
+      #wp-cover-page {
         box-shadow: none !important;
         border: none !important;
         page-break-after: always !important;
@@ -2841,27 +2617,27 @@ export default function DocumentPreview({
     
     ${settings.autoNumberHeadings ? `
     body, .document-rendered-container {
-      counter-reset: unemi-h1-counter !important;
+      counter-reset: wp-h1-counter !important;
     }
-    .unemi-document-content h1 {
-      counter-reset: unemi-h2-counter !important;
-      counter-increment: unemi-h1-counter !important;
+    .wp-document-content h1 {
+      counter-reset: wp-h2-counter !important;
+      counter-increment: wp-h1-counter !important;
     }
-    .unemi-document-content h1::before {
-      content: counter(unemi-h1-counter) ". " !important;
+    .wp-document-content h1::before {
+      content: counter(wp-h1-counter) ". " !important;
     }
-    .unemi-document-content h2 {
-      counter-reset: unemi-h3-counter !important;
-      counter-increment: unemi-h2-counter !important;
+    .wp-document-content h2 {
+      counter-reset: wp-h3-counter !important;
+      counter-increment: wp-h2-counter !important;
     }
-    .unemi-document-content h2::before {
-      content: counter(unemi-h1-counter) "." counter(unemi-h2-counter) " " !important;
+    .wp-document-content h2::before {
+      content: counter(wp-h1-counter) "." counter(wp-h2-counter) " " !important;
     }
-    .unemi-document-content h3 {
-      counter-increment: unemi-h3-counter !important;
+    .wp-document-content h3 {
+      counter-increment: wp-h3-counter !important;
     }
-    .unemi-document-content h3::before {
-      content: counter(unemi-h1-counter) "." counter(unemi-h2-counter) "." counter(unemi-h3-counter) " " !important;
+    .wp-document-content h3::before {
+      content: counter(wp-h1-counter) "." counter(wp-h2-counter) "." counter(wp-h3-counter) " " !important;
     }
     ` : ''}
   </style>
@@ -2873,307 +2649,22 @@ export default function DocumentPreview({
     ${pagesHTML}
   </div>
 
-  <!-- Presentation Mode Logic -->
   <script>
     document.addEventListener("DOMContentLoaded", function() {
-      var inPresentationMode = false;
-      var currentPageIndex = 0;
-      var pages = Array.from(document.querySelectorAll('#unemi-cover-page, div[name^="document-page-"]'));
-      var container = document.querySelector('.document-rendered-container');
-      var hudTimeout = null;
-      var presentationScale = 1.0;
-
-      function updatePageVisibility() {
-        if (!inPresentationMode) return;
-        var viewportWidth = window.innerWidth;
-        var viewportHeight = window.innerHeight;
-
-        pages.forEach(function(page, idx) {
-          if (idx === currentPageIndex) {
-            page.style.setProperty('display', 'flex', 'important');
-            var pageWidth = page.offsetWidth || 816;
-            var pageHeight = page.offsetHeight || 1056;
-
-            var maxWidth = viewportWidth * 0.94;
-            var maxHeight = viewportHeight * 0.94;
-
-            var scaleX = maxWidth / pageWidth;
-            var scaleY = maxHeight / pageHeight;
-
-            var fitScale = Math.min(scaleX, scaleY);
-
-            page.style.setProperty('transform', 'scale(' + (fitScale * presentationScale) + ')', 'important');
-            page.style.setProperty('transform-origin', 'center center', 'important');
-            page.style.setProperty('margin', '0 auto', 'important');
-          } else {
-            page.style.setProperty('display', 'none', 'important');
-          }
-        });
-        window.scrollTo({ top: 0, left: 0 });
-        if (container) {
-          container.scrollTop = 0;
-          container.scrollLeft = 0;
-        }
-      }
-
-      function startPresentation() {
-        inPresentationMode = true;
-        currentPageIndex = 0;
-        presentationScale = 1.0;
-        
-        var toolbar = document.getElementById('unemi-academic-toolbar');
-        if (toolbar) toolbar.style.setProperty('display', 'none', 'important');
-        
-        container.classList.add('bg-slate-950', 'w-screen', 'h-screen', 'fixed', 'inset-0', 'z-40', 'overflow-hidden', 'flex', 'justify-center', 'items-center', 'p-4');
-        
-        container.style.setProperty('gap', '0px', 'important');
-        container.style.setProperty('padding', '0px', 'important');
-        container.style.setProperty('display', 'flex', 'important');
-        container.style.setProperty('align-items', 'center', 'important');
-        container.style.setProperty('justify-content', 'center', 'important');
-        
-        try {
-          var de = document.documentElement;
-          if (de.requestFullscreen) {
-            de.requestFullscreen();
-          } else if (de.webkitRequestFullscreen) {
-            de.webkitRequestFullscreen();
-          } else if (de.msRequestFullscreen) {
-            de.msRequestFullscreen();
-          }
-        } catch (err) {
-          console.error("Fullscreen request failed:", err);
-        }
-        
-        var hud = document.getElementById('unemi-presentation-hud');
-        if (!hud) {
-          hud = document.createElement('div');
-          hud.id = 'unemi-presentation-hud';
-          hud.style.cssText = 'position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.95); border: 1.5px solid #FF6600; padding: 12px 24px; border-radius: 12px; color: #ffffff; font-family: "Inter", system-ui, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.75px; text-transform: uppercase; display: flex; align-items: center; gap: 18px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); z-index: 10000; transition: opacity 0.5s ease; pointer-events: none;';
-          hud.innerHTML = \`
-            <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #FF6600; font-family: monospace;">[CLICK / ESPACIO / &rarr;]</span> Siguiente</span>
-            <span style="opacity: 0.3;">|</span>
-            <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #FF6600; font-family: monospace;">[&larr;]</span> Anterior</span>
-            <span style="opacity: 0.3;">|</span>
-            <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #FF6600; font-family: monospace;">[RUEDA / PINCH]</span> Zoom</span>
-            <span style="opacity: 0.3;">|</span>
-            <span style="display: flex; align-items: center; gap: 6px;"><span style="color: #FF6600; font-family: monospace;">[ESC]</span> Salir</span>
-          \`;
-          document.body.appendChild(hud);
-        }
-        hud.style.opacity = '1';
-        
-        if (hudTimeout) clearTimeout(hudTimeout);
-        hudTimeout = setTimeout(function() {
-          hud.style.opacity = '0';
-        }, 3000);
-
-        updatePageVisibility();
-      }
-
-      function stopPresentation() {
-        inPresentationMode = false;
-        presentationScale = 1.0;
-        
-        try {
-          if (document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement) {
-            if (document.exitFullscreen) {
-              document.exitFullscreen();
-            } else if (document.webkitExitFullscreen) {
-              document.webkitExitFullscreen();
-            } else if (document.msExitFullscreen) {
-              document.msExitFullscreen();
-            }
-          }
-        } catch (err) {
-          console.error("Fullscreen exit failed:", err);
-        }
-        
-        var toolbar = document.getElementById('unemi-academic-toolbar');
-        if (toolbar) toolbar.style.setProperty('display', 'flex', 'important');
-        
-        var hud = document.getElementById('unemi-presentation-hud');
-        if (hud) hud.style.opacity = '0';
-        
-        pages.forEach(function(page) {
-          page.style.removeProperty('display');
-          page.style.removeProperty('transform');
-          page.style.removeProperty('transform-origin');
-          page.style.removeProperty('margin');
-        });
-        
-        container.style.removeProperty('gap');
-        container.style.removeProperty('padding');
-        container.style.removeProperty('display');
-        container.style.removeProperty('align-items');
-        container.style.removeProperty('justify-content');
-        
-        container.classList.remove('bg-slate-950', 'w-screen', 'h-screen', 'fixed', 'inset-0', 'z-40', 'overflow-hidden', 'flex', 'justify-center', 'items-center', 'p-4');
-      }
-
-      function nextPage() {
-        if (currentPageIndex < pages.length - 1) {
-          currentPageIndex++;
-          updatePageVisibility();
-        }
-      }
-
-      function prevPage() {
-        if (currentPageIndex > 0) {
-          currentPageIndex--;
-          updatePageVisibility();
-        }
-      }
-
-      var startBtn = document.getElementById('unemi-start-presentation');
-      if (startBtn) startBtn.addEventListener('click', startPresentation);
-
-      window.addEventListener('click', function(e) {
-        if (!inPresentationMode) return;
-        if (e.target === container || e.target === document.documentElement || e.target === document.body) {
-          nextPage();
-        }
-      });
+      var pages = Array.from(document.querySelectorAll('#wp-cover-page, div[name^="document-page-"]'));
 
       window.addEventListener('beforeprint', function() {
-        var toolbar = document.getElementById('unemi-academic-toolbar');
+        var toolbar = document.getElementById('wp-academic-toolbar');
         if (toolbar) {
           toolbar.style.setProperty('display', 'none', 'important');
         }
       });
       window.addEventListener('afterprint', function() {
-        var toolbar = document.getElementById('unemi-academic-toolbar');
-        if (toolbar && !inPresentationMode) {
+        var toolbar = document.getElementById('wp-academic-toolbar');
+        if (toolbar) {
           toolbar.style.setProperty('display', 'flex', 'important');
         }
       });
-
-      window.addEventListener('wheel', function(e) {
-        if (!inPresentationMode) return;
-        e.preventDefault();
-        var delta = -e.deltaY;
-        var baseFactor = e.ctrlKey ? 0.0008 : 0.0003;
-        var scaleChange = delta * baseFactor;
-        scaleChange = Math.min(Math.max(scaleChange, -0.05), 0.05);
-        presentationScale = Math.min(Math.max(presentationScale + scaleChange, 0.3), 4.0);
-        updatePageVisibility();
-      }, { passive: false });
-
-      var initialTouchDist = null;
-      var startPinchScale = 1.0;
-
-      function getTouchDistance(touches) {
-        var dx = touches[0].clientX - touches[1].clientX;
-        var dy = touches[0].clientY - touches[1].clientY;
-        return Math.sqrt(dx * dx + dy * dy);
-      }
-
-      window.addEventListener('touchstart', function(e) {
-        if (!inPresentationMode) return;
-        if (e.touches.length === 2) {
-          initialTouchDist = getTouchDistance(e.touches);
-          startPinchScale = presentationScale;
-          e.preventDefault();
-        }
-      }, { passive: false });
-
-      window.addEventListener('touchmove', function(e) {
-        if (!inPresentationMode) return;
-        if (e.touches.length === 2 && initialTouchDist !== null) {
-          e.preventDefault();
-          var dist = getTouchDistance(e.touches);
-          var ratio = dist / initialTouchDist;
-          var smoothRatio = 1.0 + (ratio - 1.0) * 0.15;
-          presentationScale = Math.min(Math.max(startPinchScale * smoothRatio, 0.3), 4.0);
-          updatePageVisibility();
-        }
-      }, { passive: false });
-
-      window.addEventListener('touchend', function(e) {
-        if (!inPresentationMode) return;
-        if (e.touches.length < 2) {
-          initialTouchDist = null;
-        }
-      });
-
-      window.addEventListener('keydown', function(e) {
-        if (!inPresentationMode) return;
-        if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {
-          nextPage();
-          e.preventDefault();
-        } else if (e.key === 'ArrowLeft' || e.key === 'Backspace') {
-          prevPage();
-          e.preventDefault();
-        } else if (e.key === 'Escape') {
-          stopPresentation();
-          e.preventDefault();
-        }
-      });
-
-      function onFullscreenChange() {
-        var isFS = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
-        if (!isFS && inPresentationMode) {
-          stopPresentation();
-        }
-      }
-      document.addEventListener('fullscreenchange', onFullscreenChange);
-      document.addEventListener('webkitfullscreenchange', onFullscreenChange);
-      document.addEventListener('msfullscreenchange', onFullscreenChange);
-
-      window.addEventListener('resize', function() {
-        if (inPresentationMode) {
-          updatePageVisibility();
-        }
-      });
-
-      function syncIframes() {
-        pages.forEach(function(page, idx) {
-          var blocks = page.querySelectorAll('.unemi-functional-block');
-          blocks.forEach(function(block) {
-            var template = block.querySelector('.unemi-functional-template');
-            if (!template) return;
-            
-            var isPageActive = !inPresentationMode || (idx === currentPageIndex);
-            var existingIframe = block.querySelector('iframe');
-            
-            if (isPageActive) {
-              var srcDocContent = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><style>html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow: hidden !important; background-color: transparent !important; }</style></head><body>' + template.innerHTML + '</body></html>';
-              
-              if (!existingIframe) {
-                var iframe = document.createElement('iframe');
-                iframe.title = 'functional-block-' + block.getAttribute('data-block-id');
-                iframe.setAttribute('sandbox', 'allow-scripts allow-modals allow-same-origin');
-                iframe.style.cssText = 'width: 100%; height: 100%; border: none; overflow: hidden; display: block; flex: 1;';
-                iframe.setAttribute('scrolling', 'no');
-                iframe.srcdoc = srcDocContent;
-                block.appendChild(iframe);
-              } else {
-                if (existingIframe.srcdoc !== srcDocContent) {
-                  existingIframe.srcdoc = srcDocContent;
-                }
-              }
-            } else {
-              if (existingIframe) {
-                existingIframe.remove();
-              }
-            }
-          });
-        });
-      }
-
-      var originalUpdatePageVisibility = updatePageVisibility;
-      updatePageVisibility = function() {
-        originalUpdatePageVisibility();
-        syncIframes();
-      };
-
-      var originalStopPresentation = stopPresentation;
-      stopPresentation = function() {
-        originalStopPresentation();
-        syncIframes();
-      };
-
-      syncIframes();
     });
   </script>
 </body>
@@ -3186,9 +2677,10 @@ export default function DocumentPreview({
 
         // Avoid continuous reloads if the HTML is identical to the last synchronized HTML
         if (lastSyncHtmlRef.current === processedHTML) {
-          setIsSyncingServer(false);
           return;
         }
+
+        setIsSyncingServer(true);
 
         const response = await fetch('/api/save-preview', {
           method: 'POST',
@@ -3208,48 +2700,16 @@ export default function DocumentPreview({
       } finally {
         setIsSyncingServer(false);
       }
-    }, 700);
+    }, interactiveSyncDelay);
 
     return () => clearTimeout(timer);
-  }, [compiledCover, compiledSettings, compiledHtmlContent, compiledHtmlBlocks, compiledBibliography, compiledUploadedFiles, paginatedPages, previewMode]);
+  }, [compiledCover, compiledSettings, compiledHtmlContent, compiledHtmlBlocks, compiledBibliography, compiledUploadedFiles, paginatedPages, previewMode, interactiveSyncDelay]);
 
   useEffect(() => {
     if (serverPreviewId) {
       setIsScrollSyncing(true);
     }
   }, [serverPreviewId]);
-
-  // Local React preview iframe sync for functional blocks
-  useEffect(() => {
-    if (previewMode === 'server' || recalculating) return;
-
-    const pageContainers = document.querySelectorAll('.unemi-document-body');
-    pageContainers.forEach((container) => {
-      const blocks = container.querySelectorAll('.unemi-functional-block');
-      blocks.forEach((block) => {
-        const blockId = block.getAttribute('data-block-id');
-        if (!blockId) return;
-
-        const template = block.querySelector('.unemi-functional-template') as HTMLTemplateElement;
-        if (!template) return;
-
-        let iframe = block.querySelector('iframe') as HTMLIFrameElement;
-        if (!iframe) {
-          iframe = document.createElement('iframe');
-          iframe.title = `functional-block-${blockId}`;
-          iframe.setAttribute('sandbox', 'allow-scripts allow-modals allow-same-origin');
-          iframe.style.cssText = 'width: 100%; height: 100%; border: none; overflow: hidden; display: block; flex: 1;';
-          iframe.setAttribute('scrolling', 'no');
-          block.appendChild(iframe);
-        }
-
-        const srcDocContent = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><style>html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow: hidden !important; background-color: transparent !important; }</style></head><body>${template.innerHTML}</body></html>`;
-        if (iframe.srcdoc !== srcDocContent) {
-          iframe.srcdoc = srcDocContent;
-        }
-      });
-    });
-  }, [paginatedPages, previewMode, recalculating, htmlBlocks]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -3293,7 +2753,7 @@ export default function DocumentPreview({
 
     const timer = setTimeout(() => {
       // Find all rendered bodies in our preview DOM
-      const bodies = document.querySelectorAll('.unemi-document-body');
+      const bodies = document.querySelectorAll('.wp-document-body');
       
       // Clean up previously created inline dynamic scripts to prevent duplicates
       const existingDynamicScripts = document.querySelectorAll('.dynamic-inline-user-script');
@@ -3331,6 +2791,66 @@ export default function DocumentPreview({
 
     return () => clearTimeout(timer);
   }, [paginatedPages, resolvedHtmlContent]);
+
+  // OMML Clipboard Handler for Word (Active only when settings.pageSize === 'continuous')
+  useEffect(() => {
+    if (settings.pageSize !== 'continuous') return;
+
+    const handleCopy = (e: ClipboardEvent) => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+
+      const range = selection.getRangeAt(0);
+      const container = document.querySelector('.document-rendered-container') || document.body;
+      if (!container.contains(range.commonAncestorContainer) && !range.intersectsNode(container)) {
+        return;
+      }
+
+      const clone = document.createElement('div');
+      clone.appendChild(range.cloneContents());
+
+      // Ensure every KaTeX equation in the copied fragment contains the msEquation comment
+      const katexNodes = clone.querySelectorAll('.katex');
+      katexNodes.forEach((katexNode) => {
+        let hasComment = false;
+        for (let i = 0; i < katexNode.childNodes.length; i++) {
+          const child = katexNode.childNodes[i];
+          if (child.nodeType === Node.COMMENT_NODE && child.nodeValue?.includes('msEquation')) {
+            hasComment = true;
+            break;
+          }
+        }
+
+        if (!hasComment) {
+          const mathEl = katexNode.querySelector('.katex-mathml math') || katexNode.querySelector('math');
+          if (mathEl) {
+            const isDisplay = katexNode.classList.contains('katex-display') ||
+                              katexNode.parentElement?.classList.contains('katex-display') ||
+                              katexNode.closest('.katex-display') !== null;
+            const ommlXml = mathmlToOmml(mathEl.outerHTML, isDisplay);
+            if (ommlXml) {
+              const commentStr = `<!--[if gte msEquation 12]>${ommlXml}<![endif]-->`;
+              katexNode.insertAdjacentHTML('afterbegin', commentStr);
+            }
+          }
+        }
+      });
+
+      const htmlData = clone.innerHTML;
+      const textData = selection.toString();
+
+      if (e.clipboardData) {
+        e.clipboardData.setData('text/html', htmlData);
+        e.clipboardData.setData('text/plain', textData);
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('copy', handleCopy);
+    return () => {
+      document.removeEventListener('copy', handleCopy);
+    };
+  }, [settings.pageSize]);
 
   const isLetter = settings.pageSize === 'letter';
   const isA4 = settings.pageSize === 'a4';
@@ -3429,7 +2949,7 @@ export default function DocumentPreview({
 
       // Create a temporary measurement container with the exact same styles
       const tempMeasureContainer = document.createElement('div');
-      tempMeasureContainer.className = 'unemi-document-content';
+      tempMeasureContainer.className = 'wp-document-content';
       tempMeasureContainer.style.position = 'absolute';
       tempMeasureContainer.style.top = '-9999px';
       tempMeasureContainer.style.left = '-9999px';
@@ -3542,7 +3062,9 @@ export default function DocumentPreview({
 
         const thead = originalTable.querySelector('thead');
         if (thead) {
-          clone.appendChild(thead.cloneNode(true));
+          if (!isContinuation || (settings.repeatTableHeader ?? true)) {
+            clone.appendChild(thead.cloneNode(true));
+          }
         }
         
         const tbody = document.createElement('tbody');
@@ -3671,7 +3193,8 @@ export default function DocumentPreview({
                 pagesList.push([]);
                 accumulatedPageHeight = 0;
                 currentPartRows = [row];
-                currentPartHeight = theadHeight + 10 + rowHeight;
+                const shouldRepeatHeader = settings.repeatTableHeader ?? true;
+                currentPartHeight = (shouldRepeatHeader ? theadHeight : 0) + 10 + rowHeight;
               } else {
                 currentPartRows.push(row);
                 currentPartHeight += rowHeight;
@@ -4053,17 +3576,20 @@ export default function DocumentPreview({
         finalTOCPages = [];
       }
 
+      const hasCover = resolvedCover.enabled !== false;
+      const coverOffset = hasCover ? 1 : 0;
+
       // Assign the absolute page numbers based on the final TOC pages count
       finalTOCPages.forEach((tocPage) => {
         tocPage.forEach((heading) => {
           const relPage = heading.pageRelative !== undefined ? heading.pageRelative : 0;
-          heading.page = relPage + 2 + finalTOCPages.length;
+          heading.page = relPage + 1 + coverOffset + finalTOCPages.length;
         });
       });
 
       detectedHeadings.forEach((heading) => {
         const relPage = heading.pageRelative !== undefined ? heading.pageRelative : 0;
-        heading.page = relPage + 2 + (settings.showTOC ? finalTOCPages.length : 0);
+        heading.page = relPage + 1 + coverOffset + (settings.showTOC ? finalTOCPages.length : 0);
       });
 
       // Cleanup our temporary workspace
@@ -4073,14 +3599,14 @@ export default function DocumentPreview({
       setPaginatedPages(pagesList);
       setPaginatedTOCPages(finalTOCPages);
       setDynamicHeadings(detectedHeadings);
-      setPageCount(pagesList.length + 1 + (settings.showTOC ? finalTOCPages.length : 0)); // Content + Cover + TOC (if enabled)
+      setPageCount(pagesList.length + coverOffset + (settings.showTOC ? finalTOCPages.length : 0)); // Content + Cover (if enabled) + TOC (if enabled)
       
       setRecalculating(false);
     };
 
     // Run pagination
     handlePagination();
-  }, [resolvedHtmlContent, settings.pageSize, settings.orientation, settings.showTOC, settings.tocTitle, settings.blockStyleTOC, setPageCount, isLetter, leftMargin, rightMargin, topMargin, bottomMargin, pageHeight, settings.splitBlockCodeBorders, previewMode]);
+  }, [resolvedHtmlContent, settings.pageSize, settings.orientation, settings.showTOC, settings.tocTitle, settings.blockStyleTOC, setPageCount, isLetter, leftMargin, rightMargin, topMargin, bottomMargin, pageHeight, settings.splitBlockCodeBorders, previewMode, resolvedCover.enabled]);
 
   // Detector de Desbordes Gráfico: Encuentra elementos cuyo ancho o largo excede el espacio neto disponible de la página.
   useEffect(() => {
@@ -4089,7 +3615,7 @@ export default function DocumentPreview({
       return;
     }
     const timer = setTimeout(() => {
-      const bodies = document.querySelectorAll('.unemi-document-body');
+      const bodies = document.querySelectorAll('.wp-document-body');
       const scale = zoom / 100;
       const overflowsList: {
         id: string;
@@ -4172,7 +3698,7 @@ export default function DocumentPreview({
           // Check if height exceeds
           if (finalH > parentH + 10) {
             // Avoid flagging the main container itself or root layout utilities
-            if (!htmlEl.classList.contains('unemi-document-body')) {
+            if (!htmlEl.classList.contains('wp-document-body')) {
               isHOver = true;
             }
           }
@@ -4227,7 +3753,7 @@ export default function DocumentPreview({
     
     // H1
     if (settings.h1Size || settings.h1Font || settings.h1Align || settings.h1LineHeight || settings.h1Indent !== undefined || settings.h1Bold !== undefined || settings.h1Italic !== undefined || settings.h1Color) {
-      css += `\n.unemi-document-content h1 {`;
+      css += `\n.wp-document-content h1 {`;
       if (settings.h1Size) css += ` font-size: ${settings.h1Size} !important;`;
       if (settings.h1Font) css += ` font-family: "${settings.h1Font}", sans-serif !important;`;
       if (settings.h1Align) css += ` text-align: ${settings.h1Align} !important;`;
@@ -4241,7 +3767,7 @@ export default function DocumentPreview({
 
     // H2
     if (settings.h2Size || settings.h2Font || settings.h2Align || settings.h2LineHeight || settings.h2Indent !== undefined || settings.h2Bold !== undefined || settings.h2Italic !== undefined || settings.h2Color) {
-      css += `\n.unemi-document-content h2 {`;
+      css += `\n.wp-document-content h2 {`;
       if (settings.h2Size) css += ` font-size: ${settings.h2Size} !important;`;
       if (settings.h2Font) css += ` font-family: "${settings.h2Font}", sans-serif !important;`;
       if (settings.h2Align) css += ` text-align: ${settings.h2Align} !important;`;
@@ -4255,7 +3781,7 @@ export default function DocumentPreview({
 
     // P (Cuerpo de texto)
     if (settings.pSize || settings.pFont || settings.pAlign || settings.pLineHeight || settings.pIndent !== undefined || settings.pBold !== undefined || settings.pItalic !== undefined || settings.pColor) {
-      css += `\n.unemi-document-content, .unemi-document-content p, .unemi-document-content div:not(.unemi-academic-header):not(.unemi-academic-footer):not(.toc-container):not(.note):not(.math-expr):not(.unemi-bibliography-item):not(.unemi-bibliography-title) {`;
+      css += `\n.wp-document-content, .wp-document-content p, .wp-document-content div:not(.wp-academic-header):not(.wp-academic-footer):not(.toc-container):not(.note):not(.math-expr):not(.wp-bibliography-item):not(.wp-bibliography-title) {`;
       if (settings.pSize) css += ` font-size: ${settings.pSize} !important;`;
       if (settings.pFont) css += ` font-family: "${settings.pFont}", sans-serif !important;`;
       if (settings.pAlign) css += ` text-align: ${settings.pAlign} !important;`;
@@ -4270,14 +3796,14 @@ export default function DocumentPreview({
     // TABLAS (Custom table graphic formatting styles)
     if (settings.tableFontSize || settings.tableHeaderBg || settings.tableHeaderColor || settings.tableBorderColor || settings.tableCellPadding || settings.tableStriped || settings.tableBorderWidth) {
       css += `\n/* Table Formatting Rules */`;
-      css += `\n.unemi-document-content table {`;
+      css += `\n.wp-document-content table {`;
       css += `  word-wrap: break-word !important;`;
       css += `  border-collapse: collapse !important;`;
       if (settings.tableFontSize) css += ` font-size: ${settings.tableFontSize} !important;`;
       if (settings.tableBorderColor) css += ` border-color: ${settings.tableBorderColor} !important;`;
       css += ` }`;
 
-      css += `\n.unemi-document-content table th, .unemi-document-content table td {`;
+      css += `\n.wp-document-content table th, .wp-document-content table td {`;
       if (settings.tableCellPadding) {
         css += ` padding: ${settings.tableCellPadding} !important;`;
       }
@@ -4290,13 +3816,13 @@ export default function DocumentPreview({
       }
       css += ` }`;
 
-      css += `\n.unemi-document-content table th, .unemi-document-content table thead tr, .unemi-document-content table tr[bgcolor] {`;
+      css += `\n.wp-document-content table th, .wp-document-content table thead tr, .wp-document-content table tr[bgcolor] {`;
       if (settings.tableHeaderBg) css += ` background-color: ${settings.tableHeaderBg} !important;`;
       if (settings.tableHeaderColor) css += ` color: ${settings.tableHeaderColor} !important;`;
       css += ` }`;
 
       if (settings.tableStriped) {
-        css += `\n.unemi-document-content table tbody tr:nth-child(even) {`;
+        css += `\n.wp-document-content table tbody tr:nth-child(even) {`;
         css += ` background-color: rgba(0, 0, 0, 0.03) !important;`;
         css += ` }`;
       }
@@ -4310,19 +3836,19 @@ export default function DocumentPreview({
     const rawInlineSize = settings.inlineCodeSize !== undefined ? settings.inlineCodeSize : '12px';
     const inlineSize = formatFontSize(rawInlineSize, '12px');
 
-    css += `\n.unemi-document-content pre, .unemi-document-content pre * {`;
+    css += `\n.wp-document-content pre, .wp-document-content pre * {`;
     css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
     css += ` font-size: ${blockSize} !important;`;
     css += ` text-indent: 0px !important;`;
     css += ` }`;
 
-    css += `\n.unemi-document-content code:not(pre code) {`;
+    css += `\n.wp-document-content code:not(pre code) {`;
     css += ` font-family: "Fira Code", "Courier New", Courier, monospace !important;`;
     css += ` font-size: ${inlineSize} !important;`;
     css += ` text-indent: 0px !important;`;
     css += ` }`;
     
-    css += `\n.unemi-document-content pre {`;
+    css += `\n.wp-document-content pre {`;
     css += ` padding: 12px 16px !important;`;
     css += ` margin: 16px 0 !important;`;
     css += ` border-radius: 6px !important;`;
@@ -4362,7 +3888,7 @@ export default function DocumentPreview({
       inlineBorder = '#cbd5e1';
     }
 
-    css += `\n.unemi-document-content code:not(pre code) {`;
+    css += `\n.wp-document-content code:not(pre code) {`;
     css += ` background-color: ${inlineBg} !important;`;
     css += ` color: ${inlineColor} !important;`;
     css += ` padding: 2px 5px !important;`;
@@ -4376,60 +3902,60 @@ export default function DocumentPreview({
     css += ` }`;
     
     if (blockTheme === 'dracula') {
-      css += `\n.unemi-document-content pre { background-color: #282a36 !important; border: 1px solid #44475a !important; color: #f8f8f2 !important; }`;
-      css += `\n.unemi-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
-      css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #6272a4 !important; font-style: italic !important; }`;
-      css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #ff79c6 !important; }`;
-      css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #f1fa8c !important; }`;
-      css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #50fa7b !important; }`;
-      css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #bd93f9 !important; }`;
-      css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #f8f8f2 !important; }`;
+      css += `\n.wp-document-content pre { background-color: #282a36 !important; border: 1px solid #44475a !important; color: #f8f8f2 !important; }`;
+      css += `\n.wp-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
+      css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #6272a4 !important; font-style: italic !important; }`;
+      css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #ff79c6 !important; }`;
+      css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #f1fa8c !important; }`;
+      css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #50fa7b !important; }`;
+      css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #bd93f9 !important; }`;
+      css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #f8f8f2 !important; }`;
     } else if (blockTheme === 'monokai') {
-      css += `\n.unemi-document-content pre { background-color: #272822 !important; border: 1px solid #3e3d32 !important; color: #f8f8f2 !important; }`;
-      css += `\n.unemi-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
-      css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #75715e !important; font-style: italic !important; }`;
-      css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #f92672 !important; }`;
-      css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #e6db74 !important; }`;
-      css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #a6e22e !important; }`;
-      css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #ae81ff !important; }`;
-      css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #f8f8f2 !important; }`;
+      css += `\n.wp-document-content pre { background-color: #272822 !important; border: 1px solid #3e3d32 !important; color: #f8f8f2 !important; }`;
+      css += `\n.wp-document-content pre code { color: #f8f8f2 !important; background-color: transparent !important; padding: 0 !important; }`;
+      css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #75715e !important; font-style: italic !important; }`;
+      css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #f92672 !important; }`;
+      css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #e6db74 !important; }`;
+      css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #a6e22e !important; }`;
+      css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #ae81ff !important; }`;
+      css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #f8f8f2 !important; }`;
     } else if (blockTheme === 'github-light') {
-      css += `\n.unemi-document-content pre { background-color: #f6f8fa !important; border: 1px solid #d0d7de !important; color: #24292f !important; }`;
-      css += `\n.unemi-document-content pre code { color: #24292f !important; background-color: transparent !important; padding: 0 !important; }`;
-      css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #6e7781 !important; font-style: italic !important; }`;
-      css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #cf222e !important; font-weight: bold !important; }`;
-      css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #0a3069 !important; }`;
-      css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #8250df !important; }`;
-      css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #0550ae !important; }`;
-      css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #24292f !important; }`;
+      css += `\n.wp-document-content pre { background-color: #f6f8fa !important; border: 1px solid #d0d7de !important; color: #24292f !important; }`;
+      css += `\n.wp-document-content pre code { color: #24292f !important; background-color: transparent !important; padding: 0 !important; }`;
+      css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #6e7781 !important; font-style: italic !important; }`;
+      css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #cf222e !important; font-weight: bold !important; }`;
+      css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #0a3069 !important; }`;
+      css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #8250df !important; }`;
+      css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #0550ae !important; }`;
+      css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #24292f !important; }`;
     } else if (blockTheme === 'solarized-light') {
-      css += `\n.unemi-document-content pre { background-color: #fdf6e3 !important; border: 1px solid #efe8d4 !important; color: #657b83 !important; }`;
-      css += `\n.unemi-document-content pre code { color: #657b83 !important; background-color: transparent !important; padding: 0 !important; }`;
-      css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #93a1a1 !important; font-style: italic !important; }`;
-      css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #859900 !important; }`;
-      css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #2aa198 !important; }`;
-      css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #268bd2 !important; }`;
-      css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #d33682 !important; }`;
-      css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #586e75 !important; }`;
+      css += `\n.wp-document-content pre { background-color: #fdf6e3 !important; border: 1px solid #efe8d4 !important; color: #657b83 !important; }`;
+      css += `\n.wp-document-content pre code { color: #657b83 !important; background-color: transparent !important; padding: 0 !important; }`;
+      css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #93a1a1 !important; font-style: italic !important; }`;
+      css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #859900 !important; }`;
+      css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #2aa198 !important; }`;
+      css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #268bd2 !important; }`;
+      css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #d33682 !important; }`;
+      css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #586e75 !important; }`;
     } else if (blockTheme === 'nord') {
-      css += `\n.unemi-document-content pre { background-color: #2e3440 !important; border: 1px solid #3b4252 !important; color: #d8dee9 !important; }`;
-      css += `\n.unemi-document-content pre code { color: #d8dee9 !important; background-color: transparent !important; padding: 0 !important; }`;
-      css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #4c566a !important; font-style: italic !important; }`;
-      css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #81a1c1 !important; }`;
-      css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #a3be8c !important; }`;
-      css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #88c0d0 !important; }`;
-      css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #b48ead !important; }`;
-      css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #eceff4 !important; }`;
+      css += `\n.wp-document-content pre { background-color: #2e3440 !important; border: 1px solid #3b4252 !important; color: #d8dee9 !important; }`;
+      css += `\n.wp-document-content pre code { color: #d8dee9 !important; background-color: transparent !important; padding: 0 !important; }`;
+      css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #4c566a !important; font-style: italic !important; }`;
+      css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #81a1c1 !important; }`;
+      css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #a3be8c !important; }`;
+      css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #88c0d0 !important; }`;
+      css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #b48ead !important; }`;
+      css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #eceff4 !important; }`;
     } else {
       // academic / default
-      css += `\n.unemi-document-content pre { background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; }`;
-      css += `\n.unemi-document-content pre code { color: #0f172a !important; background-color: transparent !important; padding: 0 !important; }`;
-      css += `\n.unemi-document-content pre .token.comment, .unemi-document-content pre .token.prolog, .unemi-document-content pre .token.doctype, .unemi-document-content pre .token.cdata { color: #64748b !important; font-style: italic !important; }`;
-      css += `\n.unemi-document-content pre .token.keyword, .unemi-document-content pre .token.operator, .unemi-document-content pre .token.atrule { color: #0f172a !important; font-weight: bold !important; }`;
-      css += `\n.unemi-document-content pre .token.string, .unemi-document-content pre .token.char { color: #0f172a !important; font-style: italic !important; }`;
-      css += `\n.unemi-document-content pre .token.function, .unemi-document-content pre .token.class-name { color: #0f172a !important; }`;
-      css += `\n.unemi-document-content pre .token.number, .unemi-document-content pre .token.boolean, .unemi-document-content pre .token.constant { color: #0f172a !important; }`;
-      css += `\n.unemi-document-content pre .token.punctuation, .unemi-document-content pre .token.property, .unemi-document-content pre .token.tag { color: #0f172a !important; }`;
+      css += `\n.wp-document-content pre { background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; }`;
+      css += `\n.wp-document-content pre code { color: #0f172a !important; background-color: transparent !important; padding: 0 !important; }`;
+      css += `\n.wp-document-content pre .token.comment, .wp-document-content pre .token.prolog, .wp-document-content pre .token.doctype, .wp-document-content pre .token.cdata { color: #64748b !important; font-style: italic !important; }`;
+      css += `\n.wp-document-content pre .token.keyword, .wp-document-content pre .token.operator, .wp-document-content pre .token.atrule { color: #0f172a !important; font-weight: bold !important; }`;
+      css += `\n.wp-document-content pre .token.string, .wp-document-content pre .token.char { color: #0f172a !important; font-style: italic !important; }`;
+      css += `\n.wp-document-content pre .token.function, .wp-document-content pre .token.class-name { color: #0f172a !important; }`;
+      css += `\n.wp-document-content pre .token.number, .wp-document-content pre .token.boolean, .wp-document-content pre .token.constant { color: #0f172a !important; }`;
+      css += `\n.wp-document-content pre .token.punctuation, .wp-document-content pre .token.property, .wp-document-content pre .token.tag { color: #0f172a !important; }`;
     }
 
     // Custom CSS input by the user (avoiding selector namespace collisions)
@@ -4440,7 +3966,7 @@ export default function DocumentPreview({
 
     // Bibliography styling
     css += `
-    .unemi-bibliography-item {
+    .wp-bibliography-item {
       padding-left: 0.5in !important;
       text-indent: -0.5in !important;
       line-height: 2.0 !important;
@@ -4449,7 +3975,7 @@ export default function DocumentPreview({
       text-align: left !important;
       display: block !important;
     }
-    .unemi-bibliography-title {
+    .wp-bibliography-title {
       font-family: 'Times New Roman', Times, serif !important;
       font-size: 16px !important;
       font-weight: bold !important;
@@ -4458,7 +3984,7 @@ export default function DocumentPreview({
       margin-bottom: 24px !important;
       display: block !important;
     }
-    .unemi-margin-element img {
+    .wp-margin-element img {
       width: 100% !important;
       height: 100% !important;
       object-fit: fill !important;
@@ -4499,27 +4025,27 @@ export default function DocumentPreview({
         ${settings.autoNumberHeadings ? `
         /* Numeración automática de títulos */
         body, .document-rendered-container {
-          counter-reset: unemi-h1-counter !important;
+          counter-reset: wp-h1-counter !important;
         }
-        .unemi-document-content h1 {
-          counter-reset: unemi-h2-counter !important;
-          counter-increment: unemi-h1-counter !important;
+        .wp-document-content h1 {
+          counter-reset: wp-h2-counter !important;
+          counter-increment: wp-h1-counter !important;
         }
-        .unemi-document-content h1::before {
-          content: counter(unemi-h1-counter) ". " !important;
+        .wp-document-content h1::before {
+          content: counter(wp-h1-counter) ". " !important;
         }
-        .unemi-document-content h2 {
-          counter-reset: unemi-h3-counter !important;
-          counter-increment: unemi-h2-counter !important;
+        .wp-document-content h2 {
+          counter-reset: wp-h3-counter !important;
+          counter-increment: wp-h2-counter !important;
         }
-        .unemi-document-content h2::before {
-          content: counter(unemi-h1-counter) "." counter(unemi-h2-counter) " " !important;
+        .wp-document-content h2::before {
+          content: counter(wp-h1-counter) "." counter(wp-h2-counter) " " !important;
         }
-        .unemi-document-content h3 {
-          counter-increment: unemi-h3-counter !important;
+        .wp-document-content h3 {
+          counter-increment: wp-h3-counter !important;
         }
-        .unemi-document-content h3::before {
-          content: counter(unemi-h1-counter) "." counter(unemi-h2-counter) "." counter(unemi-h3-counter) " " !important;
+        .wp-document-content h3::before {
+          content: counter(wp-h1-counter) "." counter(wp-h2-counter) "." counter(wp-h3-counter) " " !important;
         }
         ` : ''}
 
@@ -4577,7 +4103,7 @@ export default function DocumentPreview({
       <div className="absolute top-0 left-0 w-0 h-0 overflow-hidden pointer-events-none opacity-0 select-none">
         <div
           ref={hiddenMeasureRef}
-          className="unemi-document-content select-none shrink-0"
+          className="wp-document-content select-none shrink-0"
           style={{
             width: `${contentWidth}px`,
             boxSizing: 'border-box',
@@ -4810,7 +4336,7 @@ export default function DocumentPreview({
                 }}
               >
                 <iframe
-                  id="unemi-server-iframe"
+                  id="wp-server-iframe"
                   src={`/preview/${serverPreviewId}`}
                   className="w-full h-full border-0 bg-neutral-50"
                   title="Servidor Interactivo de Previsualización"
@@ -4830,28 +4356,32 @@ export default function DocumentPreview({
         )}
 
         <div
-          className={`document-rendered-container ${previewMode === 'server' ? 'invisible absolute pointer-events-none h-0 w-0 overflow-hidden' : ''} flex flex-col gap-8 print:gap-0 transition-transform origin-top`}
+          className={`document-rendered-container ${previewMode === 'server' ? 'invisible absolute pointer-events-none h-0 w-0 overflow-hidden' : ''} flex flex-col ${settings.pageSize === 'continuous' ? 'gap-0 p-0 shadow-none border-none' : 'gap-8'} print:gap-0 transition-transform origin-top`}
           style={previewMode === 'server' ? {} : {
             transform: `scale(${zoom / 100})`,
             marginBottom: `${(zoom - 100) * 10}px`,
           }}
         >
           {/* PAGE 1: COVER PAGE (No headers/footers) */}
-          {settings.pageSize !== 'continuous' && (
-            <CoverPage 
-              config={resolvedCover} 
-              pageSize={settings.pageSize} 
-              orientation={settings.orientation} 
-              marginElements={settings.marginElements}
-              totalPages={paginatedPages.length + 1 + (settings.showTOC ? paginatedTOCPages.length : 0)}
-              uploadedFiles={uploadedFiles}
-            />
+          {settings.pageSize !== 'continuous' && resolvedCover.enabled !== false && (
+            <div className="relative group/cover-container">
+              <CoverPage 
+                config={resolvedCover} 
+                pageSize={settings.pageSize} 
+                orientation={settings.orientation} 
+                marginElements={settings.marginElements}
+                totalPages={1 + paginatedPages.length + (settings.showTOC ? paginatedTOCPages.length : 0)}
+                uploadedFiles={uploadedFiles}
+              />
+            </div>
           )}
 
           {/* PAGE 2+: TABLE OF CONTENTS (Optional academic pages, strictly out of content.html) */}
           {settings.showTOC && paginatedTOCPages.map((tocPageHeadings, tIdx) => {
-            const pageNum = 2 + tIdx;
-            const totalPages = paginatedPages.length + 1 + paginatedTOCPages.length;
+            const hasCover = settings.pageSize !== 'continuous' && resolvedCover.enabled !== false;
+            const coverOffset = hasCover ? 1 : 0;
+            const pageNum = 1 + coverOffset + tIdx;
+            const totalPages = paginatedPages.length + coverOffset + paginatedTOCPages.length;
             const isFirst = tIdx === 0;
 
             return (
@@ -4875,7 +4405,7 @@ export default function DocumentPreview({
                     {tocPageHeadings.map((heading, hIdx) => {
                       const levelClass = `toc-level-${heading.level}`;
                       // Absolute page calculations
-                      const absolutePage = (heading.pageRelative !== undefined ? heading.pageRelative : 0) + 2 + paginatedTOCPages.length;
+                      const absolutePage = (heading.pageRelative !== undefined ? heading.pageRelative : 0) + 1 + coverOffset + paginatedTOCPages.length;
 
                       return (
                         <li 
@@ -4903,6 +4433,8 @@ export default function DocumentPreview({
           {paginatedPages.length > 0 ? (
             paginatedPages.map((pageHTMLs, index) => {
               const pageHTMLJoined = pageHTMLs.join('');
+              const hasCover = settings.pageSize !== 'continuous' && resolvedCover.enabled !== false;
+              const coverOffset = hasCover ? 1 : 0;
 
               let isTemplatePage = false;
               if (settings.showTemplatePages && settings.templateHtml && settings.templateJson) {
@@ -4925,8 +4457,8 @@ export default function DocumentPreview({
               return (
                 <PageTemplate
                   key={index}
-                  pageNumber={index + 2 + (settings.showTOC ? paginatedTOCPages.length : 0)} // Content pages start at Page 2 or Page 2 + paginatedTOCPages.length
-                  totalPages={paginatedPages.length + 1 + (settings.showTOC ? paginatedTOCPages.length : 0)}
+                  pageNumber={index + 1 + coverOffset + (settings.showTOC ? paginatedTOCPages.length : 0)}
+                  totalPages={paginatedPages.length + coverOffset + (settings.showTOC ? paginatedTOCPages.length : 0)}
                   pageSize={settings.pageSize}
                   settings={settings}
                   showGuides={settings.showGuides}
@@ -4935,7 +4467,7 @@ export default function DocumentPreview({
                   isTemplatePage={isTemplatePage}
                 >
                   <div
-                    className="unemi-document-body"
+                    className="wp-document-body"
                     dangerouslySetInnerHTML={{ __html: renderPageHTML(pageHTMLJoined) }}
                   />
                 </PageTemplate>

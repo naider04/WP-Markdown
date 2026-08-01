@@ -172,7 +172,7 @@ export function TemplatesDrawer({ settings, setSettings, onClose }: TemplatesDra
     <p class="template-example">"{{example}}"</p>
   </div>
   <div class="template-footer">
-    Universidad Estatal de Milagro • UNEMI
+    WP Academic Documents
   </div>
 </div>`;
 
@@ -209,7 +209,7 @@ export function TemplatesDrawer({ settings, setSettings, onClose }: TemplatesDra
   };
 
   return (
-    <div id="unemi-templates-drawer" className="flex flex-col h-full bg-slate-900 text-slate-100 font-sans select-none overflow-hidden">
+    <div id="wp-templates-drawer" className="flex flex-col h-full bg-slate-900 text-slate-100 font-sans select-none overflow-hidden">
       {/* Drawer Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950 shrink-0">
         <div className="flex items-center gap-2">

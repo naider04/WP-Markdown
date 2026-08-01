@@ -4,6 +4,7 @@
  */
 
 export interface CoverConfig {
+  enabled?: boolean;
   institution: string;
   facultad: string;
   carrera: string;
@@ -101,6 +102,7 @@ export interface PageSettings {
   tableStriped?: boolean;
   tableBorderWidth?: string;
   tableCustomCss?: string;
+  repeatTableHeader?: boolean;
 
   // Campo de código CSS personalizado para añadir nuevos estilos
   customAddedCss?: string;
@@ -141,6 +143,7 @@ export interface MarginElement {
   width?: string;
   height?: string;
   pagesPattern: string;
+  hidden?: boolean;
 }
 
 export interface BibliographyItem {
@@ -180,7 +183,6 @@ export interface HTMLBlock {
   name: string;
   code: string;
   collapsed: boolean;
-  isFunctional?: boolean;
   isMarkdown?: boolean;
 }
 

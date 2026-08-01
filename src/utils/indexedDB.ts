@@ -5,7 +5,7 @@
 
 import { UploadedFile } from '../types';
 
-const DB_NAME = 'unemi_editor_db';
+const DB_NAME = 'wp_editor_db';
 const STORE_NAME = 'uploaded_files';
 const DB_VERSION = 1;
 
