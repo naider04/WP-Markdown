@@ -11,11 +11,14 @@ import DocumentPreview from './components/DocumentPreview';
 import { ConfigDrawer } from './components/ConfigDrawer';
 import { formatFontSize } from './utils/fontUtils';
 import { getAllUploadedFiles, saveUploadedFilesToDB, clearAllUploadedFilesDB } from './utils/indexedDB';
+import { fetchDefaultImages } from './utils/defaultImages';
 import { BibliographyDrawer } from './components/BibliographyDrawer';
 import { MarginsDrawer } from './components/MarginsDrawer';
 import { parseBibtex, generateBibtexFromItems } from './utils/bibParser';
-import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2, Layout, ChevronLeft, ChevronRight, Key, X, List, Grid, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Layers, Sliders, Image, Upload, Code, ChevronDown, BookOpen, RefreshCw, Layout, ChevronLeft, ChevronRight, Key, X, List, Grid, AlertTriangle, CheckCircle } from 'lucide-react';
 import { TemplatesDrawer } from './components/TemplatesDrawer';
+import { compileAndProcessMarkdown, postProcessCompiledMarkdown } from './utils/markdownCompiler';
+import { buildDocsHtml, embedContentImages, DOCS_FALLBACK_BIBLIOGRAPHY } from './utils/docsPage';
 
 const DEFAULT_TEMPLATE_HTML = `<style>
 .a4-template-card {
@@ -962,10 +965,91 @@ export default function App() {
     return localStorage.getItem('user_gemini_api_key') || '';
   });
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
+  const [isOpeningDocs, setIsOpeningDocs] = useState<boolean>(false);
 
   useEffect(() => {
     localStorage.setItem('user_gemini_api_key', userApiKey);
   }, [userApiKey]);
+
+  /**
+   * Abre la documentación del editor en una pestaña nueva: compila el
+   * documento predeterminado (/content.html) con el mismo pipeline del visor
+   * y lo sirve a través de /api/save-preview + /preview/:id.
+   */
+  const handleOpenDocs = async () => {
+    if (isOpeningDocs) return;
+    setIsOpeningDocs(true);
+    try {
+      const res = await fetch('/content.html?t=' + Date.now());
+      if (!res.ok) {
+        throw new Error('No se pudo cargar el documento predeterminado (HTTP ' + res.status + ')');
+      }
+      const rawMarkdown = await res.text();
+
+      // 1. Incrustar las imágenes de rutas relativas como data URLs
+      const markdownWithImages = await embedContentImages(rawMarkdown);
+
+      // 2. Compilar con el mismo pipeline del editor
+      if (typeof window !== 'undefined') {
+        (window as any).currentWpSettings = settings;
+      }
+      const figureMap = new Map<string, number>();
+      const tableMap = new Map<string, number>();
+      const figureCounterRef = { val: 1 };
+      const tableCounterRef = { val: 1 };
+      const compiled = compileAndProcessMarkdown(
+        markdownWithImages,
+        true,
+        figureMap,
+        tableMap,
+        figureCounterRef,
+        tableCounterRef,
+        false
+      );
+
+      // Las citas del documento predeterminado siempre resuelven (fallback + bibliografía actual del usuario)
+      const docsBibliography = [...DOCS_FALLBACK_BIBLIOGRAPHY];
+      bibliography.forEach((b) => {
+        if (!docsBibliography.some((d) => d.key.toLowerCase() === b.key.toLowerCase())) {
+          docsBibliography.push(b);
+        }
+      });
+
+      const bodyHtml = postProcessCompiledMarkdown(compiled, {
+        uploadedFiles: [],
+        bibliography: docsBibliography,
+        settings,
+        isContinuous: false,
+        figureMap,
+        tableMap,
+      });
+
+      // 3. Envolver en un documento HTML autónomo
+      const fullHtml = buildDocsHtml(bodyHtml);
+
+      // 4. Servir y abrir en una pestaña nueva (igual que la vista previa)
+      const response = await fetch('/api/save-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: fullHtml }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.id) {
+          window.open(`/preview/${data.id}`, '_blank');
+        } else {
+          alert('Error de servidor al compilar la documentación.');
+        }
+      } else {
+        alert('Hubo un error al establecer la conexión con el servidor de documentación.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error de red al abrir la documentación del editor.');
+    } finally {
+      setIsOpeningDocs(false);
+    }
+  };
   
   const lastFetchedContentRef = useRef<string>('');
   const isResizingRef = useRef<boolean>(false);
@@ -1271,21 +1355,31 @@ export default function App() {
   useEffect(() => {
     async function loadFiles() {
       const cached = localStorage.getItem('wp_uploaded_files');
+      let migratedFiles: UploadedFile[] | null = null;
       if (cached) {
         try {
-          const files = JSON.parse(cached);
-          if (files && files.length > 0) {
-            setUploadedFiles(files);
-            await saveUploadedFilesToDB(files);
-          }
+          migratedFiles = JSON.parse(cached);
           localStorage.removeItem('wp_uploaded_files');
         } catch (e) {
           console.error('Error migrating files from localStorage:', e);
         }
+      }
+
+      if (migratedFiles && migratedFiles.length > 0) {
+        setUploadedFiles(migratedFiles);
+        await saveUploadedFilesToDB(migratedFiles);
       } else {
         const files = await getAllUploadedFiles();
         if (files && files.length > 0) {
           setUploadedFiles(files);
+        } else if (!localStorage.getItem('wp_default_images_seeded')) {
+          // Nuevo usuario: precargar las imágenes de la carpeta /public en el banco de gráficos
+          const seededFiles = await fetchDefaultImages();
+          if (seededFiles.length > 0) {
+            setUploadedFiles(seededFiles);
+            await saveUploadedFilesToDB(seededFiles);
+          }
+          localStorage.setItem('wp_default_images_seeded', 'true');
         }
       }
       setIsDbLoaded(true);
@@ -1415,6 +1509,7 @@ export default function App() {
       localStorage.removeItem('wp_sidebar_width');
       localStorage.removeItem('wp_export_filename');
       localStorage.removeItem('wp_uploaded_files');
+      localStorage.removeItem('wp_default_images_seeded');
       
       try {
         await clearAllUploadedFilesDB();
@@ -2941,6 +3036,21 @@ read -p "Presione [Enter] para salir..."`;
 
           {/* Right part: API Key Connection Button only (Export was moved to ARCHIVO) */}
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Documentation Button (!): opens the predetermined document in a new tab */}
+            <button
+              onClick={handleOpenDocs}
+              disabled={isOpeningDocs}
+              title="Abrir documentación del editor (documento predeterminado)"
+              aria-label="Abrir documentación del editor"
+              className="h-8 w-8 rounded text-[14px] font-black flex items-center justify-center transition-all cursor-pointer shadow-sm border bg-slate-900 hover:bg-slate-800 border-slate-800 text-[#FF6600] disabled:opacity-60 disabled:cursor-wait"
+            >
+              {isOpeningDocs ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-300" />
+              ) : (
+                <span className="leading-none translate-y-[-1px]">!</span>
+              )}
+            </button>
+
             {/* API Key Connection Button */}
             <button
               onClick={() => setIsApiKeyModalOpen(true)}
