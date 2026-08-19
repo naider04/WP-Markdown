@@ -12,7 +12,7 @@ import CoverPage from './CoverPage';
 import PageTemplate from './PageTemplate';
 import { getAPALastNames, formatAPABibliographyItem, extractAPAYear } from '../utils/apaFormatter';
 import { formatFontSize } from '../utils/fontUtils';
-import { FileText, Layers, RefreshCw, ZoomIn, ZoomOut, FolderArchive, Maximize2, Minimize2, Copy, Check, ExternalLink, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { FileText, Layers, RefreshCw, ZoomIn, ZoomOut, FolderArchive, Maximize2, Minimize2, Copy, Check, ExternalLink, Eye, EyeOff, AlertCircle, Monitor, Play, RotateCcw } from 'lucide-react';
 
 interface DocumentPreviewProps {
   cover: CoverConfig;
@@ -680,6 +680,8 @@ export default function DocumentPreview({
   const [generatingPreview, setGeneratingPreview] = useState<boolean>(false);
   const [serverPreviewId, setServerPreviewId] = useState<string | null>(null);
   const [isSyncingServer, setIsSyncingServer] = useState<boolean>(false);
+  const [isSandboxMode, setIsSandboxMode] = useState<boolean>(false);
+  const [sandboxReloadKey, setSandboxReloadKey] = useState<number>(0);
 
   const handleOpenPreview = async () => {
     const coverPage = document.getElementById('wp-cover-page');
@@ -4186,7 +4188,48 @@ export default function DocumentPreview({
         </div>
 
         {/* Dynamic sheet guidelines and dimensions */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Mode Switcher: Static Paginated vs Interactive Sandbox */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shadow-xs">
+            <button
+              type="button"
+              onClick={() => setIsSandboxMode(false)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                !isSandboxMode
+                  ? 'bg-white text-slate-800 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Vista estática paginada con medición de desbordes, márgenes y cabeceras"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Paginado</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsSandboxMode(true)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                isSandboxMode
+                  ? 'bg-[#004080] text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Vista interactiva aislada en sandbox (ejecuta Canvas, Chart.js, Mermaid, scripts y estilos sin interferencias)"
+            >
+              <Play className="w-3.5 h-3.5 text-amber-400" />
+              <span>Sandbox Interactivo</span>
+            </button>
+          </div>
+
+          {isSandboxMode && (
+            <button
+              type="button"
+              onClick={() => setSandboxReloadKey((k) => k + 1)}
+              className="p-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 active:scale-95 transition-all cursor-pointer shadow-xs flex items-center justify-center"
+              title="Recargar sandbox interactivo"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           <button
             onClick={handleOpenPreview}
             disabled={generatingPreview}
@@ -4233,8 +4276,62 @@ export default function DocumentPreview({
         </div>
       </div>
 
-      {/* 4. ACTUAL ENEMY PAGE SHEETS STAGE */}
-      <div className="flex-1 overflow-auto custom-scrollbar print:p-0 print:overflow-visible print:bg-white bg-neutral-100 flex flex-col items-center select-none min-h-0 w-full p-8">
+      {/* 4. ACTUAL ENEMY PAGE SHEETS STAGE OR INTERACTIVE SANDBOX IFRAME */}
+      {isSandboxMode ? (
+        <div className="flex-1 bg-slate-900/5 flex flex-col items-center justify-start overflow-auto p-4 w-full h-full relative min-h-0">
+          <div className="w-full h-full flex flex-col bg-white rounded-xl shadow-xl border border-slate-200/80 overflow-hidden relative">
+            <div className="bg-slate-900 text-slate-200 px-3.5 py-1.5 text-xs flex items-center justify-between border-b border-slate-800 select-none shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="font-bold text-[11px] tracking-wide text-slate-100 flex items-center gap-1.5">
+                  <Play className="w-3 h-3 text-amber-400" />
+                  Entorno Sandbox Interactivo Aislado
+                </span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
+                  Total aislamiento DOM & scripts activos
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                {isSyncingServer && (
+                  <span className="text-[10px] text-amber-400 flex items-center gap-1">
+                    <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                    Sincronizando...
+                  </span>
+                )}
+                {serverPreviewId && (
+                  <a
+                    href={`/preview/${serverPreviewId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10.5px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-bold transition-colors"
+                  >
+                    <span>Abrir en ventana completa</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {serverPreviewId ? (
+              <iframe
+                key={`${serverPreviewId}-${sandboxReloadKey}`}
+                src={`/preview/${serverPreviewId}`}
+                title="Interactive Document Sandbox"
+                className="w-full flex-1 border-0 bg-white"
+                sandbox="allow-scripts allow-same-origin allow-popups allow-modals allow-forms"
+              />
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center text-slate-400">
+                <RefreshCw className="w-8 h-8 text-amber-500 animate-spin" />
+                <p className="text-xs font-medium text-slate-600">
+                  Generando y sincronizando vista interactiva en sandbox...
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto custom-scrollbar print:p-0 print:overflow-visible print:bg-white bg-neutral-100 flex flex-col items-center select-none min-h-0 w-full p-8">
         <div
           className={`document-rendered-container flex flex-col ${settings.pageSize === 'continuous' ? 'gap-0 p-0 shadow-none border-none' : 'gap-8'} print:gap-0 transition-transform origin-top`}
           style={{
@@ -4375,6 +4472,7 @@ export default function DocumentPreview({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
