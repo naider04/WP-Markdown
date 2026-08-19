@@ -99,3 +99,27 @@ markdownParser.use({
     }
   }
 });
+
+export function extractCoverCss(tmpl: string): string {
+  if (!tmpl) return '';
+  if (tmpl.includes('<div class="cv-page">') || tmpl.includes('<style>')) {
+    const styleMatch = tmpl.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+    if (styleMatch) {
+      return styleMatch[1].trim();
+    }
+  }
+  return tmpl.trim();
+}
+
+export function compileCoverHtml(cssOrTemplate: string, markdown: string): string {
+  const compiledMarkdown = String(markdownParser.parse(markdown || ''));
+  const raw = (cssOrTemplate || '').trim();
+
+  if (raw.includes('{{content}}')) {
+    return raw.replace('{{content}}', compiledMarkdown);
+  }
+
+  let cleanCss = raw.replace(/^<style[^>]*>/i, '').replace(/<\/style>$/i, '').trim();
+
+  return `<style>\n${cleanCss}\n</style>\n<div class="cv-page">\n    <div class="cv-content">\n        ${compiledMarkdown}\n    </div>\n</div>`;
+}

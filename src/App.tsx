@@ -16,6 +16,7 @@ import { MarginsDrawer } from './components/MarginsDrawer';
 import { parseBibtex, generateBibtexFromItems } from './utils/bibParser';
 import { Layers, Sliders, Image, Upload, Printer, Trash2, Code, ChevronDown, BookOpen, RefreshCw, FolderArchive, Maximize2, Layout, ChevronLeft, ChevronRight, Key, X, List, Grid, AlertTriangle, CheckCircle } from 'lucide-react';
 import { TemplatesDrawer } from './components/TemplatesDrawer';
+import { extractCoverCss, compileCoverHtml } from './utils/markdownParser';
 
 const DEFAULT_TEMPLATE_HTML = `<style>
 .a4-template-card {
@@ -420,107 +421,7 @@ const DEFAULT_MARGIN_ELEMENTS = [
   }
 ];
 
-const DEFAULT_OVERLAY_HTML = `<style>
-body{
-    margin:0;
-    background:transparent;
-    font-family: Arial, sans-serif;
-    color:#002E45;
-}
-
-/* hoja */
-.cv-page{
-    height:297mm;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    padding-left:96px;
-    padding-right:96px;
-}
-
-/* bloque real centrado */
-.cv-content{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    text-align:center;
-}
-
-/* imagen separada pero alineada */
-.cv-logo{
-    max-width:40%;
-    margin-bottom:40px;
-}
-
-/* encabezado */
-.cv-header{
-    font-size:24px;
-    font-weight:bold;
-    line-height:1.4;
-    text-transform:uppercase;
-    margin-bottom:18px;
-}
-
-.cv-label{
-    font-weight:bold;
-    margin-top:10px;
-    font-size:20px; 
-}
-
-.cv-value{
-    margin-top:1px;
-    font-size:18px;
-}
-
-.cv-list{
-    line-height:1.5;
-}
-
-</style>
-
-<div class="cv-page">
-
-    <div class="cv-content">
-
-        <img src="icon.png" class="cv-logo">
-
-        <div class="cv-header">
-            FACULTAD DE CIENCIAS DE INGENIERÍA<br>
-            CARRERA DE TECNOLOGÍAS DE LA INFORMACIÓN Y COMUNICACIÓN EN LINEA.
-        </div>
-
-        <div class="cv-label">TEMA:</div>
-        <div class="cv-value">
-            APE 2
-        </div>
-
-        <div class="cv-label">GRUPO:</div>
-        <div class="cv-value cv-list">
-
-            Wilmer Sandro Patiño Cuastuza
-        </div>
-
-        <div class="cv-label">CURSO:</div>
-        <div class="cv-value">Arquitectura de Computador</div>
-
-        <div class="cv-label">PROFESOR:</div>
-        <div class="cv-value">Ing. Bermeo Paucar Javier, Mgti</div>
-
-        <div class="cv-label">FECHA:</div>
-        <div class="cv-value">Junio 18, 2026</div>
-
-        <div class="cv-label">PERIODO:</div>
-        <div class="cv-value">Abril 2026 - Julio 2026</div>
-<br>
-<br>
-
-        <div class="cv-label">MILAGRO-ECUADOR</div>
-
-    </div>
-</div>`;
-
-const DEFAULT_OVERLAY_TEMPLATE = `<style>
-body{
+const DEFAULT_OVERLAY_TEMPLATE = `body{
     margin:0;
     background:transparent;
     font-family: Arial, sans-serif;
@@ -583,15 +484,7 @@ body{
     font-size: 18px;
     line-height: 1.5;
     color: #002E45;
-}
-
-</style>
-
-<div class="cv-page">
-    <div class="cv-content">
-        {{content}}
-    </div>
-</div>`;
+}`;
 
 const DEFAULT_OVERLAY_MARKDOWN = `<img src="icon.png" style="max-width:40%; margin-bottom:40px; display:block; margin-left:auto; margin-right:auto;">
 
@@ -631,14 +524,16 @@ export default function App() {
       try {
         const parsed = JSON.parse(cached);
         if (parsed) {
-          if (!parsed.overlayHtml) {
-            parsed.overlayHtml = DEFAULT_OVERLAY_HTML;
-          }
-          if (!parsed.overlayTemplate || parsed.overlayTemplate.includes('.cv-logo')) {
+          if (parsed.overlayTemplate) {
+            parsed.overlayTemplate = extractCoverCss(parsed.overlayTemplate);
+          } else {
             parsed.overlayTemplate = DEFAULT_OVERLAY_TEMPLATE;
           }
           if (parsed.overlayMarkdown === undefined || parsed.overlayMarkdown === '') {
             parsed.overlayMarkdown = DEFAULT_OVERLAY_MARKDOWN;
+          }
+          if (!parsed.overlayHtml || parsed.overlayHtml.includes('.cv-logo') || parsed.overlayHtml.includes('{{content}}')) {
+            parsed.overlayHtml = compileCoverHtml(parsed.overlayTemplate, parsed.overlayMarkdown);
           }
           return parsed;
         }
@@ -657,7 +552,7 @@ export default function App() {
       city: 'Ciudad, País',
       date: 'Junio, 2026',
       logoType: 'standard',
-      overlayHtml: DEFAULT_OVERLAY_HTML,
+      overlayHtml: compileCoverHtml(DEFAULT_OVERLAY_TEMPLATE, DEFAULT_OVERLAY_MARKDOWN),
       overlayTemplate: DEFAULT_OVERLAY_TEMPLATE,
       overlayMarkdown: DEFAULT_OVERLAY_MARKDOWN,
     };

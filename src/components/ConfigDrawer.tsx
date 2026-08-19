@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { markdownParser } from '../utils/markdownParser';
+import { markdownParser, compileCoverHtml } from '../utils/markdownParser';
 import { CoverConfig, PageSettings, UploadedFile, HTMLBlock } from '../types';
 import { formatFontSize } from '../utils/fontUtils';
 import {
@@ -770,8 +770,7 @@ Márgenes de Página (Bordes):
         try {
           const md = updated.overlayMarkdown || '';
           const tmpl = updated.overlayTemplate || '';
-          const compiledMarkdown = markdownParser.parse(md) as string;
-          updated.overlayHtml = tmpl.replace('{{content}}', compiledMarkdown);
+          updated.overlayHtml = compileCoverHtml(tmpl, md);
         } catch (e) {
           console.error('Error compiling markdown on cover change:', e);
         }
@@ -1055,20 +1054,20 @@ Márgenes de Página (Bordes):
               />
             </div>
 
-            {/* Custom html overlay (Template Styles/HTML) */}
+            {/* Custom CSS overlay (Pure CSS) */}
             <div className="flex flex-col gap-2 mt-2">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
                 <FileCode className="w-3.5 h-3.5 text-orange-500" />
-                Estilos CSS y Estructura HTML de Portada
+                Estilos CSS de Portada
               </span>
               <p className="text-[9px] text-slate-400 leading-normal mb-0.5">
-                Define las reglas CSS y la estructura HTML de la carátula. Usa el marcador de posición <code className="font-mono bg-slate-950 px-1 py-0.5 rounded text-orange-400 font-bold">{"{{content}}"}</code> donde desees que se renderice el contenido en Markdown.
+                Define únicamente las reglas CSS de la carátula. La envoltura HTML (<code className="font-mono bg-slate-950 px-1 py-0.5 rounded text-orange-400 font-bold">.cv-page</code> y <code className="font-mono bg-slate-950 px-1 py-0.5 rounded text-orange-400 font-bold">.cv-content</code>) y las etiquetas <code className="font-mono bg-slate-950 px-1 py-0.5 rounded text-orange-400 font-bold">&lt;style&gt;</code> se incorporan automáticamente.
               </p>
               <AutoGrowingTextArea
                 value={cover.overlayTemplate || ''}
                 onChange={(val) => handleCoverChange('overlayTemplate', val)}
-                className="text-green-400"
-                placeholder="Escribe la estructura HTML y estilos CSS con {{content}}..."
+                className="text-green-400 font-mono text-xs"
+                placeholder="Escribe solo tus reglas CSS de la carátula..."
               />
             </div>
 
@@ -1079,15 +1078,14 @@ Márgenes de Página (Bordes):
                 <span className="text-[10px] font-bold text-slate-200 uppercase tracking-wider">🎓 Plantillas Académicas para Portada</span>
               </div>
               <p className="text-[9px] text-slate-400 leading-normal">
-                Usa estas plantillas modulares para configurar tu portada académica en segundos. Copia el diseño contenedor (Estilos/HTML) y el contenido textual (Markdown).
+                Usa estas plantillas modulares para configurar tu portada académica en segundos. Copia los estilos CSS y el contenido textual (Markdown).
               </p>
               
               <div className="flex flex-col gap-1.5 mt-1">
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.clipboard.writeText(`<style>
-body{
+                    navigator.clipboard.writeText(`body{
     margin:0;
     background:transparent;
     font-family: Arial, sans-serif;
@@ -1150,20 +1148,12 @@ body{
     font-size: 18px;
     line-height: 1.5;
     color: #002E45;
-}
-
-</style>
-
-<div class="cv-page">
-    <div class="cv-content">
-        {{content}}
-    </div>
-</div>`);
-                    triggerSuccessMsg('¡Plantilla Estilos/HTML Copiada!');
+}`);
+                    triggerSuccessMsg('¡Plantilla Estilos CSS Copiada!');
                   }}
                   className="w-full py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 hover:text-white transition-all text-[11px] font-bold text-orange-400 cursor-pointer text-center"
                 >
-                  Copiar Plantilla Estilos/HTML
+                  Copiar Plantilla Estilos CSS
                 </button>
 
                 <button
