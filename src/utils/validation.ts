@@ -9,10 +9,15 @@ export interface ValidationError {
   severity: 'warning' | 'error';
 }
 
-export function validateContent(code: string): ValidationError[] {
-  const errors: ValidationError[] = [];
+const validationCache = new Map<string, ValidationError[]>();
 
-  if (!code) return errors;
+export function validateContent(code: string): ValidationError[] {
+  if (!code) return [];
+  if (validationCache.has(code)) {
+    return validationCache.get(code)!;
+  }
+
+  const errors: ValidationError[] = [];
 
   // --- 1. HTML Validation ---
   // Void/self-closing elements that don't need a closing tag in HTML5
@@ -21,11 +26,9 @@ export function validateContent(code: string): ValidationError[] {
     'link', 'meta', 'param', 'source', 'track', 'wbr'
   ]);
 
-  // Regexp to find tags: opening, closing, or self-closing
-  // Group 1: slash (/) if closing
-  // Group 2: tag name
-  // Group 3: slash (/) if self-closing like <img />
-  const tagRegex = /<(\/?)([a-zA-Z0-9:-]+)(?:\s+[^>]*?)?(\/?)>/g;
+  // Regexp to find valid HTML tags: opening, closing, or self-closing
+  // Tag names must start with a letter (a-z) to avoid matching mathematical inequalities like < 0 or < x
+  const tagRegex = /<(\/?)([a-zA-Z][a-zA-Z0-9:-]*)(?:\s+[^<>\n]*?)?(\/?)>/g;
   let match;
   const stack: { name: string; index: number }[] = [];
 
@@ -159,6 +162,11 @@ export function validateContent(code: string): ValidationError[] {
       });
     }
   }
+
+  if (validationCache.size > 1000) {
+    validationCache.clear();
+  }
+  validationCache.set(code, errors);
 
   return errors;
 }

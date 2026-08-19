@@ -890,10 +890,6 @@ export default function App() {
     const cached = localStorage.getItem('wp_static_sync_delay');
     return cached ? parseInt(cached, 10) : 300;
   });
-  const [interactiveSyncDelay, setInteractiveSyncDelay] = useState<number>(() => {
-    const cached = localStorage.getItem('wp_interactive_sync_delay');
-    return cached ? parseInt(cached, 10) : 700;
-  });
   const [isCompiling, setIsCompiling] = useState<boolean>(false);
 
   // Helper to split any flat content back into blocks (used for initial or backup parses)
@@ -1136,10 +1132,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('wp_static_sync_delay', String(staticSyncDelay));
   }, [staticSyncDelay]);
-
-  useEffect(() => {
-    localStorage.setItem('wp_interactive_sync_delay', String(interactiveSyncDelay));
-  }, [interactiveSyncDelay]);
 
   // Handle instant manual sync (Ctrl+S)
   const handleCompile = () => {
@@ -2887,12 +2879,12 @@ read -p "Presione [Enter] para salir..."`;
             </div>
           </div>
 
-          {/* Middle part: GLOBAL SYNCHRONIZATION DELAY INPUTS */}
+          {/* Middle part: GLOBAL SYNCHRONIZATION DELAY INPUT */}
           <div className="flex items-center gap-2.5 bg-slate-950/80 px-3 py-1 rounded-md border border-slate-800/80 shadow-inner">
-            {/* Input 1: Retraso Sincronización Hojas Estáticas */}
+            {/* Input: Retraso Sincronización */}
             <div
               className="flex items-center gap-1.5"
-              title="Retraso en milisegundos para sincronizar cualquier cambio (portada, márgenes, estilos, gráficos, bibliografía, texto) con las hojas estáticas"
+              title="Retraso en milisegundos para sincronizar cualquier cambio (portada, márgenes, estilos, gráficos, bibliografía, texto) con las hojas"
             >
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
                 Sinc. Estática:
@@ -2904,28 +2896,6 @@ read -p "Presione [Enter] para salir..."`;
                 step="50"
                 value={staticSyncDelay}
                 onChange={(e) => setStaticSyncDelay(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                className="w-14 h-6 px-1 bg-slate-900 border border-slate-700 text-slate-100 text-[10.5px] rounded font-mono font-bold text-center focus:outline-none focus:border-orange-500 transition-colors"
-              />
-              <span className="text-[9px] text-slate-400 font-mono font-bold select-none">ms</span>
-            </div>
-
-            <div className="w-[1px] h-4 bg-slate-800/90"></div>
-
-            {/* Input 2: Retraso Vista Interactiva / Compilación */}
-            <div
-              className="flex items-center gap-1.5"
-              title="Retraso en milisegundos para compilar y actualizar la vista previa interactiva del documento"
-            >
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
-                Vista Interactiva:
-              </span>
-              <input
-                type="number"
-                min="0"
-                max="5000"
-                step="50"
-                value={interactiveSyncDelay}
-                onChange={(e) => setInteractiveSyncDelay(Math.max(0, parseInt(e.target.value, 10) || 0))}
                 className="w-14 h-6 px-1 bg-slate-900 border border-slate-700 text-slate-100 text-[10.5px] rounded font-mono font-bold text-center focus:outline-none focus:border-orange-500 transition-colors"
               />
               <span className="text-[9px] text-slate-400 font-mono font-bold select-none">ms</span>
@@ -3229,7 +3199,6 @@ read -p "Presione [Enter] para salir..."`;
             htmlBlocks={htmlBlocks}
             bibliography={bibliography}
             isCompiling={isCompiling}
-            interactiveSyncDelay={interactiveSyncDelay}
             compiledCover={compiledCover}
             compiledSettings={compiledSettings}
             compiledHtmlContent={compiledHtmlContent}

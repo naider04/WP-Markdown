@@ -27,7 +27,6 @@ interface DocumentPreviewProps {
   htmlBlocks?: HTMLBlock[];
   bibliography?: BibliographyItem[];
   isCompiling?: boolean;
-  interactiveSyncDelay?: number;
   compiledCover?: CoverConfig;
   compiledSettings?: PageSettings;
   compiledHtmlContent?: string;
@@ -94,7 +93,14 @@ function escapeHtml(unsafe: string): string {
     .replace(/'/g, "&#039;");
 }
 
+const mathRenderCache = new Map<string, string>();
+
 function renderKaTeXWithOMML(mathContent: string, isDisplay: boolean, isContinuous = false): string {
+  const cacheKey = `${isDisplay ? 'D' : 'I'}:${isContinuous ? 'C' : 'P'}:${mathContent}`;
+  if (mathRenderCache.has(cacheKey)) {
+    return mathRenderCache.get(cacheKey)!;
+  }
+
   let rendered = "";
   try {
     rendered = katex.renderToString(mathContent, {
@@ -102,7 +108,8 @@ function renderKaTeXWithOMML(mathContent: string, isDisplay: boolean, isContinuo
       throwOnError: false
     });
   } catch (err) {
-    return `<span class="text-red-500 font-mono text-[10px]" title="${escapeHtml(String(err))}">[Math Error: ${escapeHtml(mathContent)}]</span>`;
+    const errHtml = `<span class="text-red-500 font-mono text-[10px]" title="${escapeHtml(String(err))}">[Math Error: ${escapeHtml(mathContent)}]</span>`;
+    return errHtml;
   }
 
   if (isContinuous) {
@@ -125,6 +132,11 @@ function renderKaTeXWithOMML(mathContent: string, isDisplay: boolean, isContinuo
       // Fallback
     }
   }
+
+  if (mathRenderCache.size > 2000) {
+    mathRenderCache.clear();
+  }
+  mathRenderCache.set(cacheKey, rendered);
 
   return rendered;
 }
@@ -615,7 +627,6 @@ export default function DocumentPreview({
   htmlBlocks = [],
   bibliography = [],
   isCompiling = false,
-  interactiveSyncDelay = 700,
   compiledCover,
   compiledSettings,
   compiledHtmlContent,
@@ -624,8 +635,12 @@ export default function DocumentPreview({
   compiledBibliography = [],
   exportFileName,
 }: DocumentPreviewProps) {
-  const cover = liveCover;
-  const settings = liveSettings;
+  const cover = compiledCover || liveCover;
+  const settings = compiledSettings || liveSettings;
+  const activeHtmlBlocks = (compiledHtmlBlocks && compiledHtmlBlocks.length > 0) ? compiledHtmlBlocks : htmlBlocks;
+  const activeHtmlContent = compiledHtmlContent !== undefined ? compiledHtmlContent : htmlContent;
+  const activeUploadedFiles = (compiledUploadedFiles && compiledUploadedFiles.length > 0) ? compiledUploadedFiles : uploadedFiles;
+  const activeBibliography = (compiledBibliography && compiledBibliography.length > 0) ? compiledBibliography : bibliography;
 
   const hiddenMeasureRef = useRef<HTMLDivElement>(null);
   const lastWidthRef = useRef<number>(0);
@@ -1631,8 +1646,8 @@ export default function DocumentPreview({
 
     // 1. Compile blocks (HTML vs Markdown)
     let selectHtml = "";
-    if (htmlBlocks && htmlBlocks.length > 0) {
-      selectHtml = htmlBlocks.map(b => {
+    if (activeHtmlBlocks && activeHtmlBlocks.length > 0) {
+      selectHtml = activeHtmlBlocks.map(b => {
         return compileAndProcessMarkdown(
           b.code,
           !!b.isMarkdown,
@@ -1644,9 +1659,9 @@ export default function DocumentPreview({
         );
       }).join('\n\n');
     } else {
-      const isMarkdown = !htmlContent.trim().startsWith('<html');
+      const isMarkdown = !activeHtmlContent.trim().startsWith('<html');
       selectHtml = compileAndProcessMarkdown(
-        htmlContent,
+        activeHtmlContent,
         isMarkdown,
         figureMap,
         tableMap,
@@ -1679,8 +1694,8 @@ export default function DocumentPreview({
     });
 
     // 2. Resolve image uploads
-    if (uploadedFiles && uploadedFiles.length > 0) {
-      uploadedFiles.forEach((file) => {
+    if (activeUploadedFiles && activeUploadedFiles.length > 0) {
+      activeUploadedFiles.forEach((file) => {
         const escapedName = file.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         const regex = new RegExp(`src=["'](?:[^"']*/)?${escapedName}["']`, 'gi');
         selectHtml = selectHtml.replace(regex, `src="${file.dataUrl}"`);
@@ -1699,7 +1714,7 @@ export default function DocumentPreview({
     selectHtml = selectHtml.replace(citationRegex, (match, keysGroup) => {
       const keys = keysGroup.split(';').map((k: string) => k.replace(/@/g, '').trim()).filter(Boolean);
       const citations = keys.map((key: string) => {
-        const item = bibliography.find(b => b.key.toLowerCase() === key.toLowerCase());
+        const item = activeBibliography.find(b => b.key.toLowerCase() === key.toLowerCase());
         if (item) {
           return `${getAPALastNames(item.authors)}, ${extractAPAYear(item.year)}`;
         }
@@ -1715,7 +1730,7 @@ export default function DocumentPreview({
     // 3c. Replace manual bibliography [BIBLIOGRAPHY]
     const hasManualBibliography = selectHtml.includes('[BIBLIOGRAPHY]');
     if (hasManualBibliography) {
-      let bibItemsToShow = [...bibliography];
+      let bibItemsToShow = [...activeBibliography];
       if (settings.showOnlyCitedBibliography) {
         bibItemsToShow = bibItemsToShow.filter(b => citedKeys.has(b.key.toLowerCase()));
       }
@@ -1808,8 +1823,8 @@ export default function DocumentPreview({
     }
 
     // 4. Append automatic APA bibliography page at the very end (only if not manually inserted)
-    if (!hasManualBibliography && settings.showBibliography && bibliography && bibliography.length > 0) {
-      let bibItemsToShow = [...bibliography];
+    if (!hasManualBibliography && settings.showBibliography && activeBibliography && activeBibliography.length > 0) {
+      let bibItemsToShow = [...activeBibliography];
       if (settings.showOnlyCitedBibliography) {
         bibItemsToShow = bibItemsToShow.filter(b => citedKeys.has(b.key.toLowerCase()));
       }
@@ -1836,13 +1851,13 @@ export default function DocumentPreview({
       selectHtml += bibHtml;
     }
 
-    return renderMathInHtml(selectHtml, isContinuousMode);
-  }, [htmlContent, htmlBlocks, uploadedFiles, bibliography, settings.pageSize, settings.showBibliography, settings.bibliographyTitle, settings.showOnlyCitedBibliography, settings.tocTitle, settings.h1LineBreak, settings.h2LineBreak, settings.h3LineBreak, settings.h4LineBreak, settings.h5LineBreak]);
+    return selectHtml;
+  }, [activeHtmlContent, activeHtmlBlocks, activeUploadedFiles, activeBibliography, settings.pageSize, settings.showBibliography, settings.bibliographyTitle, settings.showOnlyCitedBibliography, settings.tocTitle, settings.h1LineBreak, settings.h2LineBreak, settings.h3LineBreak, settings.h4LineBreak, settings.h5LineBreak]);
 
   const resolvedCover = React.useMemo(() => {
     let selectCover = { ...cover };
-    if (uploadedFiles && uploadedFiles.length > 0) {
-      uploadedFiles.forEach((file) => {
+    if (activeUploadedFiles && activeUploadedFiles.length > 0) {
+      activeUploadedFiles.forEach((file) => {
         const escapedName = file.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         const regexSrc = new RegExp(`src=["'](?:[^"']*/)?${escapedName}["']`, 'gi');
         
@@ -1858,7 +1873,7 @@ export default function DocumentPreview({
       });
     }
     return selectCover;
-  }, [cover, uploadedFiles]);
+  }, [cover, activeUploadedFiles]);
 
   // Synchronize with the express server-rendered preview endpoint on document changes
   useEffect(() => {
@@ -2660,10 +2675,10 @@ export default function DocumentPreview({
       } finally {
         setIsSyncingServer(false);
       }
-    }, interactiveSyncDelay);
+    }, 500);
 
     return () => clearTimeout(timer);
-  }, [compiledCover, compiledSettings, compiledHtmlContent, compiledHtmlBlocks, compiledBibliography, compiledUploadedFiles, paginatedPages, interactiveSyncDelay]);
+  }, [compiledCover, compiledSettings, compiledHtmlContent, compiledHtmlBlocks, compiledBibliography, compiledUploadedFiles, paginatedPages]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
