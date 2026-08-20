@@ -535,12 +535,24 @@
 }
 
 /* Colored Markdown Editor Tokens and Overlay Alignment */
-.colored-markdown-backdrop {
+.colored-markdown-backdrop,
+.colored-markdown-textarea {
   tab-size: 2 !important;
   -moz-tab-size: 2 !important;
-  font-family: var(--font-mono), "Fira Code", monospace !important;
+  font-family: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
   font-variant-ligatures: none !important;
-  letter-spacing: normal !important;
+  font-feature-settings: "liga" 0, "calt" 0 !important;
+  font-synthesis: none !important;
+  letter-spacing: 0px !important;
+  line-height: 1.6 !important;
+  font-size: 12px !important;
+  box-sizing: border-box !important;
+}
+
+.colored-markdown-backdrop * {
+  font-family: inherit !important;
+  letter-spacing: inherit !important;
+  font-synthesis: none !important;
 }
 
 /* Highlight styling for mark elements inside document content */
@@ -555,17 +567,17 @@
   display: inline;
 }
 
-/* VS Code / Monaco style Red Wavy Underline for Syntax Errors */
+/* VS Code / Monaco style Red Wavy Underline for Syntax Errors without layout-shifting padding or borders */
 .syntax-error-token {
   text-decoration: underline wavy #ef4444 2px !important;
   text-decoration-skip-ink: none !important;
   background-color: rgba(239, 68, 68, 0.25) !important;
   color: #fca5a5 !important;
-  border-bottom: 1.5px dashed #ef4444 !important;
-  border-radius: 2px;
   cursor: help;
   display: inline;
-  padding: 0 1px;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
 }
 
 .syntax-error-token:hover {
@@ -577,10 +589,10 @@
   text-decoration-skip-ink: none !important;
   background-color: rgba(245, 158, 11, 0.2) !important;
   color: #fde68a !important;
-  border-bottom: 1.5px dashed #f59e0b !important;
-  border-radius: 2px;
   cursor: help;
   display: inline;
-  padding: 0 1px;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
 }
 

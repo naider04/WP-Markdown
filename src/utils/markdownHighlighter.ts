@@ -116,15 +116,15 @@ export function highlightMarkdownCode(code: string, theme: EditorTheme = 'dark-m
     if (trimmed === '$$') {
       if (!inDisplayMathBlock) {
         inDisplayMathBlock = true;
-        return `<span class="md-token-math-display bg-purple-950/40 text-purple-400 font-bold px-1.5 py-0.5 rounded border border-purple-800/60 font-mono tracking-wider">$$</span>`;
+        return `<span class="md-token-math-display bg-purple-950/60 text-purple-400 font-bold">$$</span>`;
       } else {
         inDisplayMathBlock = false;
-        return `<span class="md-token-math-display bg-purple-950/40 text-purple-400 font-bold px-1.5 py-0.5 rounded border border-purple-800/60 font-mono tracking-wider">$$</span>`;
+        return `<span class="md-token-math-display bg-purple-950/60 text-purple-400 font-bold">$$</span>`;
       }
     }
 
     if (inDisplayMathBlock) {
-      return `<span class="md-token-math-display-body bg-purple-950/25 text-purple-200 font-mono font-medium tracking-wide px-1.5 py-0.5 rounded">${escapeHtml(line)}</span>`;
+      return `<span class="md-token-math-display-body bg-purple-950/40 text-purple-200">${escapeHtml(line)}</span>`;
     }
 
     // Process line as Markdown with line-specific issues highlighted in red
@@ -155,7 +155,7 @@ function highlightMarkdownLine(line: string, lineStart: number, lineIssues: Synt
 
     if (level === 1) {
       hashColor = 'text-orange-500 font-black';
-      textColor = 'text-orange-200 font-extrabold tracking-wide';
+      textColor = 'text-orange-200 font-bold';
     } else if (level === 2) {
       hashColor = 'text-sky-500 font-black';
       textColor = 'text-sky-200 font-bold';
@@ -203,7 +203,7 @@ function highlightMarkdownLine(line: string, lineStart: number, lineIssues: Synt
 
   // 4. Horizontal rule (---, ***, ___)
   if (/^(\s*)([-*_]){3,}\s*$/.test(line)) {
-    return `<span class="md-token-hr text-orange-500/70 font-black tracking-widest">${escapeHtml(line)}</span>`;
+    return `<span class="md-token-hr text-orange-500/70 font-bold">${escapeHtml(line)}</span>`;
   }
 
   // 5. Table rows (| a | b |)
@@ -271,14 +271,14 @@ function highlightInlineMarkdown(text: string, baseOffset: number, lineIssues: S
   // 1. Math expressions $$...$$ (display) and $...$ (inline)
   working = working.replace(/\$\$([\s\S]+?)\$\$/g, (match, math, offset) => {
     const inner = escapeHtml(math);
-    const html = `<span class="md-token-math-display bg-purple-950/40 text-purple-300 border border-purple-800/50 rounded px-1 font-mono font-medium"><span class="text-purple-400 font-bold">$$</span>${inner}<span class="text-purple-400 font-bold">$$</span></span>`;
+    const html = `<span class="md-token-math-display bg-purple-950/60 text-purple-300"><span class="text-purple-400 font-bold">$$</span>${inner}<span class="text-purple-400 font-bold">$$</span></span>`;
     const wrapped = wrapErrorIfMatch(match, offset, html);
     return createPlaceholder(wrapped);
   });
 
   working = working.replace(/(^|[^\\])\$([^\$\n]+?)\$/g, (match, prefix, math, offset) => {
     const inner = escapeHtml(math);
-    const html = `<span class="md-token-math-inline bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 rounded px-0.5 font-mono text-[11px]"><span class="text-emerald-500 font-bold">$</span>${inner}<span class="text-emerald-500 font-bold">$</span></span>`;
+    const html = `<span class="md-token-math-inline bg-emerald-950/60 text-emerald-300"><span class="text-emerald-500 font-bold">$</span>${inner}<span class="text-emerald-500 font-bold">$</span></span>`;
     const tokenStr = match.substring(prefix.length);
     const matchOffset = offset + prefix.length;
     const wrapped = wrapErrorIfMatch(tokenStr, matchOffset, html);
@@ -292,7 +292,7 @@ function highlightInlineMarkdown(text: string, baseOffset: number, lineIssues: S
       const colorClean = colorVal.trim();
       const escapedContent = highlightInlineMarkdownInner(content);
       const escapedStyle = escapeHtml(styleStr);
-      const html = `<span class="md-token-html-tag text-slate-500 font-mono">&lt;span style="${escapedStyle}"&gt;</span><span class="md-token-colored-text font-medium" style="color: ${colorClean}; text-shadow: 0 0 1px rgba(0,0,0,0.5);">${escapedContent}</span><span class="md-token-html-tag text-slate-500 font-mono">&lt;/span&gt;</span>`;
+      const html = `<span class="md-token-html-tag text-slate-500">&lt;span style="${escapedStyle}"&gt;</span><span class="md-token-colored-text font-medium" style="color: ${colorClean}; text-shadow: 0 0 1px rgba(0,0,0,0.5);">${escapedContent}</span><span class="md-token-html-tag text-slate-500">&lt;/span&gt;</span>`;
       const wrapped = wrapErrorIfMatch(match, offset, html);
       return createPlaceholder(wrapped);
     }
@@ -304,7 +304,7 @@ function highlightInlineMarkdown(text: string, baseOffset: number, lineIssues: S
     (match, quote, colorVal, content, offset) => {
       const colorClean = colorVal.trim();
       const escapedContent = highlightInlineMarkdownInner(content);
-      const html = `<span class="md-token-html-tag text-slate-500 font-mono">&lt;font color="${escapeHtml(colorClean)}"&gt;</span><span class="md-token-colored-text font-medium" style="color: ${colorClean};">${escapedContent}</span><span class="md-token-html-tag text-slate-500 font-mono">&lt;/font&gt;</span>`;
+      const html = `<span class="md-token-html-tag text-slate-500">&lt;font color="${escapeHtml(colorClean)}"&gt;</span><span class="md-token-colored-text font-medium" style="color: ${colorClean};">${escapedContent}</span><span class="md-token-html-tag text-slate-500">&lt;/font&gt;</span>`;
       const wrapped = wrapErrorIfMatch(match, offset, html);
       return createPlaceholder(wrapped);
     }
@@ -314,7 +314,7 @@ function highlightInlineMarkdown(text: string, baseOffset: number, lineIssues: S
   working = working.replace(/\[color:\s*([^\]]+)\]\(([\s\S]*?)\)/gi, (match, colorVal, content, offset) => {
     const colorClean = colorVal.trim();
     const escapedContent = highlightInlineMarkdownInner(content);
-    const html = `<span class="md-token-color-bracket text-slate-500 font-mono">[color:<span class="font-bold" style="color: ${colorClean};">${escapeHtml(colorClean)}</span>](</span><span class="font-semibold" style="color: ${colorClean};">${escapedContent}</span><span class="md-token-color-bracket text-slate-500 font-mono">)</span>`;
+    const html = `<span class="md-token-color-bracket text-slate-500">[color:<span class="font-bold" style="color: ${colorClean};">${escapeHtml(colorClean)}</span>](</span><span class="font-semibold" style="color: ${colorClean};">${escapedContent}</span><span class="md-token-color-bracket text-slate-500">)</span>`;
     const wrapped = wrapErrorIfMatch(match, offset, html);
     return createPlaceholder(wrapped);
   });
@@ -323,7 +323,7 @@ function highlightInlineMarkdown(text: string, baseOffset: number, lineIssues: S
   working = working.replace(/\[bg:\s*([^\]]+)\]\(([\s\S]*?)\)/gi, (match, bgVal, content, offset) => {
     const bgClean = bgVal.trim();
     const escapedContent = highlightInlineMarkdownInner(content);
-    const html = `<span class="md-token-color-bracket text-slate-500 font-mono">[bg:<span class="font-bold text-amber-300">${escapeHtml(bgClean)}</span>](</span><span class="font-semibold px-1 rounded text-slate-900" style="background-color: ${bgClean};">${escapedContent}</span><span class="md-token-color-bracket text-slate-500 font-mono">)</span>`;
+    const html = `<span class="md-token-color-bracket text-slate-500">[bg:<span class="font-bold text-amber-300">${escapeHtml(bgClean)}</span>](</span><span class="font-semibold text-slate-900" style="background-color: ${bgClean};">${escapedContent}</span><span class="md-token-color-bracket text-slate-500">)</span>`;
     const wrapped = wrapErrorIfMatch(match, offset, html);
     return createPlaceholder(wrapped);
   });
@@ -331,14 +331,14 @@ function highlightInlineMarkdown(text: string, baseOffset: number, lineIssues: S
   // Markdown hex shorthand: [#FF6600](texto)
   working = working.replace(/\[(#(?:[0-9a-fA-F]{3}){1,2})\]\(([\s\S]*?)\)/g, (match, hexVal, content, offset) => {
     const escapedContent = highlightInlineMarkdownInner(content);
-    const html = `<span class="md-token-color-bracket text-slate-500 font-mono">[<span class="font-bold" style="color: ${hexVal};">${hexVal}</span>](</span><span class="font-semibold" style="color: ${hexVal};">${escapedContent}</span><span class="md-token-color-bracket text-slate-500 font-mono">)</span>`;
+    const html = `<span class="md-token-color-bracket text-slate-500">[<span class="font-bold" style="color: ${hexVal};">${hexVal}</span>](</span><span class="font-semibold" style="color: ${hexVal};">${escapedContent}</span><span class="md-token-color-bracket text-slate-500">)</span>`;
     const wrapped = wrapErrorIfMatch(match, offset, html);
     return createPlaceholder(wrapped);
   });
 
   // 4. Inline code `code`
   working = working.replace(/`([^`\n]+)`/g, (match, codeText, offset) => {
-    const html = `<span class="md-token-inline-code bg-slate-800 text-cyan-300 font-mono px-1 py-0.5 rounded border border-slate-700/60 text-[11px]"><span class="text-cyan-500 font-bold">\`</span>${escapeHtml(codeText)}<span class="text-cyan-500 font-bold">\`</span></span>`;
+    const html = `<span class="md-token-inline-code bg-slate-800 text-cyan-300"><span class="text-cyan-500 font-bold">\`</span>${escapeHtml(codeText)}<span class="text-cyan-500 font-bold">\`</span></span>`;
     const wrapped = wrapErrorIfMatch(match, offset, html);
     return createPlaceholder(wrapped);
   });
@@ -352,14 +352,14 @@ function highlightInlineMarkdown(text: string, baseOffset: number, lineIssues: S
 
   // 6. Links [text](url)
   working = working.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, linkText, url, offset) => {
-    const html = `<span class="md-token-link text-sky-400 font-medium">[<span class="text-sky-200">${escapeHtml(linkText)}</span>](<span class="text-slate-400 underline text-[11px]">${escapeHtml(url)}</span>)</span>`;
+    const html = `<span class="md-token-link text-sky-400 font-medium">[<span class="text-sky-200">${escapeHtml(linkText)}</span>](<span class="text-slate-400 underline">${escapeHtml(url)}</span>)</span>`;
     const wrapped = wrapErrorIfMatch(match, offset, html);
     return createPlaceholder(wrapped);
   });
 
   // 7. Bold **text** or __text__
   working = working.replace(/(\*\*|__)(.*?)\1/g, (match, delim, inner, offset) => {
-    const html = `<span class="md-token-bold text-amber-200 font-bold"><span class="text-amber-500 font-black">${escapeHtml(delim)}</span>${escapeHtml(inner)}<span class="text-amber-500 font-black">${escapeHtml(delim)}</span></span>`;
+    const html = `<span class="md-token-bold text-amber-200 font-bold"><span class="text-amber-500 font-bold">${escapeHtml(delim)}</span>${escapeHtml(inner)}<span class="text-amber-500 font-bold">${escapeHtml(delim)}</span></span>`;
     const wrapped = wrapErrorIfMatch(match, offset, html);
     return createPlaceholder(wrapped);
   });

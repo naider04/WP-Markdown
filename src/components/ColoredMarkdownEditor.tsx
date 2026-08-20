@@ -29,12 +29,29 @@ interface ColoredMarkdownEditorProps {
   autoFocus?: boolean;
 }
 
+const SHARED_EDITOR_STYLE: React.CSSProperties = {
+  tabSize: 2,
+  fontFamily: '"Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+  fontVariantLigatures: 'none',
+  fontFeatureSettings: '"liga" 0, "calt" 0',
+  letterSpacing: '0px',
+  fontSize: '12px',
+  lineHeight: '1.6',
+  boxSizing: 'border-box',
+  padding: '12px',
+  margin: 0,
+  border: 'none',
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+  overflowWrap: 'break-word',
+};
+
 export function ColoredMarkdownEditor({
   id,
   value,
   onChange,
   placeholder = "Escribe aquí en Markdown (puedes incluir fórmulas LaTeX y HTML)...",
-  debounceDelay = 0,
+  debounceDelay = 150,
   autoFocus = false
 }: ColoredMarkdownEditorProps) {
   const [localValue, setLocalValue] = useState(value);
@@ -135,15 +152,17 @@ export function ColoredMarkdownEditor({
     };
   }, [adjustHeight]);
 
-  const handleTextChange = (newVal: string) => {
+  // Solution 2: Debounced propagation to parent to prevent preview KaTeX re-parsing on every keystroke
+  const handleTextChange = (newVal: string, immediate = false) => {
     setLocalValue(newVal);
     adjustHeight();
 
     if (timerRef.current) {
       clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
 
-    if (debounceDelay === 0) {
+    if (immediate || debounceDelay <= 0) {
       lastPropagatedRef.current = newVal;
       onChange(newVal);
     } else {
@@ -153,6 +172,25 @@ export function ColoredMarkdownEditor({
       }, debounceDelay);
     }
   };
+
+  // Flush any pending debounced change on blur
+  const handleBlur = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+      lastPropagatedRef.current = localValue;
+      onChange(localValue);
+    }
+  };
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
 
   // Sync scroll position between textarea and backdrop
   const handleScroll = () => {
@@ -175,7 +213,7 @@ export function ColoredMarkdownEditor({
     const replacement = selectedText || defaultText;
     const newText = text.substring(0, start) + prefix + replacement + suffix + text.substring(end);
 
-    handleTextChange(newText);
+    handleTextChange(newText, true);
 
     setTimeout(() => {
       textarea.focus();
@@ -224,7 +262,7 @@ export function ColoredMarkdownEditor({
     return findSyntaxIssues(localValue);
   }, [localValue]);
 
-  // Render highlighted HTML with inline error squiggles (always active)
+  // Render highlighted HTML with inline error squiggles (synchronized with every keystroke)
   const highlightedHtml = useMemo(() => {
     return highlightMarkdownCode(localValue, editorTheme);
   }, [localValue, editorTheme]);
@@ -328,15 +366,14 @@ export function ColoredMarkdownEditor({
       </div>
 
       {/* Editor Content Area: Dual Layer Synchronized Syntax Highlighter & Textarea */}
-      <div className="relative w-full bg-slate-950 min-h-[140px] font-mono text-xs leading-relaxed overflow-hidden">
+      <div className="relative w-full bg-slate-950 min-h-[140px] overflow-hidden">
         {/* Layer 1: Synchronized Syntax Highlight Backdrop (Always active) */}
         <div
           ref={backdropRef}
           aria-hidden="true"
-          className="absolute inset-0 p-3 pointer-events-none whitespace-pre-wrap break-words overflow-hidden text-slate-300 font-mono text-xs leading-relaxed select-none z-0"
+          className="colored-markdown-backdrop absolute inset-0 pointer-events-none overflow-hidden text-slate-300 select-none z-0"
           style={{
-            tabSize: 2,
-            fontFamily: '"Fira Code", monospace'
+            ...SHARED_EDITOR_STYLE,
           }}
           dangerouslySetInnerHTML={{ __html: highlightedHtml + '<br/>' }}
         />
@@ -347,16 +384,16 @@ export function ColoredMarkdownEditor({
           ref={textareaRef}
           value={localValue}
           onChange={(e) => handleTextChange(e.target.value)}
+          onBlur={handleBlur}
           onScroll={handleScroll}
           onKeyDown={handleKeyDown}
           style={{
+            ...SHARED_EDITOR_STYLE,
             resize: 'none',
-            tabSize: 2,
-            fontFamily: '"Fira Code", monospace',
             caretColor: '#FF6600',
             color: 'transparent',
           }}
-          className="relative z-10 w-full p-3 bg-transparent font-mono text-xs leading-relaxed focus:outline-none border-0 focus:ring-0 custom-scrollbar overflow-y-hidden selection:bg-orange-500/30 caret-orange-500"
+          className="colored-markdown-textarea relative z-10 w-full bg-transparent focus:outline-none border-0 focus:ring-0 custom-scrollbar overflow-y-hidden selection:bg-orange-500/30 caret-orange-500"
           placeholder={placeholder}
           spellCheck={false}
           autoCapitalize="off"
