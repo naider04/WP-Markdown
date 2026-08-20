@@ -69,6 +69,7 @@ export function highlightMarkdownCode(code: string, theme: EditorTheme = 'dark-m
   let currentOffset = 0;
   let inCodeBlock = false;
   let codeBlockLang = '';
+  let inDisplayMathBlock = false;
 
   const highlightedLines = lines.map((line) => {
     const lineStart = currentOffset;
@@ -108,6 +109,22 @@ export function highlightMarkdownCode(code: string, theme: EditorTheme = 'dark-m
         }
       }
       return `<span class="md-token-code-block text-emerald-300/90">${highlightedCode}</span>`;
+    }
+
+    // Multi-line Display Math ($$...$$ across multiple lines)
+    const trimmed = line.trim();
+    if (trimmed === '$$') {
+      if (!inDisplayMathBlock) {
+        inDisplayMathBlock = true;
+        return `<span class="md-token-math-display bg-purple-950/40 text-purple-400 font-bold px-1.5 py-0.5 rounded border border-purple-800/60 font-mono tracking-wider">$$</span>`;
+      } else {
+        inDisplayMathBlock = false;
+        return `<span class="md-token-math-display bg-purple-950/40 text-purple-400 font-bold px-1.5 py-0.5 rounded border border-purple-800/60 font-mono tracking-wider">$$</span>`;
+      }
+    }
+
+    if (inDisplayMathBlock) {
+      return `<span class="md-token-math-display-body bg-purple-950/25 text-purple-200 font-mono font-medium tracking-wide px-1.5 py-0.5 rounded">${escapeHtml(line)}</span>`;
     }
 
     // Process line as Markdown with line-specific issues highlighted in red
@@ -220,7 +237,9 @@ function highlightInlineMarkdown(text: string, baseOffset: number, lineIssues: S
   let tokenIdx = 0;
 
   const createPlaceholder = (html: string): string => {
-    const id = `__MD_TOKEN_${tokenIdx++}__`;
+    // Use pure Unicode Private Use Area codepoints without any underscores, asterisks, or letters
+    // to strictly prevent regex collisions with Markdown italic (_..._), bold, tags, or words
+    const id = `\uE000${tokenIdx++}\uE001`;
     placeholders.push({ id, html });
     return id;
   };
@@ -252,14 +271,14 @@ function highlightInlineMarkdown(text: string, baseOffset: number, lineIssues: S
   // 1. Math expressions $$...$$ (display) and $...$ (inline)
   working = working.replace(/\$\$([\s\S]+?)\$\$/g, (match, math, offset) => {
     const inner = escapeHtml(math);
-    const html = `<span class="md-token-math-display bg-emerald-950/40 text-emerald-300 border border-emerald-800/50 rounded px-1 font-mono font-medium"><span class="text-emerald-500 font-bold">$$</span>${inner}<span class="text-emerald-500 font-bold">$$</span></span>`;
+    const html = `<span class="md-token-math-display bg-purple-950/40 text-purple-300 border border-purple-800/50 rounded px-1 font-mono font-medium"><span class="text-purple-400 font-bold">$$</span>${inner}<span class="text-purple-400 font-bold">$$</span></span>`;
     const wrapped = wrapErrorIfMatch(match, offset, html);
     return createPlaceholder(wrapped);
   });
 
   working = working.replace(/(^|[^\\])\$([^\$\n]+?)\$/g, (match, prefix, math, offset) => {
     const inner = escapeHtml(math);
-    const html = `<span class="md-token-math-inline bg-teal-950/40 text-teal-300 border border-teal-800/40 rounded px-0.5 font-mono text-[11px]"><span class="text-teal-500 font-bold">$</span>${inner}<span class="text-teal-500 font-bold">$</span></span>`;
+    const html = `<span class="md-token-math-inline bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 rounded px-0.5 font-mono text-[11px]"><span class="text-emerald-500 font-bold">$</span>${inner}<span class="text-emerald-500 font-bold">$</span></span>`;
     const tokenStr = match.substring(prefix.length);
     const matchOffset = offset + prefix.length;
     const wrapped = wrapErrorIfMatch(tokenStr, matchOffset, html);
@@ -389,9 +408,19 @@ function highlightInlineMarkdown(text: string, baseOffset: number, lineIssues: S
   // Escape any remaining plain text
   let result = escapeHtml(working);
 
-  // Restore placeholders
-  for (const placeholder of placeholders) {
-    result = result.replace(placeholder.id, placeholder.html);
+  // Restore placeholders safely in reverse order using a function callback to prevent $ replacement quirks
+  let changed = true;
+  let iterations = 0;
+  while (changed && iterations < 5) {
+    changed = false;
+    iterations++;
+    for (let i = placeholders.length - 1; i >= 0; i--) {
+      const placeholder = placeholders[i];
+      if (result.includes(placeholder.id)) {
+        result = result.replaceAll(placeholder.id, () => placeholder.html);
+        changed = true;
+      }
+    }
   }
 
   return result;

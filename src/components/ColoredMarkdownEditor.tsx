@@ -60,44 +60,62 @@ export function ColoredMarkdownEditor({
     }
   }, [autoFocus]);
 
-  const adjustHeight = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
+  const rafRef = useRef<number | null>(null);
 
-    // Save scroll position of all scrollable parent containers before height recalculation
-    const scrollParents: { el: HTMLElement; scrollTop: number }[] = [];
-    let parent = textarea.parentElement;
-    while (parent && parent !== document.body) {
-      const style = window.getComputedStyle(parent);
-      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
-        scrollParents.push({ el: parent, scrollTop: parent.scrollTop });
-      }
-      parent = parent.parentElement;
+  const adjustHeight = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
     }
 
-    const currentHeight = textarea.offsetHeight;
-    const scrollHeight = textarea.scrollHeight;
+    rafRef.current = requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
 
-    if (scrollHeight > currentHeight) {
-      textarea.style.height = `${Math.max(140, scrollHeight)}px`;
-    } else {
-      textarea.style.height = 'auto';
-      const newHeight = Math.max(140, textarea.scrollHeight);
-      textarea.style.height = `${newHeight}px`;
+      // Save scroll position of all scrollable parent containers before height recalculation
+      const scrollParents: { el: HTMLElement; scrollTop: number }[] = [];
+      let parent = textarea.parentElement;
+      while (parent && parent !== document.body) {
+        const style = window.getComputedStyle(parent);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+          scrollParents.push({ el: parent, scrollTop: parent.scrollTop });
+        }
+        parent = parent.parentElement;
+      }
+
+      const currentHeight = textarea.offsetHeight;
+      const scrollHeight = textarea.scrollHeight;
+
+      const targetHeight = scrollHeight > currentHeight
+        ? Math.max(140, scrollHeight)
+        : Math.max(140, (() => {
+            textarea.style.height = 'auto';
+            const h = textarea.scrollHeight;
+            return h;
+          })());
+
+      const targetPx = `${targetHeight}px`;
+      if (textarea.style.height !== targetPx) {
+        textarea.style.height = targetPx;
+      }
 
       for (const sp of scrollParents) {
         sp.el.scrollTop = sp.scrollTop;
       }
-    }
 
-    // Keep backdrop height matching
-    if (backdropRef.current) {
-      backdropRef.current.style.height = textarea.style.height;
-    }
+      // Keep backdrop height matching
+      if (backdropRef.current && backdropRef.current.style.height !== targetPx) {
+        backdropRef.current.style.height = targetPx;
+      }
+    });
   }, []);
 
   useEffect(() => {
     adjustHeight();
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
   }, [localValue, adjustHeight]);
 
   useEffect(() => {
@@ -111,6 +129,9 @@ export function ColoredMarkdownEditor({
     resizeObserver.observe(textarea);
     return () => {
       resizeObserver.disconnect();
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
     };
   }, [adjustHeight]);
 
