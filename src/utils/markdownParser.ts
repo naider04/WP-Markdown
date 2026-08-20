@@ -47,9 +47,41 @@ const highlightCode = (code: string, lang: string): string => {
     .replace(/>/g, '&gt;');
 };
 
+export function preprocessMarkdownColors(src: string): string {
+  if (!src) return '';
+  let result = src;
+
+  // 1. [color:#FF6600](texto) or [color:red](texto)
+  result = result.replace(/\[color:\s*([^\]]+)\]\(([\s\S]*?)\)/gi, (_match, color, text) => {
+    return `<span style="color: ${color.trim()};">${text}</span>`;
+  });
+
+  // 2. [bg:#FEF08A](texto) or [bg:yellow](texto)
+  result = result.replace(/\[bg:\s*([^\]]+)\]\(([\s\S]*?)\)/gi, (_match, bg, text) => {
+    return `<mark style="background-color: ${bg.trim()}; color: #000000; padding: 2px 4px; border-radius: 3px; display: inline;">${text}</mark>`;
+  });
+
+  // 3. [#FF6600](texto) hex shorthand
+  result = result.replace(/\[(#(?:[0-9a-fA-F]{3}){1,2})\]\(([\s\S]*?)\)/g, (_match, hex, text) => {
+    return `<span style="color: ${hex};">${text}</span>`;
+  });
+
+  // 4. {#FF6600: texto} or {color:#FF6600 texto}
+  result = result.replace(/\{(?:color:)?(#(?:[0-9a-fA-F]{3}){1,2}|[a-zA-Z]+)(?::|\s+)([\s\S]*?)\}/g, (_match, color, text) => {
+    return `<span style="color: ${color.trim()};">${text}</span>`;
+  });
+
+  return result;
+}
+
 export const markdownParser = new Marked({
   gfm: true,
   breaks: true,
+  hooks: {
+    preprocess(markdown: string) {
+      return preprocessMarkdownColors(markdown);
+    }
+  }
 });
 
 // Configure custom renderer for code syntax highlighting and APA headings

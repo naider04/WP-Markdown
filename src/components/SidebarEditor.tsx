@@ -19,6 +19,9 @@ import {
 } from 'lucide-react';
 import { validateContent } from '../utils/validation';
 import { copyToWordClipboard } from '../lib/wordExporter';
+import { ColoredMarkdownEditor } from './ColoredMarkdownEditor';
+import { highlightMarkdownCode } from '../utils/markdownHighlighter';
+import { Edit3, Sparkles } from 'lucide-react';
 
 interface AutoGrowingTextAreaProps {
   id: string;
@@ -521,7 +524,7 @@ export function SidebarEditor({
               )}
 
               {/* Center Column: Code Editor content / Collapsed preview / Expanded preview */}
-              <div className="flex-1 flex flex-col min-w-0 pr-14">
+              <div className={`flex-1 flex flex-col min-w-0 ${isExpanded ? 'pr-0' : 'pr-14'}`}>
                 {(() => {
                   const validationErrors = validateContent(block.code);
                   const hasErrors = validationErrors.some(e => e.severity === 'error');
@@ -553,91 +556,75 @@ export function SidebarEditor({
                   }
 
                   if (!isEditing) {
-                    // Stage 2 / Expanded Read-Only View (Lag-free preview)
+                    // Stage 2 / Expanded Read-Only View with Rich Colored Markdown Syntax Highlighting
+                    const highlightedPreview = highlightMarkdownCode(block.code);
                     return (
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
                           setActiveEditingBlockId(block.id);
                         }}
-                        className="flex-1 p-2.5 bg-slate-950/80 rounded flex flex-col gap-2 cursor-pointer group hover:bg-slate-900/40 transition-colors"
-                        title="3er Clic: Haz clic aquí para activar la edición y colocar el cursor"
+                        className="flex-1 p-2.5 bg-slate-950 rounded-lg flex flex-col gap-2 cursor-pointer group hover:bg-slate-900/60 transition-colors border border-slate-850/60 hover:border-orange-500/50"
+                        title="Haz clic aquí para activar la edición de este bloque"
                       >
-                        <pre className="font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap break-words max-h-[280px] overflow-y-auto custom-scrollbar p-1">
-                          {block.code || <span className="italic text-slate-600">&lt;Bloque vacío&gt;</span>}
-                        </pre>
+                        <div className="flex items-center justify-between gap-2 pb-1 border-b border-slate-900/60 select-none">
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-semibold">
+                            <Sparkles className="w-3 h-3 text-orange-400" />
+                            <span className="text-slate-300">Vista Previa con Sintaxis de Color</span>
+                          </div>
+                          <span className="text-[10px] text-orange-400 group-hover:text-orange-300 font-bold flex items-center gap-1 transition-colors">
+                            <Edit3 className="w-3 h-3" />
+                            <span>Clic para editar</span>
+                          </span>
+                        </div>
+                        {block.code ? (
+                          <div
+                            className="font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap break-words max-h-[320px] overflow-y-auto custom-scrollbar p-1.5 rounded bg-slate-950/70"
+                            style={{ fontFamily: '"Fira Code", monospace' }}
+                            dangerouslySetInnerHTML={{ __html: highlightedPreview }}
+                          />
+                        ) : (
+                          <div className="font-mono text-xs text-slate-600 italic p-1.5">
+                            &lt;Bloque vacío - haz clic para escribir contenido&gt;
+                          </div>
+                        )}
                       </div>
                     );
                   }
 
-                  // Stage 3 / Active Editable Mode
+                  // Stage 3 / Active Editable Mode with Real-time Colored Markdown & Inline Syntax Error Highlighting
                   return (
-                    <div className="flex-1 flex flex-col relative bg-slate-950 select-text p-1.5 py-3">
-                      {/* Block Header Toolbar */}
-                      <div className="flex items-center justify-between gap-2 px-2 pb-2 mb-2 border-b border-slate-900/60">
-                        <div className="flex items-center gap-1 shrink-0 text-[10px] font-semibold select-none">
-                          {validationErrors.length === 0 ? (
-                            <span className="text-emerald-400 flex items-center gap-1 font-mono text-[9px]" title="La sintaxis de HTML y LaTeX es correcta">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                              ✓ OK
-                            </span>
-                          ) : (
-                            <span className={`flex items-center gap-1 font-mono text-[9px] ${hasErrors ? 'text-red-400' : 'text-amber-400'}`}>
-                              <AlertTriangle className="w-3 h-3 shrink-0" />
-                              {validationErrors.length} {validationErrors.length === 1 ? 'aviso' : 'avisos'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <AutoGrowingTextArea
+                    <div className="flex-1 flex flex-col relative bg-slate-950 select-text p-1">
+                      <ColoredMarkdownEditor
                         id={`editor-textarea-${block.id}`}
                         value={block.code}
                         onChange={(val) => handleCodeChange(block.id, val)}
-                        placeholder="Escribe aquí en Markdown (puedes incluir fórmulas LaTeX y etiquetas HTML)..."
+                        placeholder="Escribe aquí en Markdown (puedes colorear texto, insertar fórmulas LaTeX o etiquetas HTML)..."
                         debounceDelay={debounceDelay}
                         autoFocus={true}
                       />
-
-                      {/* Display of real-time validation feedback */}
-                      {validationErrors.length > 0 && (
-                        <div className="mt-2.5 p-2 bg-slate-950 border border-slate-850 rounded-lg flex flex-col gap-1.5 text-[10px] select-text">
-                          <div className="flex items-center gap-1 text-[9.5px] font-bold text-slate-400 border-b border-slate-900/50 pb-1 mb-0.5 select-none">
-                            <AlertCircle className="w-3.5 h-3.5 text-orange-400 shrink-0" />
-                            <span>ANÁLISIS DE SINTAXIS EN TIEMPO REAL:</span>
-                          </div>
-                          {validationErrors.map((err, errIdx) => (
-                            <div key={errIdx} className="flex gap-1.5 leading-relaxed">
-                              <span className={`shrink-0 font-bold text-[9px] uppercase px-1 rounded select-none ${
-                                err.severity === 'error' ? 'bg-red-950/40 text-red-400 border border-red-900/50' : 'bg-amber-950/40 text-amber-400 border border-amber-900/50'
-                              }`}>
-                                {err.type}
-                              </span>
-                              <span className="text-slate-350">{err.message}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   );
                 })()}
               </div>
 
-              {/* Floating Absolute Block Number & Drag Handle on the Right side */}
-              <div
-                draggable
-                onDragStart={(e) => handleDragStart(e, index)}
-                onDragEnd={() => {
-                  setDraggedIndex(null);
-                  setDragOverIndex(null);
-                }}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing shadow-md hover:scale-105 active:scale-95 transition-all select-none border bg-slate-900 hover:bg-slate-800 border-slate-800 hover:border-orange-500 text-slate-300 hover:text-orange-400"
-                title="Arrastra para reordenar este bloque"
-              >
-                <span className="text-xs font-extrabold font-mono tracking-tighter">
-                  {index + 1}
-                </span>
-              </div>
+              {/* Floating Absolute Block Number & Drag Handle on the Right side - Only visible when collapsed */}
+              {!isExpanded && (
+                <div
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragEnd={() => {
+                    setDraggedIndex(null);
+                    setDragOverIndex(null);
+                  }}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing shadow-md hover:scale-105 active:scale-95 transition-all select-none border bg-slate-900 hover:bg-slate-800 border-slate-800 hover:border-orange-500 text-slate-300 hover:text-orange-400"
+                  title="Arrastra para reordenar este bloque"
+                >
+                  <span className="text-xs font-extrabold font-mono tracking-tighter">
+                    {index + 1}
+                  </span>
+                </div>
+              )}
             </div>
           );
         })}

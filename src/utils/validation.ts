@@ -3,170 +3,220 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export interface ValidationError {
-  type: 'html' | 'latex';
+export interface SyntaxIssue {
+  startIndex: number;
+  endIndex: number;
+  type: 'html' | 'latex' | 'markdown';
   message: string;
   severity: 'warning' | 'error';
+  token?: string;
 }
 
-const validationCache = new Map<string, ValidationError[]>();
+export interface ValidationError {
+  type: 'html' | 'latex' | 'markdown';
+  message: string;
+  severity: 'warning' | 'error';
+  startIndex?: number;
+  endIndex?: number;
+}
 
-export function validateContent(code: string): ValidationError[] {
+const voidElements = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+  'link', 'meta', 'param', 'source', 'track', 'wbr'
+]);
+
+/**
+ * Validates Markdown, HTML, and LaTeX code to pinpoint exact error ranges and tokens.
+ */
+export function findSyntaxIssues(code: string): SyntaxIssue[] {
   if (!code) return [];
-  if (validationCache.has(code)) {
-    return validationCache.get(code)!;
-  }
 
-  const errors: ValidationError[] = [];
+  const issues: SyntaxIssue[] = [];
 
-  // --- 1. HTML Validation ---
-  // Void/self-closing elements that don't need a closing tag in HTML5
-  const voidElements = new Set([
-    'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
-    'link', 'meta', 'param', 'source', 'track', 'wbr'
-  ]);
-
-  // Regexp to find valid HTML tags: opening, closing, or self-closing
-  // Tag names must start with a letter (a-z) to avoid matching mathematical inequalities like < 0 or < x
+  // --- 1. HTML Tag Matching & Analysis ---
   const tagRegex = /<(\/?)([a-zA-Z][a-zA-Z0-9:-]*)(?:\s+[^<>\n]*?)?(\/?)>/g;
-  let match;
-  const stack: { name: string; index: number }[] = [];
+  let match: RegExpExecArray | null;
+  const tagStack: { name: string; startIndex: number; endIndex: number; raw: string }[] = [];
 
   while ((match = tagRegex.exec(code)) !== null) {
     const isClosing = match[1] === '/';
     const tagName = match[2].toLowerCase();
     const isSelfClosing = match[3] === '/' || voidElements.has(tagName);
+    const start = match.index;
+    const end = match.index + match[0].length;
+    const raw = match[0];
 
     if (isSelfClosing) {
       continue;
     }
 
     if (isClosing) {
-      if (stack.length === 0) {
-        errors.push({
+      if (tagStack.length === 0) {
+        issues.push({
+          startIndex: start,
+          endIndex: end,
           type: 'html',
-          message: `Etiqueta de cierre </${tagName}> encontrada sin una etiqueta de apertura correspondiente.`,
-          severity: 'error'
+          message: `Etiqueta de cierre </${tagName}> sin etiqueta de apertura`,
+          severity: 'error',
+          token: raw
         });
       } else {
-        const last = stack.pop();
-        if (last && last.name !== tagName) {
-          errors.push({
-            type: 'html',
-            message: `Etiqueta de cierre </${tagName}> no coincide con la etiqueta de apertura <${last.name}>.`,
-            severity: 'error'
-          });
-        }
-      }
-    } else {
-      stack.push({ name: tagName, index: match.index });
-    }
-  }
-
-  // Any remaining tags in stack are unclosed
-  while (stack.length > 0) {
-    const unclosed = stack.pop();
-    if (unclosed) {
-      errors.push({
-        type: 'html',
-        message: `La etiqueta <${unclosed.name}> no está cerrada. Asegúrate de cerrarla con </${unclosed.name}>.`,
-        severity: 'error'
-      });
-    }
-  }
-
-  // --- 2. LaTeX Validation ---
-  // Count of block math delimiters $$
-  const doubleDollarCount = (code.match(/\$\$/g) || []).length;
-  if (doubleDollarCount % 2 !== 0) {
-    errors.push({
-      type: 'latex',
-      message: 'Falta un delimitador de bloque matemático ($$). Tienes un número impar de $$ en tu texto.',
-      severity: 'error'
-    });
-  }
-
-  // Count of inline math delimiters $ (excluding double dollars)
-  const inlineCodeCleaned = code.replace(/\$\$/g, '');
-  const singleDollarCount = (inlineCodeCleaned.match(/\$/g) || []).length;
-  if (singleDollarCount % 2 !== 0) {
-    // Check if there are signs of LaTeX within the text to avoid warning on normal currency signs like $100
-    const containsLatexSymbols = /\\begin|\\end|\\alpha|\\beta|\\frac|\\sum|\\int|\\times|\\neq|\\leq|\\geq|\\infty|\\sin|\\cos|\\tan|\\cdot|\\pi|\\theta/i.test(code);
-    if (containsLatexSymbols) {
-      errors.push({
-        type: 'latex',
-        message: 'Posible delimitador matemático de línea ($) incompleto o impar en el bloque.',
-        severity: 'warning'
-      });
-    }
-  }
-
-  // Environments: \begin{env} and \end{env}
-  const beginRegex = /\\begin\{([a-zA-Z0-9*]+)\}/g;
-  const endRegex = /\\end\{([a-zA-Z0-9*]+)\}/g;
-  
-  const begins: string[] = [];
-  let beginMatch;
-  while ((beginMatch = beginRegex.exec(code)) !== null) {
-    begins.push(beginMatch[1]);
-  }
-
-  const ends: string[] = [];
-  let endMatch;
-  while ((endMatch = endRegex.exec(code)) !== null) {
-    ends.push(endMatch[1]);
-  }
-
-  // Simple pairing check
-  if (begins.length !== ends.length) {
-    errors.push({
-      type: 'latex',
-      message: `Número desigual de instrucciones LaTeX \\begin y \\end (${begins.length} \\begin frente a ${ends.length} \\end).`,
-      severity: 'error'
-    });
-  } else {
-    // Check order/names
-    const envStack: string[] = [];
-    const envRegex = /\\(begin|end)\{([a-zA-Z0-9*]+)\}/g;
-    let envMatch;
-    while ((envMatch = envRegex.exec(code)) !== null) {
-      const command = envMatch[1];
-      const envName = envMatch[2];
-      if (command === 'begin') {
-        envStack.push(envName);
-      } else {
-        if (envStack.length === 0) {
-          errors.push({
-            type: 'latex',
-            message: `Estructura \\end{${envName}} encontrada sin un \\begin correspondiente.`,
-            severity: 'error'
-          });
+        const top = tagStack[tagStack.length - 1];
+        if (top.name === tagName) {
+          tagStack.pop();
         } else {
-          const lastEnv = envStack.pop();
-          if (lastEnv !== envName) {
-            errors.push({
-              type: 'latex',
-              message: `Estructura \\end{${envName}} no coincide con \\begin{${lastEnv}}.`,
-              severity: 'error'
+          // Check if tagName is in the stack
+          const foundIdx = tagStack.map(t => t.name).lastIndexOf(tagName);
+          if (foundIdx !== -1) {
+            // Unclosed tags between foundIdx and top
+            while (tagStack.length > foundIdx + 1) {
+              const unclosed = tagStack.pop()!;
+              issues.push({
+                startIndex: unclosed.startIndex,
+                endIndex: unclosed.endIndex,
+                type: 'html',
+                message: `Etiqueta <${unclosed.name}> no cerrada antes de </${tagName}>`,
+                severity: 'error',
+                token: unclosed.raw
+              });
+            }
+            tagStack.pop(); // Pop matching opening tag
+          } else {
+            // Orphan closing tag
+            issues.push({
+              startIndex: start,
+              endIndex: end,
+              type: 'html',
+              message: `Etiqueta de cierre </${tagName}> no coincide con <${top.name}>`,
+              severity: 'error',
+              token: raw
             });
           }
         }
       }
-    }
-    while (envStack.length > 0) {
-      const leftOver = envStack.pop();
-      errors.push({
-        type: 'latex',
-        message: `Falta cerrar la estructura LaTeX \\begin{${leftOver}} con \\end{${leftOver}}.`,
-        severity: 'error'
-      });
+    } else {
+      tagStack.push({ name: tagName, startIndex: start, endIndex: end, raw });
     }
   }
 
-  if (validationCache.size > 1000) {
-    validationCache.clear();
+  // Any tags left in the stack are unclosed
+  while (tagStack.length > 0) {
+    const unclosed = tagStack.pop()!;
+    issues.push({
+      startIndex: unclosed.startIndex,
+      endIndex: unclosed.endIndex,
+      type: 'html',
+      message: `Etiqueta <${unclosed.name}> sin cerrar`,
+      severity: 'error',
+      token: unclosed.raw
+    });
   }
-  validationCache.set(code, errors);
 
-  return errors;
+  // --- 2. LaTeX Block Math ($$) Validation ---
+  const doubleDollarMatches: { index: number; text: string }[] = [];
+  const ddRegex = /\$\$/g;
+  while ((match = ddRegex.exec(code)) !== null) {
+    doubleDollarMatches.push({ index: match.index, text: '$$' });
+  }
+
+  if (doubleDollarMatches.length % 2 !== 0) {
+    const last = doubleDollarMatches[doubleDollarMatches.length - 1];
+    issues.push({
+      startIndex: last.index,
+      endIndex: last.index + 2,
+      type: 'latex',
+      message: 'Delimitador de bloque matemático ($$) sin cerrar',
+      severity: 'error',
+      token: '$$'
+    });
+  }
+
+  // --- 3. LaTeX Environments (\begin{env} / \end{env}) ---
+  const envRegex = /\\(begin|end)\{([a-zA-Z0-9*]+)\}/g;
+  const envStack: { name: string; startIndex: number; endIndex: number; raw: string }[] = [];
+
+  while ((match = envRegex.exec(code)) !== null) {
+    const isEnd = match[1] === 'end';
+    const envName = match[2];
+    const start = match.index;
+    const end = match.index + match[0].length;
+    const raw = match[0];
+
+    if (!isEnd) {
+      envStack.push({ name: envName, startIndex: start, endIndex: end, raw });
+    } else {
+      if (envStack.length === 0) {
+        issues.push({
+          startIndex: start,
+          endIndex: end,
+          type: 'latex',
+          message: `Estructura \\end{${envName}} sin \\begin{${envName}} correspondiente`,
+          severity: 'error',
+          token: raw
+        });
+      } else {
+        const topEnv = envStack.pop()!;
+        if (topEnv.name !== envName) {
+          issues.push({
+            startIndex: start,
+            endIndex: end,
+            type: 'latex',
+            message: `Estructura \\end{${envName}} no coincide con \\begin{${topEnv.name}}`,
+            severity: 'error',
+            token: raw
+          });
+        }
+      }
+    }
+  }
+
+  while (envStack.length > 0) {
+    const unclosedEnv = envStack.pop()!;
+    issues.push({
+      startIndex: unclosedEnv.startIndex,
+      endIndex: unclosedEnv.endIndex,
+      type: 'latex',
+      message: `Estructura \\begin{${unclosedEnv.name}} sin cerrar con \\end{${unclosedEnv.name}}`,
+      severity: 'error',
+      token: unclosedEnv.raw
+    });
+  }
+
+  // --- 4. Inline LaTeX ($) Validation ---
+  // Remove block math $$ first to scan for single $
+  const codeWithoutBlockMath = code.replace(/\$\$[\s\S]*?\$\$/g, (m) => ' '.repeat(m.length));
+  const singleDollarRegex = /(^|[^\\])\$/g;
+  const singleDollars: number[] = [];
+  while ((match = singleDollarRegex.exec(codeWithoutBlockMath)) !== null) {
+    const dollarPos = match.index + (match[1] ? match[1].length : 0);
+    singleDollars.push(dollarPos);
+  }
+
+  if (singleDollars.length % 2 !== 0) {
+    const lastDollar = singleDollars[singleDollars.length - 1];
+    issues.push({
+      startIndex: lastDollar,
+      endIndex: lastDollar + 1,
+      type: 'latex',
+      message: 'Delimitador de fórmula matemática ($) incompleto o sin cerrar',
+      severity: 'warning',
+      token: '$'
+    });
+  }
+
+  return issues;
+}
+
+/**
+ * Backward-compatible helper for general validation checks
+ */
+export function validateContent(code: string): ValidationError[] {
+  const issues = findSyntaxIssues(code);
+  return issues.map(issue => ({
+    type: issue.type,
+    message: issue.message,
+    severity: issue.severity,
+    startIndex: issue.startIndex,
+    endIndex: issue.endIndex
+  }));
 }

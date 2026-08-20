@@ -1,6 +1,6 @@
 {
   "name": "Plantilla Documentos WP",
-  "description": "Plantilla académica oficial WP con portada, encabezados, pies de página, márgenes de 1 pulgada, paginación dinámica y soporte para edición de content.html en tiempo real.",
+  "description": "Plantilla académica oficial WP con editor de contenido Markdown a color con resaltado en vivo, paleta cromática, portada, encabezados, pies de página, paginación dinámica y exportación.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
