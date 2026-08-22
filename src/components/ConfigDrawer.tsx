@@ -723,13 +723,39 @@ Márgenes de Página (Bordes):
   line-height: 200% !important;
 }
 
-/* Nivel 4: Con sangría (0.5 in), Negrita, punto final (En la misma línea / Run-in) */
+/* Nivel 4 (Salto de Línea): Sangría 0.5 in, Negrita, punto final */
+.wp-document-content h4 {
+  font-family: "Times New Roman", Times, Georgia, serif !important;
+  font-size: 16px !important;
+  font-weight: bold !important;
+  font-style: normal !important;
+  text-align: left !important;
+  text-indent: 0.5in !important;
+  margin-top: 0px !important;
+  margin-bottom: 0px !important;
+  line-height: 200% !important;
+}
+
+/* Nivel 5 (Salto de Línea): Sangría 0.5 in, Negrita Cursiva, punto final */
+.wp-document-content h5 {
+  font-family: "Times New Roman", Times, Georgia, serif !important;
+  font-size: 16px !important;
+  font-weight: bold !important;
+  font-style: italic !important;
+  text-align: left !important;
+  text-indent: 0.5in !important;
+  margin-top: 0px !important;
+  margin-bottom: 0px !important;
+  line-height: 200% !important;
+}
+
+/* Nivel 4 (Run-in): En la misma línea, Negrita, punto final (hereda sangría de primera línea del párrafo) */
 .wp-document-content .apa-runin.apa-level4 {
   font-weight: bold !important;
   font-style: normal !important;
 }
 
-/* Nivel 5: Con sangría (0.5 in), Negrita, Cursiva, punto final (En la misma línea / Run-in) */
+/* Nivel 5 (Run-in): En la misma línea, Negrita Cursiva, punto final (hereda sangría de primera línea del párrafo) */
 .wp-document-content .apa-runin.apa-level5 {
   font-weight: bold !important;
   font-style: italic !important;
@@ -747,9 +773,10 @@ Márgenes de Página (Bordes):
   margin-bottom: 0px !important;
 }
 
-/* Evitar doble indentación en párrafos que contienen encabezados run-in (Nivel 4 y 5) */
+/* APA 7: Los niveles 4 y 5 run-in SÍ llevan sangría de primera línea (0.5 in).
+   Sobrescribe el valor por defecto de la app (0px) al inyectarse después. */
 .wp-document-content p:has(.apa-runin) {
-  text-indent: 0px !important;
+  text-indent: 0.5in !important;
 }`;
 
     navigator.clipboard.writeText(apa7CSS).then(() => {

@@ -164,11 +164,6 @@
   box-shadow: none !important;
 }
 
-/* Evitar doble indentación en párrafos que contienen encabezados run-in (Nivel 4 y 5) */
-.wp-document-content p:has(.apa-runin) {
-  text-indent: 0px !important;
-}
-
 /* Explicit border resets to prevent unwanted frames while preserving KaTeX math lines and tables */
 .wp-document-content *:not(.katex):not(.katex *):not(table):not(thead):not(tbody):not(tr):not(th):not(td):not(figure):not(.note):not(hr),
 .wp-document-content *::before,

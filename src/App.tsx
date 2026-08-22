@@ -206,9 +206,6 @@ const DEFAULT_BLOCK_TITLES = `/* Estilo de Títulos APA 7 (Level 1, 2, 3, etc.) 
   text-indent: 0.5in; /* Indentación APA 7 */
   margin-top: 0;
   margin-bottom: 0px;
-}
-.wp-document-content p:has(.apa-runin) {
-  text-indent: 0px !important;
 }`;
 
 const DEFAULT_BLOCK_HEADER = `/* Estilo del Encabezado Académico APA 7 */
@@ -1900,10 +1897,6 @@ export default function App() {
       border-style: none !important;
       outline: none !important;
       box-shadow: none !important;
-    }
-
-    .wp-document-content p:has(.apa-runin) {
-      text-indent: 0px !important;
     }
 
     .wp-document-content ul:not(.toc-list) {

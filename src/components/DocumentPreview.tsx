@@ -1221,10 +1221,6 @@ export default function DocumentPreview({
       box-shadow: none !important;
     }
 
-    .wp-document-content p:has(.apa-runin) {
-      text-indent: 0px !important;
-    }
-
     .wp-document-content ul:not(.toc-list) {
       list-style-type: disc !important;
       padding-left: 0.5in !important;
@@ -2399,10 +2395,6 @@ export default function DocumentPreview({
       border-style: none !important;
       outline: none !important;
       box-shadow: none !important;
-    }
-
-    .wp-document-content p:has(.apa-runin) {
-      text-indent: 0px !important;
     }
 
     .wp-document-content ul:not(.toc-list) {
