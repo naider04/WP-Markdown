@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { HTMLBlock } from '../types';
 import {
   Plus,
@@ -22,6 +22,93 @@ import { copyToWordClipboard } from '../lib/wordExporter';
 import { ColoredMarkdownEditor } from './ColoredMarkdownEditor';
 import { highlightMarkdownCode } from '../utils/markdownHighlighter';
 import { Edit3, Sparkles } from 'lucide-react';
+
+const BlockPreviewContent = React.memo(function BlockPreviewContent({ code }: { code: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const highlightedHtml = useMemo(() => highlightMarkdownCode(code), [code]);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      if (containerRef.current.innerHTML !== highlightedHtml) {
+        const prevScrollTop = containerRef.current.scrollTop;
+        const prevScrollLeft = containerRef.current.scrollLeft;
+        containerRef.current.innerHTML = highlightedHtml;
+        containerRef.current.scrollTop = prevScrollTop;
+        containerRef.current.scrollLeft = prevScrollLeft;
+      }
+    }
+  }, [highlightedHtml]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="preview-content-container font-mono text-xs text-slate-300 whitespace-pre overflow-x-auto min-h-[140px] max-h-[380px] overflow-y-auto custom-scrollbar p-3 rounded bg-slate-950/70"
+      style={{
+        fontFamily: '"Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        lineHeight: '1.6',
+      }}
+    />
+  );
+});
+
+function getCharIndexFromClick(
+  e: React.MouseEvent<HTMLElement>,
+  fullText: string,
+  containerEl: HTMLElement | null
+): number {
+  if (!fullText) return 0;
+  try {
+    let node: Node | null = null;
+    let offset = 0;
+
+    if (typeof (document as any).caretPositionFromPoint === 'function') {
+      const pos = (document as any).caretPositionFromPoint(e.clientX, e.clientY);
+      if (pos) {
+        node = pos.offsetNode;
+        offset = pos.offset;
+      }
+    } else if (typeof document.caretRangeFromPoint === 'function') {
+      const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+      if (range) {
+        node = range.startContainer;
+        offset = range.startOffset;
+      }
+    }
+
+    if (node && containerEl && containerEl.contains(node)) {
+      let charCount = 0;
+      const walker = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT, null);
+      let currentNode = walker.nextNode();
+      while (currentNode) {
+        if (currentNode === node) {
+          charCount += offset;
+          return Math.min(Math.max(0, charCount), fullText.length);
+        }
+        charCount += currentNode.textContent?.length || 0;
+        currentNode = walker.nextNode();
+      }
+    }
+  } catch (err) {
+    // Non-critical fallback
+  }
+
+  // Fallback: estimate from line-height and click Y position
+  if (containerEl) {
+    const rect = containerEl.getBoundingClientRect();
+    const relativeY = Math.max(0, e.clientY - rect.top + containerEl.scrollTop);
+    const estimatedLineHeight = 19.2; // 12px * 1.6
+    const lineIndex = Math.floor(relativeY / estimatedLineHeight);
+
+    const lines = fullText.split('\n');
+    let count = 0;
+    for (let i = 0; i < Math.min(lineIndex, lines.length); i++) {
+      count += lines[i].length + 1; // +1 for newline
+    }
+    return Math.min(Math.max(0, count), fullText.length);
+  }
+
+  return 0;
+}
 
 interface AutoGrowingTextAreaProps {
   id: string;
@@ -167,6 +254,7 @@ interface SidebarEditorProps {
   setIsLocallyEdited: (val: boolean) => void;
   onResetToOriginal: () => void;
   syncStatusMsg: string;
+  debounceDelay?: number;
 }
 
 export function SidebarEditor({
@@ -181,10 +269,8 @@ export function SidebarEditor({
   setIsLocallyEdited,
   onResetToOriginal,
   syncStatusMsg,
+  debounceDelay = 300,
 }: SidebarEditorProps) {
-  // Debounce delay state for typing (default 0ms, managed by global header controls)
-  const [debounceDelay] = useState<number>(0);
-
   // Drag and drop state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -214,8 +300,14 @@ export function SidebarEditor({
   // State to handle block delete confirmation modal
   const [blockToDelete, setBlockToDelete] = useState<HTMLBlock | null>(null);
 
-  // State to track which block is actively in 3rd-click edit mode
+  // State to track which block is actively in 3rd-click edit mode and its scroll/click position
   const [activeEditingBlockId, setActiveEditingBlockId] = useState<string | null>(null);
+  const [activeEditingBlockInfo, setActiveEditingBlockInfo] = useState<{
+    blockId: string;
+    charIndex: number;
+    scrollTop?: number;
+    scrollLeft?: number;
+  } | null>(null);
 
   // State for showing the "Nuevo Bloque" dropdown menu
   const [showAddMenu, setShowAddMenu] = useState<boolean>(false);
@@ -472,14 +564,18 @@ export function SidebarEditor({
               onFocus={() => {
                 if (lastFocusedBlockId !== block.id) {
                   setLastFocusedBlockId(block.id);
-                  setActiveEditingBlockId(null);
+                  if (activeEditingBlockId !== block.id) {
+                    setActiveEditingBlockId(null);
+                  }
                 }
               }}
               onClick={() => {
                 if (!isFocused) {
                   // 1st click: Select block
                   setLastFocusedBlockId(block.id);
-                  setActiveEditingBlockId(null);
+                  if (activeEditingBlockId !== block.id) {
+                    setActiveEditingBlockId(null);
+                  }
                 } else if (!isExpanded) {
                   // 2nd click: Expand block (non-editable view)
                   setHtmlBlocks((prev) =>
@@ -557,15 +653,24 @@ export function SidebarEditor({
 
                   if (!isEditing) {
                     // Stage 2 / Expanded Read-Only View with Rich Colored Markdown Syntax Highlighting
-                    const highlightedPreview = highlightMarkdownCode(block.code);
                     return (
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
+                          const containerEl = e.currentTarget.querySelector('.preview-content-container') as HTMLElement || e.currentTarget;
+                          const charIndex = getCharIndexFromClick(e, block.code, containerEl);
+                          const scrollTop = containerEl.scrollTop;
+                          const scrollLeft = containerEl.scrollLeft;
                           setActiveEditingBlockId(block.id);
+                          setActiveEditingBlockInfo({
+                            blockId: block.id,
+                            charIndex,
+                            scrollTop,
+                            scrollLeft,
+                          });
                         }}
                         className="flex-1 p-2.5 bg-slate-950 rounded-lg flex flex-col gap-2 cursor-pointer group hover:bg-slate-900/60 transition-colors border border-slate-850/60 hover:border-orange-500/50"
-                        title="Haz clic aquí para activar la edición de este bloque"
+                        title="Haz clic en cualquier palabra o línea para empezar a editar exactamente ahí"
                       >
                         <div className="flex items-center justify-between gap-2 pb-1 border-b border-slate-900/60 select-none">
                           <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-semibold">
@@ -578,13 +683,9 @@ export function SidebarEditor({
                           </span>
                         </div>
                         {block.code ? (
-                          <div
-                            className="font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap break-words max-h-[320px] overflow-y-auto custom-scrollbar p-1.5 rounded bg-slate-950/70"
-                            style={{ fontFamily: '"Fira Code", monospace' }}
-                            dangerouslySetInnerHTML={{ __html: highlightedPreview }}
-                          />
+                          <BlockPreviewContent code={block.code} />
                         ) : (
-                          <div className="font-mono text-xs text-slate-600 italic p-1.5">
+                          <div className="font-mono text-xs text-slate-600 italic p-3 min-h-[140px]">
                             &lt;Bloque vacío - haz clic para escribir contenido&gt;
                           </div>
                         )}
@@ -602,6 +703,21 @@ export function SidebarEditor({
                         placeholder="Escribe aquí en Markdown (puedes colorear texto, insertar fórmulas LaTeX o etiquetas HTML)..."
                         debounceDelay={debounceDelay}
                         autoFocus={true}
+                        initialCursorPosition={
+                          activeEditingBlockInfo?.blockId === block.id
+                            ? activeEditingBlockInfo.charIndex
+                            : undefined
+                        }
+                        initialScrollTop={
+                          activeEditingBlockInfo?.blockId === block.id
+                            ? activeEditingBlockInfo.scrollTop
+                            : undefined
+                        }
+                        initialScrollLeft={
+                          activeEditingBlockInfo?.blockId === block.id
+                            ? activeEditingBlockInfo.scrollLeft
+                            : undefined
+                        }
                       />
                     </div>
                   );

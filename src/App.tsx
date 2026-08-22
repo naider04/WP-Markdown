@@ -1134,6 +1134,10 @@ export default function App() {
   }, [htmlBlocks]);
 
   useEffect(() => {
+    localStorage.setItem('wp_static_sync_delay', String(staticSyncDelay));
+  }, [staticSyncDelay]);
+
+  useEffect(() => {
     localStorage.setItem('wp_is_locally_edited', String(isLocallyEdited));
   }, [isLocallyEdited]);
 
@@ -2779,10 +2783,10 @@ read -p "Presione [Enter] para salir..."`;
             {/* Input: Retraso Sincronización */}
             <div
               className="flex items-center gap-1.5"
-              title="Retraso en milisegundos para sincronizar cualquier cambio (portada, márgenes, estilos, gráficos, bibliografía, texto) con las hojas"
+              title="Tiempo de espera universal (en ms) tras dejar de escribir para sincronizar bloques, verificar sintaxis y compilar la vista previa"
             >
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
-                Sinc. Estática:
+                Espera tras escribir:
               </span>
               <input
                 type="number"
@@ -3002,6 +3006,7 @@ read -p "Presione [Enter] para salir..."`;
                   setIsLocallyEdited={setIsLocallyEdited}
                   onResetToOriginal={handleResetToOriginal}
                   syncStatusMsg={syncStatusMsg}
+                  debounceDelay={staticSyncDelay}
                 />
               ) : activeDrawerType === 'bibliography' ? (
                 <BibliographyDrawer
